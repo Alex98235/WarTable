@@ -41,6 +41,12 @@ public static class IntelEndpoints
             }
         });
 
+        group.MapPut("/{id:guid}", async (Guid id, IntelPatch patch, WarTableService service) =>
+        {
+            var updated = await service.UpdateIntelAsync(id, patch);
+            return updated is null ? Results.NotFound() : Results.Ok(updated);
+        });
+
         group.MapDelete("/{id:guid}", async (Guid id, WarTableService service) =>
         {
             var deleted = await service.DeleteIntelAsync(id);

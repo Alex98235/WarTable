@@ -23,6 +23,13 @@ public record CampaignPatch(
     CampaignStatus? Status = null,
     string? Tags = null);
 
+/// <summary>Partial update payload for an intel entry. Same semantics as <see cref="ObjectivePatch"/>.</summary>
+public record IntelPatch(
+    string? Title = null,
+    string? Body = null,
+    IntelCategory? Category = null,
+    string? Tags = null);
+
 /// <summary>Raised when a sitrep references objective aliases that do not exist in the campaign.</summary>
 public class UnknownAliasException : Exception
 {
@@ -324,6 +331,25 @@ public class WarTableService
         intel.Alias = await NextAliasAsync(intel.CampaignId);
 
         _db.IntelEntries.Add(intel);
+        await _db.SaveChangesAsync();
+        return intel;
+    }
+
+    public async Task<Intel?> UpdateIntelAsync(Guid id, IntelPatch patch)
+    {
+        var intel = await _db.IntelEntries.FirstOrDefaultAsync(i => i.Id == id);
+        if (intel is null)
+            return null;
+
+        if (patch.Title is not null)
+            intel.Title = patch.Title;
+        if (patch.Body is not null)
+            intel.Body = patch.Body;
+        if (patch.Category is not null)
+            intel.Category = patch.Category.Value;
+        if (patch.Tags is not null)
+            intel.Tags = patch.Tags;
+
         await _db.SaveChangesAsync();
         return intel;
     }
