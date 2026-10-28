@@ -1,10 +1,14 @@
 <script>
   import Toast from './components/Toast.svelte';
   import Confirm from './components/Confirm.svelte';
+  import AliasPopover from './components/AliasPopover.svelte';
   import Dashboard from './pages/Dashboard.svelte';
   import Campaigns from './pages/Campaigns.svelte';
   import CampaignDetail from './pages/CampaignDetail.svelte';
   import Intel from './pages/Intel.svelte';
+  import ObjectiveDetail from './pages/ObjectiveDetail.svelte';
+  import IntelDetail from './pages/IntelDetail.svelte';
+  import SitRepDetail from './pages/SitRepDetail.svelte';
 
   let currentHash = $state(window.location.hash.slice(1) || '/');
 
@@ -41,6 +45,9 @@
       { pattern: '/', component: Dashboard },
       { pattern: '/campaigns', component: Campaigns },
       { pattern: '/campaign/:id', component: CampaignDetail },
+      { pattern: '/campaign/:id/objective/:alias', component: ObjectiveDetail },
+      { pattern: '/campaign/:id/intel/:alias', component: IntelDetail },
+      { pattern: '/campaign/:id/sitrep/:alias', component: SitRepDetail },
       { pattern: '/intel', component: Intel },
     ];
 
@@ -90,3 +97,4 @@
 
 <Toast />
 <Confirm />
+<AliasPopover />

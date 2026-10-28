@@ -5,7 +5,6 @@
    let campaigns = $state([]);
    let intelEntries = $state([]);
    let loading = $state(true);
-   let expandedIntel = $state([]);
 
    let activeCampaigns = $derived(
       campaigns.filter(
@@ -43,28 +42,6 @@
 
    function goTo(path) {
       window.location.hash = path;
-   }
-
-   function toggleIntel(id) {
-      if (expandedIntel.includes(id)) {
-         expandedIntel = expandedIntel.filter((i) => i !== id);
-      } else {
-         expandedIntel = [...expandedIntel, id];
-      }
-   }
-
-   function truncate(text, maxLen = 120) {
-      if (!text) return "";
-      return text.length > maxLen ? text.slice(0, maxLen) + "…" : text;
-   }
-
-   function bodyPreview(text) {
-      if (!text) return "";
-      return text.length > 100 ? text.slice(0, 100) + "…" : text;
-   }
-
-   function isExpanded(id) {
-      return expandedIntel.includes(id);
    }
 
    function getCategoryBadge(category) {
@@ -215,15 +192,17 @@
       {:else}
          <div class="intel-feed">
             {#each recentIntel as entry (entry.id)}
-               <div
-                  class="intel-entry"
-                  onclick={() => toggleIntel(entry.id)}
-                  onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleIntel(entry.id); } }}
-                  role="button"
-                  tabindex="0"
-               >
+               <div class="intel-entry">
                   <div class="intel-entry-header">
-                     <span class="intel-entry-title">{entry.title}</span>
+                     {#if entry.alias != null && entry.campaignId}
+                        <a
+                           href="#/campaign/{entry.campaignId}/intel/{entry.alias}"
+                           class="intel-entry-title"
+                           onclick={(e) => { e.preventDefault(); goTo(`/campaign/${entry.campaignId}/intel/${entry.alias}`); }}
+                        >{#if entry.alias != null}<span class="alias-chip-sm">#{entry.alias}</span>{/if}{entry.title}</a>
+                     {:else}
+                        <span class="intel-entry-title">{entry.title}</span>
+                     {/if}
                      <span class="badge {getCategoryBadge(entry.category)}"
                         >{entry.category || "reference"}</span
                      >
@@ -240,22 +219,6 @@
                         >
                      {/if}
                   </div>
-                  {#if entry.body}
-                     <div class="intel-entry-body">
-                        {#if isExpanded(entry.id)}
-                           {entry.body}
-                        {:else}
-                           {bodyPreview(entry.body)}
-                           {#if entry.body.length > 100}
-                              <span
-                                 class="text-xs text-muted"
-                                 style="display: inline-block; margin-top: 6px;"
-                                 >Show more…</span
-                              >
-                           {/if}
-                        {/if}
-                     </div>
-                  {/if}
                </div>
             {/each}
          </div>

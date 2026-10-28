@@ -8,6 +8,7 @@
       formatDate,
    } from "../lib/api.js";
    import { addToast, showConfirm } from "../lib/stores.js";
+   import MarkdownEditor from "../components/MarkdownEditor.svelte";
 
    let campaigns = $state([]);
    let loading = $state(true);
@@ -248,12 +249,13 @@
                <label class="form-label" for="campaign-description"
                   >Description</label
                >
-               <textarea
+               <MarkdownEditor
                   id="campaign-description"
-                  class="form-textarea"
                   bind:value={newDescription}
+                  campaignId=""
                   placeholder="Campaign description (optional)"
-                  rows="4"></textarea>
+                  rows="4"
+               />
             </div>
 
             <div class="form-group">

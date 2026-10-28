@@ -1,6 +1,7 @@
 <script>
-  import { apiGet, apiPost, apiDelete, parseTags, timeAgo } from '../lib/api.js';
-  import { addToast, showConfirm } from '../lib/stores.js';
+  import { apiGet, apiPost, parseTags, timeAgo } from '../lib/api.js';
+  import { addToast } from '../lib/stores.js';
+  import MarkdownEditor from '../components/MarkdownEditor.svelte';
 
   let intel = $state([]);
   let loading = $state(true);
@@ -9,7 +10,6 @@
   let campaignFilter = $state('');
   let campaigns = $state([]);
   let showCreateModal = $state(false);
-  let expandedId = $state(null);
 
   // New intel form fields
   let newTitle = $state('');
@@ -99,21 +99,8 @@
     }
   }
 
-  function deleteIntel(id, title) {
-    showConfirm(`Are you sure you want to delete "${title}"?`, async () => {
-      try {
-        await apiDelete(`/api/intel/${id}`);
-        addToast('Intel deleted', 'success');
-        if (expandedId === id) expandedId = null;
-        await loadIntel();
-      } catch (err) {
-        addToast(err.message || 'Failed to delete intel', 'error');
-      }
-    });
-  }
-
-  function toggleExpand(id) {
-    expandedId = expandedId === id ? null : id;
+  function goTo(path) {
+    window.location.hash = path;
   }
 
   $effect(() => {
@@ -170,24 +157,24 @@
   <div class="intel-feed">
     {#each intel as entry (entry.id)}
       <div class="intel-tab-entry">
-        <div class="intel-tab-entry-header" onclick={() => toggleExpand(entry.id)} onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(entry.id); } }} role="button" tabindex="0">
-          <strong class="intel-tab-entry-title">
-            {#if entry.alias != null}
-              <span class="alias-chip-sm">#{entry.alias}</span>
-            {/if}
-            {entry.title}
-          </strong>
+        <div class="intel-tab-entry-header">
+          {#if entry.alias != null && entry.campaignId}
+            <a href="#/campaign/{entry.campaignId}/intel/{entry.alias}" class="intel-tab-entry-title" onclick={(e) => { e.preventDefault(); goTo(`/campaign/${entry.campaignId}/intel/${entry.alias}`); }}>
+              {#if entry.alias != null}
+                <span class="alias-chip-sm">#{entry.alias}</span>
+              {/if}
+              {entry.title}
+            </a>
+          {:else}
+            <strong class="intel-tab-entry-title">
+              {#if entry.alias != null}
+                <span class="alias-chip-sm">#{entry.alias}</span>
+              {/if}
+              {entry.title}
+            </strong>
+          {/if}
           <span class="badge badge-{entry.category?.toLowerCase() || 'reference'}">{entry.category || 'reference'}</span>
         </div>
-        {#if expandedId === entry.id}
-          <div class="intel-tab-entry-body">
-            <p>{entry.body}</p>
-          </div>
-        {:else}
-          <div class="intel-tab-entry-body">
-            <p>{entry.body?.length > 200 ? entry.body.slice(0, 200) + '...' : entry.body}</p>
-          </div>
-        {/if}
         <div class="intel-tab-entry-meta">
           {#if entry.tags}
             {#each parseTags(entry.tags) as tag}
@@ -195,7 +182,6 @@
             {/each}
           {/if}
           <small class="text-muted">{timeAgo(entry.createdAt || entry.created_at)}</small>
-          <button class="btn btn-danger btn-sm" onclick={(e) => { e.stopPropagation(); deleteIntel(entry.id, entry.title); }}>Delete</button>
         </div>
       </div>
     {/each}
@@ -224,14 +210,13 @@
 
         <div class="form-group">
           <label class="form-label" for="intel-body">Body</label>
-          <textarea
+          <MarkdownEditor
             id="intel-body"
-            class="form-textarea"
             bind:value={newBody}
+            campaignId={newCampaignId || campaignFilter}
             placeholder="Intel details…"
             rows="5"
-            required
-          ></textarea>
+          />
         </div>
 
         <div class="form-group">

@@ -6,10 +6,10 @@
       apiDelete,
       parseTags,
       timeAgo,
-      formatDate,
    } from "../lib/api.js";
    import { addToast, showConfirm } from "../lib/stores.js";
-   import AliasText from "../components/AliasText.svelte";
+   import Markdown from "../components/Markdown.svelte";
+   import MarkdownEditor from "../components/MarkdownEditor.svelte";
 
    let { route } = $props();
    let campaignId = $derived(route.params.id);
@@ -77,7 +77,6 @@
       description: "",
       lane: "backlog",
    });
-   let editingObjectiveId = $state(null);
    let objectiveSaving = $state(false);
 
    // ── SitRep modal ──
@@ -97,13 +96,9 @@
       body: "",
       category: "Context",
       tags: "",
-      source: "",
       campaignId: "",
    });
    let intelSaving = $state(false);
-
-   // ── Expanded intel entries ──
-   let expandedIntel = $state({});
 
    // ── Campaign statuses ──
    let campaignStatuses = $state([
@@ -278,7 +273,6 @@
 
    // ── Open objective form (create) ──
    function openObjectiveForm(lane) {
-      editingObjectiveId = null;
       objectiveForm = {
          title: "",
          description: "",
@@ -287,18 +281,7 @@
       showObjectiveModal = true;
    }
 
-   // ── Open objective form (edit) ──
-   function openObjectiveEdit(obj) {
-      editingObjectiveId = obj.id;
-      objectiveForm = {
-         title: obj.title || "",
-         description: obj.description || "",
-         lane: obj.lane || "backlog",
-      };
-      showObjectiveModal = true;
-   }
-
-   // ── Save objective ──
+   // ── Save objective (create) ──
    async function saveObjective() {
       objectiveSaving = true;
       try {
@@ -308,22 +291,12 @@
             lane: objectiveForm.lane,
             campaignId: campaignId,
          };
-         if (editingObjectiveId) {
-            await apiPut(`/api/objectives/${editingObjectiveId}`, payload);
-         } else {
-            await apiPost(`/api/objectives`, payload);
-         }
-         addToast(
-            `Objective ${editingObjectiveId ? "updated" : "created"}.`,
-            "success",
-         );
+         await apiPost(`/api/objectives`, payload);
+         addToast("Objective created.", "success");
          showObjectiveModal = false;
          loadObjectives();
       } catch (err) {
-         addToast(
-            `Failed to ${editingObjectiveId ? "update" : "create"} objective.`,
-            "error",
-         );
+         addToast("Failed to create objective.", "error");
       } finally {
          objectiveSaving = false;
       }
@@ -392,7 +365,6 @@
             body: intelForm.body,
             category: intelForm.category,
             tags: Array.isArray(tags) ? tags.join(", ") : tags || "",
-            source: intelForm.source,
             campaignId: campaignId,
          });
          addToast("Intel logged.", "success");
@@ -402,7 +374,6 @@
             body: "",
             category: "Context",
             tags: "",
-            source: "",
             campaignId: "",
          };
          loadIntel();
@@ -411,19 +382,6 @@
       } finally {
          intelSaving = false;
       }
-   }
-
-   // ── Delete intel entry ──
-   async function deleteIntel(entryId) {
-      showConfirm("Delete this intel entry?", async () => {
-         try {
-            await apiDelete(`/api/intel/${entryId}`);
-            addToast("Intel entry deleted.", "success");
-            loadIntel();
-         } catch (err) {
-            addToast("Failed to delete intel entry.", "error");
-         }
-      });
    }
 
    // ── Open sitrep modal ──
@@ -435,9 +393,8 @@
       showSitrepModal = true;
    }
 
-   // ── Toggle intel expanded ──
-   function toggleIntel(id) {
-      expandedIntel[id] = !expandedIntel[id];
+   function goTo(path) {
+      window.location.hash = path;
    }
 </script>
 
@@ -480,7 +437,7 @@
          </div>
       </div>
       {#if campaign.description}
-         <p class="campaign-detail-desc"><AliasText text={campaign.description} campaignId={campaignId} /></p>
+         <div class="campaign-detail-desc"><Markdown source={campaign.description} campaignId={campaignId} /></div>
       {/if}
    </div>
 
@@ -516,16 +473,25 @@
             <div class="kanban-board">
                {#each lanes as lane}
                   <div class="kanban-column">
-                     <div class="kanban-column-header">{lane.label}</div>
+                     <div class="kanban-column-header">
+                        <span>{lane.label}</span>
+                        <button
+                           class="kanban-add-btn"
+                           onclick={() => openObjectiveForm(lane.key)}
+                           aria-label={`Add objective to ${lane.label}`}
+                           >+</button
+                        >
+                     </div>
                      <div class="kanban-column-body">
                         {#each objectives.filter((o) => o.lane === lane.key) as obj (obj.id)}
                            <div
                               class="kanban-card"
-                              onclick={() => openObjectiveEdit(obj)}
+                              onclick={() => goTo(`/campaign/${campaignId}/objective/${obj.alias}`)}
                               onkeydown={(e) => {
+                                 if (e.target !== e.currentTarget) return;
                                  if (e.key === "Enter" || e.key === " ") {
                                     e.preventDefault();
-                                    openObjectiveEdit(obj);
+                                    goTo(`/campaign/${campaignId}/objective/${obj.alias}`);
                                  }
                               }}
                               role="button"
@@ -537,11 +503,6 @@
                                {/if}
                                {obj.title}
                             </div>
-                              {#if obj.description}
-                                 <div class="kanban-card-meta">
-                                    {obj.description}
-                                 </div>
-                              {/if}
                               <div class="kanban-card-meta">
                                  <button
                                     class="btn btn-ghost btn-sm"
@@ -563,11 +524,6 @@
                            </div>
                         {/each}
                      </div>
-                     <button
-                        class="kanban-add-btn"
-                        onclick={() => openObjectiveForm(lane.key)}
-                        >+ Add</button
-                     >
                   </div>
                {/each}
             </div>
@@ -590,7 +546,11 @@
                {#each sitreps as sitrep (sitrep.id || sitrep._id)}
                   <div class="sitrep-item">
                      <div class="sitrep-item-header">
-                        <span class="alias-chip">#{sitrep.alias}</span>
+                        <a
+                           href="#/campaign/{campaignId}/sitrep/{sitrep.alias}"
+                           class="alias-chip alias-chip-link"
+                           onclick={(e) => { e.preventDefault(); goTo(`/campaign/${campaignId}/sitrep/${sitrep.alias}`); }}
+                        >#{sitrep.alias}</a>
                         <small class="sitrep-item-date"
                            >{timeAgo(
                               sitrep.createdAt || sitrep.timestamp,
@@ -604,7 +564,7 @@
                         >
                      </div>
                      <div class="sitrep-item-summary">
-                        <AliasText text={sitrep.summary} campaignId={campaignId} />
+                        <Markdown source={sitrep.summary} campaignId={campaignId} clamp={6} collapsible />
                      </div>
                      {#if sitrep.objectives?.length}
                         <div class="sitrep-item-obj-groups">
@@ -615,12 +575,14 @@
                                     <span class="sitrep-obj-group-label">{groupKind}</span>
                                     <div class="sitrep-obj-group-items">
                                        {#each group as ref}
-                                          <span
-                                             class="obj-ref-chip obj-ref-{groupKind.toLowerCase()}"
-                                             >#{ref.objectiveAlias} {ref.titleSnapshot}
+                                          <a
+                                             href="#/campaign/{campaignId}/objective/{ref.objectiveAlias}"
+                                             class="obj-ref-chip obj-ref-{groupKind.toLowerCase()} obj-ref-link"
+                                             onclick={(e) => { e.preventDefault(); goTo(`/campaign/${campaignId}/objective/${ref.objectiveAlias}`); }}
+                                          >#{ref.objectiveAlias} {ref.titleSnapshot}
                                              <span class="text-muted"
                                                 >({ref.laneAtWrite})</span
-                                             ></span
+                                             ></a
                                           >
                                        {/each}
                                     </div>
@@ -653,51 +615,27 @@
             <div class="intel-feed">
                {#each intelEntries as entry (entry.id || entry._id)}
                   <div class="intel-tab-entry">
-                     <div
-                        class="intel-tab-entry-header"
-                        onclick={() => toggleIntel(entry.id || entry._id)}
-                        onkeydown={(e) => {
-                           if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              toggleIntel(entry.id || entry._id);
-                           }
-                        }}
-                        role="button"
-                        tabindex="0"
-                     >
-                        <strong class="intel-tab-entry-title">
-                           {#if entry.alias != null}
-                              <span class="alias-chip-sm">#{entry.alias}</span>
-                           {/if}
-                           {entry.title}
-                        </strong>
+                     <div class="intel-tab-entry-header">
+                        {#if entry.alias != null}
+                           <a
+                              href="#/campaign/{campaignId}/intel/{entry.alias}"
+                              class="intel-tab-entry-title"
+                              onclick={(e) => { e.preventDefault(); goTo(`/campaign/${campaignId}/intel/${entry.alias}`); }}
+                           ><span class="alias-chip-sm">#{entry.alias}</span>{entry.title}</a>
+                        {:else}
+                           <strong class="intel-tab-entry-title">
+                              {#if entry.alias != null}
+                                 <span class="alias-chip-sm">#{entry.alias}</span>
+                              {/if}
+                              {entry.title}
+                           </strong>
+                        {/if}
                         <span
                            class="badge badge-{entry.category?.toLowerCase() ||
                               'reference'}"
                            >{entry.category || "reference"}</span
                         >
                      </div>
-                     {#if expandedIntel[entry.id || entry._id]}
-                        <div class="intel-tab-entry-body">
-                           <p>{entry.body}</p>
-                        </div>
-                     {:else}
-                        <div class="intel-tab-entry-body">
-                           <p>
-                              {entry.body?.length > 150
-                                 ? entry.body.slice(0, 150) + "..."
-                                 : entry.body}
-                           </p>
-                           {#if entry.body?.length > 150}
-                              <button
-                                 class="btn btn-ghost btn-sm"
-                                 onclick={() =>
-                                    toggleIntel(entry.id || entry._id)}
-                                 >Read more</button
-                              >
-                           {/if}
-                        </div>
-                     {/if}
                      <div class="intel-tab-entry-meta">
                         {#if Array.isArray(entry.tags) && entry.tags.length > 0}
                            {#each entry.tags as tag}
@@ -710,11 +648,6 @@
                         {/if}
                         <small class="text-muted"
                            >{timeAgo(entry.createdAt || entry.timestamp)}</small
-                        >
-                        <button
-                           class="btn btn-danger btn-sm"
-                           onclick={() => deleteIntel(entry.id || entry._id)}
-                           >Delete</button
                         >
                      </div>
                   </div>
@@ -757,10 +690,11 @@
                   <label class="form-label" for="edit-description"
                      >Description</label
                   >
-                  <textarea
+                  <MarkdownEditor
                      id="edit-description"
-                     class="form-textarea"
-                     bind:value={editForm.description}></textarea>
+                     bind:value={editForm.description}
+                     {campaignId}
+                  />
                </div>
                <div class="form-group">
                   <label class="form-label" for="edit-tags"
@@ -804,7 +738,7 @@
             tabindex="-1"
          >
             <div class="modal-header">
-               <h2>{editingObjectiveId ? "Edit" : "Add"} Objective</h2>
+               <h2>Add Objective</h2>
             </div>
             <div class="modal-body">
                <div class="form-group">
@@ -820,10 +754,11 @@
                   <label class="form-label" for="obj-description"
                      >Description</label
                   >
-                  <textarea
+                  <MarkdownEditor
                      id="obj-description"
-                     class="form-textarea"
-                     bind:value={objectiveForm.description}></textarea>
+                     bind:value={objectiveForm.description}
+                     {campaignId}
+                  />
                </div>
                <div class="form-group">
                   <label class="form-label" for="obj-lane">Lane</label>
@@ -849,11 +784,7 @@
                   class="btn btn-primary"
                   onclick={saveObjective}
                   disabled={objectiveSaving}
-                  >{objectiveSaving
-                     ? "Saving..."
-                     : editingObjectiveId
-                       ? "Update"
-                       : "Create"}</button
+                  >{objectiveSaving ? "Saving..." : "Create"}</button
                >
             </div>
          </div>
@@ -882,11 +813,12 @@
             <div class="modal-body">
                <div class="form-group">
                   <label class="form-label" for="sitrep-summary">Summary</label>
-                  <textarea
+                  <MarkdownEditor
                      id="sitrep-summary"
-                     class="form-textarea"
                      bind:value={sitrepForm.summary}
-                     placeholder="What happened this period? Use #N to reference objectives."></textarea>
+                     {campaignId}
+                     placeholder="What happened this period? Use #N to reference objectives."
+                  />
                </div>
 
                <div class="form-group">
@@ -1030,10 +962,11 @@
                </div>
                <div class="form-group">
                   <label class="form-label" for="intel-body">Body</label>
-                  <textarea
+                  <MarkdownEditor
                      id="intel-body"
-                     class="form-textarea"
-                     bind:value={intelForm.body}></textarea>
+                     bind:value={intelForm.body}
+                     {campaignId}
+                  />
                </div>
                <div class="form-group">
                   <label class="form-label" for="intel-category">Category</label
@@ -1058,15 +991,6 @@
                      class="form-input"
                      type="text"
                      bind:value={intelForm.tags}
-                  />
-               </div>
-               <div class="form-group">
-                  <label class="form-label" for="intel-source">Source</label>
-                  <input
-                     id="intel-source"
-                     class="form-input"
-                     type="text"
-                     bind:value={intelForm.source}
                   />
                </div>
             </div>
@@ -1101,6 +1025,15 @@
       background: var(--color-olive-dark);
       color: var(--color-olive-light);
       white-space: nowrap;
+   }
+   .alias-chip-link {
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s ease;
+   }
+   .alias-chip-link:hover {
+      background: var(--color-olive);
+      color: var(--text-inverse);
    }
    .alias-chip-sm {
       display: inline-flex;
@@ -1243,6 +1176,15 @@
       background: var(--bg-surface);
       border: 1px solid var(--border-color);
       color: var(--text-secondary);
+   }
+   .obj-ref-link {
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+   }
+   .obj-ref-link:hover {
+      border-color: var(--color-olive);
+      box-shadow: var(--shadow-sm);
    }
    .obj-ref-completed {
       border-color: var(--color-olive);
