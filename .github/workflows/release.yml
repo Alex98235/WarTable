@@ -9,7 +9,32 @@ permissions:
   contents: write
 
 jobs:
+  # Generates release notes from Conventional Commits. Runs once and is shared
+  # with both platform builds so the two release-asset uploads agree on the body.
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # git-cliff walks tags and history, so a shallow clone is not enough.
+          fetch-depth: 0
+
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+          output: RELEASE_NOTES.md
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+          if-no-files-found: warn
+
   publish:
+    needs: changelog
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -24,6 +49,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
 
       - uses: actions/setup-node@v4
         with:
@@ -99,5 +128,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.archive }}
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           prerelease: ${{ contains(github.ref_name, '-') }}

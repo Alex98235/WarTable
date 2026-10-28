@@ -174,6 +174,24 @@ dotnet run -- --mode serve
 dotnet run -- --mode mcp
 ```
 
+## Changelog
+
+`CHANGELOG.md` is generated from commit history by
+[git-cliff](https://git-cliff.org), using `cliff.toml`:
+
+```bash
+npm run changelog     # regenerate CHANGELOG.md from the full history
+```
+
+The same config produces the body of every GitHub release, so commit messages
+drive the notes. Prefix them with a Conventional Commit type so they land in the
+right section: `feat:`, `fix:`, `docs:`, `refactor:`, `perf:`, `test:`, `ci:`,
+`build:`, `chore:`. Anything else is listed under "Other" rather than dropped.
+
+Requires the `git-cliff` binary on your `PATH`
+(`scoop install git-cliff`, `brew install git-cliff`, or
+`cargo install git-cliff`).
+
 ## Database
 
 SQLite database stored at `~/.wartable/wartable.db` by default. Created automatically on first run.
