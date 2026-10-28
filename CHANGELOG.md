@@ -10,9 +10,20 @@ Sections are generated from Conventional Commits by
 
 ## [0.1.0] — 2026-10-28
 
+### Bug Fixes
+- Handle the first release when the repo has no tags
+
+### Build & CI
+- Generate changelog and release notes with git-cliff
+- Write release notes to a file and publish from a single job
+
 ### Documentation
 - Fix releases link
+- Document the release workflow
+
+### Features
+- Add npm run release to derive, tag and push a release
 
 ### Other
-- Initial release
+- Initial commit
 
