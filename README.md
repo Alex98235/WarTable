@@ -6,9 +6,9 @@ Built with C# ASP.NET Minimal API, EF Core + SQLite, and Svelte 5.
 
 ## Install (prebuilt binary)
 
-Grab the latest `wartable-win-x64.zip` or `wartable-linux-x64.tar.gz` from
-[Releases](../../releases). The archive contains a single self-contained
-binary — no .NET runtime required. The web UI is embedded in it.
+Grab the latest `wartable-win-x64.zip` or `wartable-linux-x64.tar.gz` from the
+Releases page. The archive contains a single self-contained binary — no .NET
+runtime required. The web UI is embedded in it.
 
 ```bash
 ./wartable --port 5110                       # local only
