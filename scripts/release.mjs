@@ -73,6 +73,19 @@ function cliff(cmd, args) {
   }).trim();
 }
 
+/**
+ * Same as cliff(), but a non-zero exit with no stdout is treated as an empty
+ * answer. git-cliff does this for --bumped-version when the repository has no
+ * tags: it computes 0.1.0 internally, then fails its own tag-pattern check.
+ */
+function cliffOptional(cmd, args) {
+  try {
+    return cliff(cmd, args);
+  } catch (err) {
+    return (err.stdout ?? "").toString().trim();
+  }
+}
+
 // ---------------------------------------------------------------- checks
 
 const cliffCmd = findCliff();
@@ -102,7 +115,13 @@ try {
   console.warn(c.yellow("!") + " Could not fetch tags from origin; using local tags.");
 }
 
-const version = cliff(cliffCmd, ["--bumped-version"]);
+// git-cliff needs at least one tag as a baseline to bump from; on a brand new
+// repository it prints nothing. That is the first-release case, not an error.
+let version = cliffOptional(cliffCmd, ["--bumped-version"]);
+const firstRelease = !version;
+if (firstRelease) {
+  version = "v0.1.0";
+}
 if (!/^v\d+\.\d+\.\d+/.test(version)) {
   fail(`git-cliff returned an unexpected version: '${version}'`);
 }
@@ -117,13 +136,20 @@ if (tagExists) {
   fail(`Tag ${version} already exists. Bump the version or check 'git tag -l'.`);
 }
 
-const notes = cliff(cliffCmd, ["--unreleased", "--strip", "header"]);
+let notes = cliffOptional(cliffCmd, ["--unreleased", "--strip", "header"]);
+if (firstRelease && !notes) {
+  // No tags means no "unreleased" range; fall back to the whole history.
+  notes = cliffOptional(cliffCmd, ["--strip", "header"]).replace(/^##\s*\[Unreleased\]\s*/m, "");
+}
 const head = git(["rev-parse", "--short", "HEAD"]);
 
 // ---------------------------------------------------------------- preview
 
 console.log();
 console.log(c.bold(`  Release ${version}`) + c.dim(`  (from ${head} on ${branch})`));
+if (firstRelease) {
+  console.log(c.dim("  First release — no tags found, so the version starts at v0.1.0."));
+}
 console.log();
 console.log(notes || c.dim("  (no commits since the last tag)"));
 console.log();
