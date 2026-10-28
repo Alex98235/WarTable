@@ -20,12 +20,25 @@ jobs:
           fetch-depth: 0
 
       - name: Generate release notes
+        id: cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
           args: --latest --strip header
-          output: RELEASE_NOTES.md
         continue-on-error: true
+
+      # The action only exposes its result as an output; it has no `output`
+      # input, so the file has to be written here.
+      - name: Write release notes
+        shell: bash
+        env:
+          NOTES: ${{ steps.cliff.outputs.content }}
+        run: |
+          printf '%s\n' "$NOTES" > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Release ${GITHUB_REF_NAME}" > RELEASE_NOTES.md
+          fi
+          cat RELEASE_NOTES.md
 
       - uses: actions/upload-artifact@v4
         with:
@@ -123,10 +136,28 @@ jobs:
           path: ${{ matrix.archive }}
           if-no-files-found: error
 
-      - name: Attach to release
-        if: github.ref_type == 'tag'
+  # Creating the release from both matrix legs at once races (the second one
+  # can hit a 422 while the first is still creating it), so it happens here
+  # once, after both binaries exist.
+  release:
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wartable-*
+          merge-multiple: true
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-notes
+          path: notes
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.archive }}
-          body_path: RELEASE_NOTES.md
+          files: dist/*
+          body_path: notes/RELEASE_NOTES.md
           prerelease: ${{ contains(github.ref_name, '-') }}
