@@ -1,0 +1,6 @@
+* text=auto
+
+# Shell scripts and CI definitions must stay LF even on Windows checkouts.
+*.sh   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf

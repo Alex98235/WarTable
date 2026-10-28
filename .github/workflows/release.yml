@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            ext: .exe
+            archive: wartable-win-x64.zip
+          - rid: linux-x64
+            ext: ""
+            archive: wartable-linux-x64.tar.gz
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            WarTable.Client/package-lock.json
+
+      - run: npm ci
+      - run: npm ci --prefix WarTable.Client
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION"
+
+      # Self-contained so the target machine needs no .NET install.
+      # PublishSingleFile + the embedded wwwroot manifest produce one binary.
+      - name: Publish
+        run: |
+          dotnet publish WarTable.Api/WarTable.Api.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -o out/${{ matrix.rid }} \
+            --nologo
+
+      - name: Stage single binary
+        shell: bash
+        run: |
+          mkdir -p staging
+          binary="out/${{ matrix.rid }}/WarTable.Api${{ matrix.ext }}"
+          test -f "$binary"
+          cp "$binary" "staging/wartable${{ matrix.ext }}"
+
+      - name: Package
+        shell: bash
+        run: |
+          cd staging
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            zip -9 "../${{ matrix.archive }}" "wartable${{ matrix.ext }}"
+          else
+            tar -czf "../${{ matrix.archive }}" "wartable${{ matrix.ext }}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+          if-no-files-found: error
+
+      - name: Attach to release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.archive }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

@@ -1,0 +1,15 @@
+{
+  "name": "wartable",
+  "private": true,
+  "scripts": {
+    "build:frontend": "npm --prefix WarTable.Client run build",
+    "build:backend": "dotnet build WarTable.Api/WarTable.Api.csproj",
+    "build": "npm run build:frontend && npm run build:backend",
+    "dev:frontend": "npm --prefix WarTable.Client run dev",
+    "dev:backend": "dotnet run --project WarTable.Api -- --mode serve",
+    "dev": "concurrently -n fe,be -c cyan,magenta \"npm run dev:frontend\" \"npm run dev:backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
