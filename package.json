@@ -6,6 +6,7 @@
     "build:backend": "dotnet build WarTable.Api/WarTable.Api.csproj",
     "build": "npm run build:frontend && npm run build:backend",
     "changelog": "git-cliff -o CHANGELOG.md",
+    "release": "node scripts/release.mjs",
     "dev:frontend": "npm --prefix WarTable.Client run dev",
     "dev:backend": "dotnet run --project WarTable.Api -- --mode serve",
     "dev": "concurrently -n fe,be -c cyan,magenta \"npm run dev:frontend\" \"npm run dev:backend\""
