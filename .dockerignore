@@ -1,0 +1,32 @@
+# Version control and CI
+.git
+.gitattributes
+.github
+
+# Build output and dependencies (rebuilt inside the image)
+**/bin
+**/obj
+**/node_modules
+WarTable.Api/wwwroot
+WarTable.Api.Tests
+
+# Runtime data and local configuration
+data
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+
+# Documentation, scripts, and repository metadata not needed by the build
+docs
+scripts
+CHANGELOG.md
+README.md
+cliff.toml
+package.json
+package-lock.json
+WarTable.slnx
+Dockerfile
+docker-compose*.yml

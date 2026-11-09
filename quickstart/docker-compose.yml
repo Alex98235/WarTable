@@ -1,0 +1,46 @@
+# WarTable quickstart
+#
+# One-file Compose deployment for a first run. It uses the public
+# `latest` image and a named volume, so there is no checkout, `.env`,
+# host data directory, or chown step.
+#
+#   docker compose up -d
+#   curl -fsS http://localhost:5110/api/health
+#
+# For a controlled production deployment, use the repository's pinned
+# `docker-compose.yml` and the update script instead:
+# https://github.com/Alex98235/WarTable/blob/main/docs/deployment.md
+
+services:
+  wartable:
+    image: ghcr.io/alex98235/wartable:latest
+    platform: linux/amd64
+    container_name: wartable
+    restart: unless-stopped
+    ports:
+      # Override the host port if 5110 is already in use:
+      #   WARTABLE_PORT=5111 docker compose up -d
+      - "${WARTABLE_PORT:-5110}:5110"
+    volumes:
+      - wartable-data:/data
+    command:
+      - --mode
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5110"
+      - --db
+      - /data/wartable.db
+    environment:
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5110/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  wartable-data:
+    name: wartable-data

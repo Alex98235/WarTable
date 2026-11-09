@@ -1,0 +1,27 @@
+services:
+  wartable:
+    platform: linux/amd64
+    image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}
+    container_name: wartable
+    restart: unless-stopped
+    ports:
+      - "5110:5110"
+    volumes:
+      - ./data:/data
+    command:
+      - --mode
+      - serve
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5110"
+      - --db
+      - /data/wartable.db
+    environment:
+      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5110/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

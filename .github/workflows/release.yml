@@ -1,0 +1,357 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # Generates release notes from Conventional Commits. Runs once and is shared
+  # with both platform builds so the two release-asset uploads agree on the body.
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # git-cliff walks tags and history, so a shallow clone is not enough.
+          fetch-depth: 0
+
+      - name: Generate release notes
+        id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+        continue-on-error: true
+
+      # The action only exposes its result as an output; it has no `output`
+      # input, so the file has to be written here.
+      - name: Write release notes
+        shell: bash
+        env:
+          NOTES: ${{ steps.cliff.outputs.content }}
+        run: |
+          printf '%s\n' "$NOTES" > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "Release ${GITHUB_REF_NAME}" > RELEASE_NOTES.md
+          fi
+          cat RELEASE_NOTES.md
+
+      # The notes carry the schema version, whether it changed, and the
+      # comparison link. The schema version is the value the database checks at
+      # startup; a bump means the existing database is recreated after a backup.
+      - name: Append release metadata
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -euo pipefail
+
+          schema_version="$(sed -n 's/.*public const int SchemaVersion = \([0-9][0-9]*\);.*/\1/p' WarTable.Api/Data/DatabaseInitializer.cs | head -n1)"
+          if [ -z "$schema_version" ]; then
+            echo "Could not read SchemaVersion from DatabaseInitializer.cs" >&2
+            exit 1
+          fi
+
+          if [ "$REF_TYPE" = "tag" ]; then
+            current_tag="$REF_NAME"
+            docs_ref="$current_tag"
+            prev_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "${current_tag}^" 2>/dev/null || true)"
+          else
+            current_tag=""
+            docs_ref="main"
+            prev_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' HEAD 2>/dev/null || true)"
+          fi
+
+          prev_schema=""
+          if [ -n "$prev_tag" ]; then
+            prev_file="$(git show "${prev_tag}:WarTable.Api/Data/DatabaseInitializer.cs" 2>/dev/null || true)"
+            prev_schema="$(printf '%s\n' "$prev_file" | sed -n 's/.*public const int SchemaVersion = \([0-9][0-9]*\);.*/\1/p' | head -n1)"
+          fi
+
+          {
+            echo
+            echo "## Release metadata"
+            echo
+            echo "- Schema version: \`${schema_version}\`"
+
+            if [ -n "$prev_tag" ]; then
+              if [ -n "$prev_schema" ] && [ "$prev_schema" = "$schema_version" ]; then
+                echo "- Schema change: no (unchanged since \`${prev_tag}\`); existing data is preserved."
+              else
+                echo "- Schema change: **yes** (previous tag \`${prev_tag}\` used schema \`${prev_schema:-unknown}\`)."
+                echo
+                echo "> **Warning:** this release changes the database schema. On first start the"
+                echo "> existing database is backed up to \`wartable.db.bak-<timestamp>\` and replaced"
+                echo "> with an empty one. Take a cold backup before upgrading; existing data will not"
+                echo "> be carried forward."
+              fi
+
+              if [ -n "$current_tag" ]; then
+                echo "- Full changelog: ${SERVER_URL}/${REPO}/compare/${prev_tag}...${current_tag}"
+              else
+                echo "- Full changelog: ${SERVER_URL}/${REPO}/commits"
+              fi
+            else
+              echo "- Schema change: first release; there is no previous schema to compare."
+              echo "- First release: no earlier tag exists, so this release does not recreate an"
+              echo "  existing database. Later releases will report the schema change here."
+              if [ -n "$current_tag" ]; then
+                echo "- Full changelog: ${SERVER_URL}/${REPO}/commits/${current_tag}"
+              else
+                echo "- Full changelog: ${SERVER_URL}/${REPO}/commits"
+              fi
+            fi
+
+            echo "- Upgrade and rollback: ${SERVER_URL}/${REPO}/blob/${docs_ref}/docs/deployment.md#11-manual-updates-and-rollback"
+          } >> RELEASE_NOTES.md
+
+          cat RELEASE_NOTES.md
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+          if-no-files-found: warn
+
+  publish:
+    needs: changelog
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: win-x64
+            ext: .exe
+          - rid: linux-x64
+            ext: ""
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            WarTable.Client/package-lock.json
+
+      - run: npm ci
+      - run: npm ci --prefix WarTable.Client
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "value=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building version $VERSION"
+
+      # Self-contained so the target machine needs no .NET install.
+      # PublishSingleFile + the embedded wwwroot manifest produce one binary.
+      - name: Publish
+        run: |
+          dotnet publish WarTable.Api/WarTable.Api.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:Version=${{ steps.version.outputs.value }} \
+            -o out/${{ matrix.rid }} \
+            --nologo
+
+      - name: Stage single binary
+        shell: bash
+        run: |
+          mkdir -p staging
+          binary="out/${{ matrix.rid }}/WarTable.Api${{ matrix.ext }}"
+          test -f "$binary"
+          cp "$binary" "staging/wartable${{ matrix.ext }}"
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.value }}"
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            archive="wartable-${version}-${{ matrix.rid }}.zip"
+            (cd staging && zip -9 "../${archive}" "wartable${{ matrix.ext }}")
+          else
+            archive="wartable-${version}-${{ matrix.rid }}.tar.gz"
+            (cd staging && tar -czf "../${archive}" "wartable${{ matrix.ext }}")
+          fi
+          sha256sum "$archive" > "${archive}.sha256"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          cat "${archive}.sha256"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.package.outputs.archive }}
+          path: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
+          if-no-files-found: error
+
+  # Publishes the linux/amd64 image to GHCR. On a tag push the image is pushed
+  # with version tags; a manual run only builds it (edge tag, no push) so the
+  # workflow can be exercised without publishing anything.
+  container:
+    needs: changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # GHCR requires a lowercase repository path; the owner is not guaranteed
+      # to be lowercase, so normalize it here rather than in expression syntax.
+      - name: Compute image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wartable" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          labels: |
+            org.opencontainers.image.title=WarTable
+            org.opencontainers.image.description=Human-AI planning workspace
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
+            type=raw,value=edge,enable=${{ github.ref_type != 'tag' }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.ref_type == 'tag' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          sbom: false
+
+      # On a tag run this is the digest of the pushed image; a manual build is
+      # not pushed, so the digest is empty and only the image reference matters.
+      - name: Record image digest
+        shell: bash
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          image_ref="$(printf '%s\n' "$TAGS" | head -n1)"
+          printf '%s\n' "$DIGEST" > image-digest.txt
+          printf '%s\n' "$image_ref" > image-ref.txt
+          if [ -z "$DIGEST" ]; then
+            echo "Image was not pushed (manual build); digest is empty." >&2
+          fi
+          cat image-digest.txt image-ref.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: image-digest
+          path: |
+            image-digest.txt
+            image-ref.txt
+          if-no-files-found: error
+
+  # Creating the release from both matrix legs at once races (the second one
+  # can hit a 422 while the first is still creating it), so it happens here
+  # once, after both binaries and the image exist.
+  release:
+    needs: [publish, container]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wartable-*
+          merge-multiple: true
+          path: dist
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+          path: notes
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: image-digest
+          path: image-digest
+
+      - name: Append image digest and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_ref="$(cat image-digest/image-ref.txt 2>/dev/null || echo unknown)"
+          digest="$(cat image-digest/image-digest.txt 2>/dev/null || echo unknown)"
+          {
+            echo
+            echo "## Container image"
+            echo
+            echo "- Image: \`${image_ref}\`"
+            echo "- Digest: \`${digest}\`"
+            echo
+            echo "## Checksums"
+            echo
+            echo '```'
+            if compgen -G 'dist/*.sha256' > /dev/null; then
+              cat dist/*.sha256
+            else
+              echo "(no checksum files found)"
+            fi
+            echo '```'
+          } >> notes/RELEASE_NOTES.md
+          cat notes/RELEASE_NOTES.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*
+          body_path: notes/RELEASE_NOTES.md
+          prerelease: ${{ contains(github.ref_name, '-') }}

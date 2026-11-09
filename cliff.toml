@@ -1,0 +1,62 @@
+# git-cliff configuration
+# https://git-cliff.org/docs/configuration
+#
+# Conventional Commits drive the grouping:
+#   feat: ...   fix: ...   docs: ...   refactor: ...   perf: ...
+#   test: ...   build: ...  ci: ...     chore: ...
+# Non-conventional messages still appear, under "Other", so nothing is lost.
+
+[changelog]
+header = """
+# Changelog
+
+Release notes for WarTable are generated from Conventional Commits by
+[git-cliff](https://git-cliff.org) at release time.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+`CHANGELOG.md` is not tracked in the repository. `npm run changelog` writes a
+local, ignored preview.
+
+"""
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] — {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}{% if commit.breaking %} **(breaking)**{% endif %}
+{% endfor %}{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+# Keep non-conventional messages rather than silently dropping them.
+filter_unconventional = false
+split_commits = false
+protect_breaking_commits = true
+filter_commits = false
+topo_order = false
+sort_commits = "oldest"
+tag_pattern = "v[0-9]*"
+
+commit_parsers = [
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactoring" },
+  { message = "^docs", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^build", group = "Build & CI" },
+  { message = "^ci", group = "Build & CI" },
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^chore", group = "Chores" },
+  { message = "^revert", group = "Reverts" },
+  # Catch-all so unlabelled commits are still listed.
+  { message = ".*", group = "Other" },
+]

@@ -1,0 +1,12 @@
+# Local-build override. Use it together with the base file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# It builds the image from the local checkout instead of pulling the published
+# GHCR image, and tags the result as `wartable:${WARTABLE_TAG}`.
+services:
+  wartable:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: wartable:${WARTABLE_TAG:?set WARTABLE_TAG}

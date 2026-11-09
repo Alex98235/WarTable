@@ -1,0 +1,21 @@
+* text=auto eol=lf
+
+# Binary assets must not be line-ending converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.pdf binary
+
+# Windows-only scripts, if added later, need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

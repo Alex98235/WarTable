@@ -1,0 +1,250 @@
+name: Image update test
+
+# Manual version-to-version upgrade test for scripts/update.sh against
+# published public GHCR images. It does not build, push, or change a release
+# workflow. The job starts from `from_version`, seeds a campaign and Bunker
+# note, upgrades to `to_version`, verifies the new version and backup, then
+# deliberately updates back to `from_version` and re-checks the seeded data.
+on:
+  workflow_dispatch:
+    inputs:
+      from_version:
+        description: First published version tag to start from
+        required: true
+        type: string
+      to_version:
+        description: Second published version tag to upgrade to
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  upgrade:
+    name: Upgrade ${{ github.event.inputs.from_version }} -> ${{ github.event.inputs.to_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE_REPOSITORY: ghcr.io/alex98235/wartable
+      HEALTH_URL: http://127.0.0.1:5110/api/health
+      FROM_VERSION: ${{ github.event.inputs.from_version }}
+      TO_VERSION: ${{ github.event.inputs.to_version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        # The published package is public, so this is only needed for a private
+        # fork or private package, and it avoids anonymous pull rate limits.
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test version-to-version update and rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FROM_TAG="${FROM_VERSION#v}"
+          TO_TAG="${TO_VERSION#v}"
+          if [ -z "$FROM_TAG" ] || [ -z "$TO_TAG" ]; then
+            echo "from_version and to_version must not be empty" >&2
+            exit 1
+          fi
+
+          BASE_URL="http://127.0.0.1:5110"
+          WORKSPACE=""
+          ENV_FILE=""
+          COMPOSE_FILE=""
+          DATA_DIR=""
+          BACKUP_DIR=""
+          UPDATE_LOG=""
+          ROLLBACK_LOG=""
+
+          cleanup() {
+            local status=$?
+            trap - EXIT
+
+            if [ "$status" -ne 0 ]; then
+              echo "::group::Upgrade test failed; diagnostics"
+              if [ -n "$WORKSPACE" ] && [ -d "$WORKSPACE" ]; then
+                if [ -n "$COMPOSE_FILE" ] && [ -n "$ENV_FILE" ]; then
+                  ( cd "$WORKSPACE" && docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" ps ) || true
+                  ( cd "$WORKSPACE" && docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" logs --tail=200 ) || true
+                fi
+                for log in "$UPDATE_LOG" "$ROLLBACK_LOG"; do
+                  if [ -n "$log" ] && [ -f "$log" ]; then
+                    echo "::group::$(basename "$log")"
+                    tail -n 200 "$log" || true
+                    echo "::endgroup::"
+                  fi
+                done
+              fi
+              echo "::endgroup::"
+            fi
+
+            if [ -n "$WORKSPACE" ] && [ -d "$WORKSPACE" ]; then
+              if [ -n "$COMPOSE_FILE" ] && [ -n "$ENV_FILE" ]; then
+                ( cd "$WORKSPACE" && docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" down --remove-orphans ) >/dev/null 2>&1 || true
+              fi
+              # The data directory is owned by the container runtime user
+              # (UID 10001), so root is required to remove it on the runner.
+              sudo rm -rf "$WORKSPACE"
+            fi
+
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          wait_for_health() {
+            local attempt body
+            for attempt in $(seq 1 60); do
+              body="$(curl -fsS "$HEALTH_URL" 2>/dev/null || true)"
+              if [ -n "$body" ] && grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<< "$body"; then
+                echo "health ok after ${attempt} attempt(s)"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "timed out waiting for ${HEALTH_URL}" >&2
+            return 1
+          }
+
+          assert_seeded_data() {
+            local campaign_title note_title
+            campaign_title="$(curl -fsS "${BASE_URL}/api/campaigns/${campaign_id}" | jq -r '.title // empty')"
+            if [ "$campaign_title" != "$CAMPAIGN_TITLE" ]; then
+              echo "campaign ${campaign_id} did not read back: '${campaign_title}'" >&2
+              return 1
+            fi
+            note_title="$(curl -fsS "${BASE_URL}/api/notes/${note_id}" | jq -r '.title // empty')"
+            if [ "$note_title" != "$NOTE_TITLE" ]; then
+              echo "note ${note_id} did not read back: '${note_title}'" >&2
+              return 1
+            fi
+            echo "seeded campaign ${campaign_id} and note ${note_id} still read back"
+          }
+
+          WORKSPACE="$(mktemp -d "${RUNNER_TEMP:-/tmp}/wartable-update.XXXXXX")"
+          COMPOSE_FILE="$WORKSPACE/docker-compose.yml"
+          ENV_FILE="$WORKSPACE/.env"
+          DATA_DIR="$WORKSPACE/data"
+          BACKUP_DIR="$WORKSPACE/backups"
+          SCRIPT="$WORKSPACE/scripts/update.sh"
+          export ENV_FILE COMPOSE_FILE DATA_DIR BACKUP_DIR IMAGE_REPOSITORY HEALTH_URL
+          export COMPOSE_PROJECT_NAME="wartable-update-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+
+          cp docker-compose.yml "$COMPOSE_FILE"
+          mkdir -p "$WORKSPACE/scripts" "$DATA_DIR" "$BACKUP_DIR"
+          cp scripts/update.sh "$SCRIPT"
+          chmod +x "$SCRIPT"
+          printf 'WARTABLE_TAG=%s\n' "$FROM_TAG" > "$ENV_FILE"
+
+          # The bind-mounted data directory must be writable by the container
+          # runtime user, UID/GID 10001.
+          sudo chown -R 10001:10001 "$DATA_DIR"
+
+          cd "$WORKSPACE"
+
+          echo "Starting old image ${IMAGE_REPOSITORY}:${FROM_TAG}"
+          docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans
+          wait_for_health
+
+          CAMPAIGN_TITLE="CI upgrade ${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+          NOTE_TITLE="Upgrade seed ${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+          campaign_json="$(curl -fsS -X POST "${BASE_URL}/api/campaigns" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg title "$CAMPAIGN_TITLE" \
+              '{title: $title, intent: "Created by the update-image workflow", tags: "upgrade-test"}')")"
+          campaign_id="$(printf '%s' "$campaign_json" | jq -r '.id // empty')"
+          if [ -z "$campaign_id" ]; then
+            echo "Campaign creation returned no id: ${campaign_json}" >&2
+            exit 1
+          fi
+
+          note_json="$(curl -fsS -X POST "${BASE_URL}/api/notes" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg campaign "$campaign_id" --arg title "$NOTE_TITLE" \
+              '{campaignId: $campaign, kind: "Context", title: $title, body: "Seeded before the upgrade test", tags: "upgrade-test"}')")"
+          note_id="$(printf '%s' "$note_json" | jq -r '.id // empty')"
+          if [ -z "$note_id" ]; then
+            echo "Bunker note creation returned no id: ${note_json}" >&2
+            exit 1
+          fi
+          echo "seeded campaign ${campaign_id} and note ${note_id}"
+
+          UPDATE_LOG="$WORKSPACE/update.log"
+          echo "Running ${SCRIPT} ${TO_TAG} --yes"
+          "$SCRIPT" "$TO_TAG" --yes 2>&1 | tee "$UPDATE_LOG"
+
+          wait_for_health
+          running_image="$(docker inspect --format '{{.Config.Image}}' wartable)"
+          if [ "$running_image" != "${IMAGE_REPOSITORY}:${TO_TAG}" ]; then
+            echo "new image is not running: got '${running_image}', expected ${IMAGE_REPOSITORY}:${TO_TAG}" >&2
+            exit 1
+          fi
+          if ! grep -qx "WARTABLE_TAG=${TO_TAG}" "$ENV_FILE"; then
+            echo ".env does not contain WARTABLE_TAG=${TO_TAG}" >&2
+            exit 1
+          fi
+
+          assert_seeded_data
+
+          for expected in "Old tag:       ${FROM_TAG}" "New tag:       ${TO_TAG}" "Backup:" "Image digest:"; do
+            if ! grep -Fq "$expected" "$UPDATE_LOG"; then
+              echo "update output is missing '${expected}'" >&2
+              exit 1
+            fi
+          done
+
+          digest_value="$(grep -F 'Image digest:' "$UPDATE_LOG" | tail -n 1)"
+          digest_value="${digest_value#*Image digest:}"
+          digest_value="${digest_value#"${digest_value%%[![:space:]]*}"}"
+          digest_value="${digest_value%"${digest_value##*[![:space:]]}"}"
+          if [[ -z "$digest_value" || "$digest_value" == "unknown" || "$digest_value" != *"sha256:"* ]]; then
+            echo "update output did not contain a usable image digest: '${digest_value}'" >&2
+            exit 1
+          fi
+
+          upgrade_backup="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name 'wartable-*.tar.gz' -print -quit)"
+          if [ -z "$upgrade_backup" ] || [ ! -f "$upgrade_backup" ]; then
+            echo "no backup archive found under ${BACKUP_DIR}" >&2
+            exit 1
+          fi
+          tar -tzf "$upgrade_backup" > "$WORKSPACE/backup-list.txt"
+          if ! grep -Eq '(^|/)wartable\.db$' "$WORKSPACE/backup-list.txt"; then
+            echo "backup does not contain wartable.db: ${upgrade_backup}" >&2
+            exit 1
+          fi
+          if ! grep -Fq "Backup:        ${upgrade_backup}" "$UPDATE_LOG"; then
+            echo "update output did not report the expected backup path: ${upgrade_backup}" >&2
+            exit 1
+          fi
+
+          ROLLBACK_LOG="$WORKSPACE/rollback.log"
+          echo "Running version rollback to ${FROM_TAG}"
+          "$SCRIPT" "$FROM_TAG" --yes 2>&1 | tee "$ROLLBACK_LOG"
+
+          wait_for_health
+          running_image="$(docker inspect --format '{{.Config.Image}}' wartable)"
+          if [ "$running_image" != "${IMAGE_REPOSITORY}:${FROM_TAG}" ]; then
+            echo "rollback image is not running: got '${running_image}', expected ${IMAGE_REPOSITORY}:${FROM_TAG}" >&2
+            exit 1
+          fi
+          if ! grep -qx "WARTABLE_TAG=${FROM_TAG}" "$ENV_FILE"; then
+            echo ".env does not contain WARTABLE_TAG=${FROM_TAG} after rollback" >&2
+            exit 1
+          fi
+          if ! grep -Fq "New tag:       ${FROM_TAG}" "$ROLLBACK_LOG"; then
+            echo "rollback output did not report the from tag" >&2
+            exit 1
+          fi
+
+          assert_seeded_data
+
+          echo "UPGRADE OK from=${FROM_TAG} to=${TO_TAG} rollback=${FROM_TAG} campaign=${campaign_id} backup=${upgrade_backup}"

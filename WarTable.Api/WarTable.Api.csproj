@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Release metadata. CI overrides Version from the git tag. -->
+    <Version>0.1.0</Version>
+    <Product>WarTable</Product>
+    <Description>Human-AI planning workspace</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.13" />
+    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.13" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
+  </ItemGroup>
+
+  <!--
+    Embed the built Svelte bundle so a published single-file binary is genuinely
+    one file. Served through ManifestEmbeddedFileProvider at runtime; the loose
+    wwwroot copy is used instead when it exists (dotnet run / local build).
+
+    RootNamespace is pinned because the manifest resource names are derived from
+    it, and the file provider looks them up by that prefix.
+  -->
+  <PropertyGroup>
+    <RootNamespace>WarTable.Api</RootNamespace>
+    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+    <DebugType Condition="'$(Configuration)' == 'Release'">embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot/**" />
+    <Content Update="wwwroot/**" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
+</Project>
