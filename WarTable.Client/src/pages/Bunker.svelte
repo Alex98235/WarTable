@@ -559,34 +559,27 @@
 	</div>
 {:else}
 	{#if pinnedNotes.length > 0}
-		{#if semanticMode}
-			<p class="pinned-quiet reveal" style="--i: 1">
-				<span class="pinned-quiet-mark" aria-hidden="true">◆</span>
-				<span>Pinned directives still apply</span>
-			</p>
-		{:else}
-			<section class="pinned-zone reveal" style="--i: 1">
-				<div class="pinned-zone-head">
-					<div>
-						<p class="eyebrow">Always applied</p>
-						<h2 class="section-title">Pinned directives</h2>
-					</div>
-					<span class="inbox-count">{pinnedNotes.length}</span>
+		<section class="pinned-zone reveal" style="--i: 1">
+			<div class="pinned-zone-head">
+				<div>
+					<p class="eyebrow">Always applied</p>
+					<h2 class="section-title">Pinned directives</h2>
 				</div>
-				<div class="directive-grid">
-					{#each pinnedNotes as note (note.id)}
-						<a class="directive-card" href={noteHref(note)}>
-							<span class="directive-top">
-								<span class="ref-chip">#{note.alias}</span>
-								<span class="pin-mark" title="Pinned directive">◆</span>
-							</span>
-							<span class="directive-title">{note.title}</span>
-							<span class="directive-body">{plainText(note.body, 130)}</span>
-						</a>
-					{/each}
-				</div>
-			</section>
-		{/if}
+				<span class="inbox-count">{pinnedNotes.length}</span>
+			</div>
+			<div class="directive-grid">
+				{#each pinnedNotes as note (note.id)}
+					<a class="directive-card" href={noteHref(note)}>
+						<span class="directive-top">
+							<span class="ref-chip">#{note.alias}</span>
+							<span class="pin-mark" title="Pinned directive">◆</span>
+						</span>
+						<span class="directive-title">{note.title}</span>
+						<span class="directive-body">{plainText(note.body, 130)}</span>
+					</a>
+				{/each}
+			</div>
+		</section>
 	{/if}
 
 	<div class="filter-bar reveal" class:is-semantic={semanticMode} style="--i: 2">

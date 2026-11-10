@@ -37,6 +37,9 @@
 	let expanded = $state({});
 	let expansionInitialized = false;
 
+	let finishedOpen = $state(false);
+	let finishedInitialized = false;
+
 	let railSearch = $state('');
 
 	let editingCampaign = $state(false);
@@ -86,11 +89,26 @@
 			.map((objective) => objectiveDetails[objective.id] || objective)
 	);
 
-	let tags = $derived(campaign ? parseTags(campaign.tags) : []);
-
-	let pinnedDirectives = $derived(
-		notes.filter((note) => note.kind === 'Directive' && note.status === 'Active' && note.pinned)
+	// The plan is split into ranked tiers so the reader sees live work before
+	// parked captures and finished outcomes. A completed objective always lands
+	// in Finished, even if it was parked as a draft when it finished.
+	let finishedObjectives = $derived(
+		planObjectives.filter((objective) => objective.status === 'completed')
 	);
+
+	let inPlayObjectives = $derived(
+		planObjectives.filter(
+			(objective) => objective.status !== 'completed' && objective.planState === 'Active'
+		)
+	);
+
+	let draftObjectives = $derived(
+		planObjectives.filter(
+			(objective) => objective.status !== 'completed' && objective.planState === 'Draft'
+		)
+	);
+
+	let tags = $derived(campaign ? parseTags(campaign.tags) : []);
 
 	let charterNote = $derived(
 		notes.find(
@@ -117,6 +135,9 @@
 	let railNotes = $derived(
 		notes
 			.filter((note) => note.status === 'Active')
+			// Charter and design docs already have dedicated homes in the hero and
+			// rail; recent notes should stay a genuinely different list.
+			.filter((note) => note.kind !== 'Charter' && note.kind !== 'DesignDoc')
 			.filter((note) => {
 				const query = railSearch.trim().toLowerCase();
 				if (!query) return true;
@@ -181,6 +202,15 @@
 					])
 				);
 				expansionInitialized = true;
+			}
+
+			// Only auto-open Finished when there is nothing else to see. The state is
+			// then left alone so live updates never yank the reader's toggle.
+			if (!finishedInitialized) {
+				const plan = details.filter((objective) => objective.planState !== 'Seed');
+				const hasOpenWork = plan.some((objective) => objective.status !== 'completed');
+				finishedOpen = plan.length > 0 && !hasOpenWork;
+				finishedInitialized = true;
 			}
 		} catch (err) {
 			if (token !== loadToken) return;
@@ -456,14 +486,23 @@
 		}
 	}
 
+	/**
+	 * Reordering only makes sense inside the In play tier. The swap happens
+	 * between this objective and its nearest neighbour in that tier, then every
+	 * plan objective is re-indexed so sort orders stay unique across tiers.
+	 * Parked or finished objectives keep their relative order.
+	 */
 	async function moveObjective(objective, direction) {
-		const list = planObjectives;
-		const index = list.findIndex((candidate) => candidate.id === objective.id);
-		const swapIndex = index + direction;
-		if (index < 0 || swapIndex < 0 || swapIndex >= list.length) return;
+		const index = inPlayObjectives.findIndex((candidate) => candidate.id === objective.id);
+		const neighbour = inPlayObjectives[index + direction];
+		if (index < 0 || !neighbour) return;
 
-		const ids = list.map((candidate) => candidate.id);
-		[ids[index], ids[swapIndex]] = [ids[swapIndex], ids[index]];
+		const ids = planObjectives.map((candidate) => candidate.id);
+		const from = ids.indexOf(objective.id);
+		const to = ids.indexOf(neighbour.id);
+		if (from < 0 || to < 0) return;
+
+		[ids[from], ids[to]] = [ids[to], ids[from]];
 		const orders = Object.fromEntries(ids.map((id, position) => [id, position]));
 
 		try {
@@ -536,12 +575,13 @@
 				<h1 class="page-title hero-title">{campaign.title}</h1>
 				<div class="hero-meta">
 					{#each tags as tag}<span class="tag">{tag}</span>{/each}
-					<span class="hero-stat"
-						>{planObjectives.length} objective{planObjectives.length === 1
-							? ''
-							: 's'}</span
-					>
-					<span class="hero-stat">{completedSteps}/{totalSteps} steps done</span>
+					<span class="hero-stat">{inPlayObjectives.length} in play</span>
+					{#if finishedObjectives.length > 0}
+						<span class="hero-stat">{finishedObjectives.length} finished</span>
+					{/if}
+					{#if totalSteps > 0}
+						<span class="hero-stat">{completedSteps}/{totalSteps} steps done</span>
+					{/if}
 					<span class="hero-stat">updated {timeAgo(campaign.updatedAt)}</span>
 				</div>
 			</div>
@@ -557,6 +597,63 @@
 				>
 			</div>
 		</div>
+
+		<div class="hero-charter">
+			{#if charterNote}
+				<div class="hero-charter-head">
+					<p class="eyebrow">Charter</p>
+					<span class="hero-charter-age">updated {timeAgo(charterNote.updatedAt)}</span>
+					<div class="hero-charter-actions">
+						<button
+							type="button"
+							class="btn btn-ghost btn-sm"
+							onclick={openCharterEditor}>Edit charter</button
+						>
+						<a class="text-link" href={noteHref(charterNote)}>Open in Bunker →</a>
+					</div>
+				</div>
+				<div class="hero-charter-body markdown-wrap">
+					{#if charterNote.body}
+						<Markdown
+							source={charterNote.body}
+							{campaignId}
+							clamp={3}
+							collapsible
+							showLabel="Read charter"
+						/>
+					{:else}
+						<p class="micro-empty">
+							The charter has no body yet. Edit it to write the framing down.
+						</p>
+					{/if}
+				</div>
+			{:else if inactiveCharter}
+				<div class="hero-charter-empty">
+					<span class="hero-charter-mark" aria-hidden="true">◇</span>
+					<p>
+						This campaign's charter is marked
+						{inactiveCharter.status.toLowerCase()}. Reactivate it in the Bunker to bring
+						the framing back for agents.
+					</p>
+					<a class="btn btn-secondary btn-sm" href={noteHref(inactiveCharter)}
+						>Open charter in Bunker</a
+					>
+				</div>
+			{:else}
+				<div class="hero-charter-empty">
+					<span class="hero-charter-mark" aria-hidden="true">✦</span>
+					<p>
+						No charter yet. Write down why this campaign exists, what is in scope, and
+						how it is put together.
+					</p>
+					<button
+						type="button"
+						class="btn btn-secondary btn-sm"
+						onclick={openCharterEditor}>Write charter</button
+					>
+				</div>
+			{/if}
+		</div>
 	</div>
 
 	<div class="campaign-layout">
@@ -565,142 +662,18 @@
 				<BriefingPanel {briefing} {campaignId} />
 			{/if}
 
-			<section class="framing-zone reveal" style="--i: 1">
-				<header class="framing-head">
-					<div>
-						<p class="eyebrow">Framing</p>
-						<h2 class="framing-title">{charterNote?.title || 'Charter'}</h2>
-						<p class="framing-hint">
-							Why this campaign exists, what it covers, and how it is put together.
-							Agents read the charter before they start.
-						</p>
-					</div>
-				</header>
-
-				{#if charterNote}
-					<article class="charter-leaf">
-						<div class="charter-leaf-head">
-							<span class="charter-meta">
-								<span class="ref-chip">#{charterNote.alias}</span>
-								<span class="charter-age"
-									>updated {timeAgo(charterNote.updatedAt)}</span
-								>
-							</span>
-							<span class="charter-actions">
-								<button
-									type="button"
-									class="btn btn-secondary btn-sm"
-									onclick={openCharterEditor}>Edit charter</button
-								>
-								<a class="text-link" href={noteHref(charterNote)}
-									>Open in Bunker →</a
-								>
-							</span>
-						</div>
-						<div class="charter-body markdown-wrap">
-							{#if charterNote.body}
-								<Markdown
-									source={charterNote.body}
-									{campaignId}
-									clamp={6}
-									collapsible
-								/>
-							{:else}
-								<p class="micro-empty">
-									The charter has no body yet. Edit it to write the framing down.
-								</p>
-							{/if}
-						</div>
-					</article>
-				{:else if inactiveCharter}
-					<div class="charter-empty">
-						<span class="charter-empty-mark" aria-hidden="true">◇</span>
-						<div>
-							<h3>No active charter.</h3>
-							<p>
-								This campaign's charter is marked
-								{inactiveCharter.status.toLowerCase()}. Reactivate it in the Bunker
-								to bring the framing back for agents.
-							</p>
-							<a class="btn btn-secondary btn-sm" href={noteHref(inactiveCharter)}
-								>Open charter in Bunker</a
-							>
-						</div>
-					</div>
-				{:else}
-					<div class="charter-empty">
-						<span class="charter-empty-mark" aria-hidden="true">✦</span>
-						<div>
-							<h3>No charter yet.</h3>
-							<p>
-								Write down why this campaign exists, what is in scope, and how it is
-								put together. It becomes a note agents read first.
-							</p>
-							<button
-								type="button"
-								class="btn btn-secondary btn-sm"
-								onclick={openCharterEditor}>Write charter</button
-							>
-						</div>
-					</div>
-				{/if}
-
-				<div class="design-docs">
-					<div class="design-docs-head">
-						<p class="zone-label">Design docs</p>
-						<button
-							type="button"
-							class="btn btn-ghost btn-sm"
-							onclick={openDesignDocModal}>+ New design doc</button
-						>
-					</div>
-					{#if designDocs.length === 0}
-						<p class="micro-empty">
-							No design docs yet. Keep the longer thinking — architecture, options,
-							trade-offs — next to the plan.
-						</p>
-					{:else}
-						<ul class="design-doc-list">
-							{#each designDocs as doc (doc.id)}
-								<li>
-									<a class="design-doc-row" href={noteHref(doc)}>
-										<span class="design-doc-main">
-											<span class="design-doc-top">
-												<span class="ref-chip">#{doc.alias}</span>
-												<span class="design-doc-title">{doc.title}</span>
-												<span class="design-doc-age"
-													>updated {timeAgo(doc.updatedAt)}</span
-												>
-											</span>
-											{#if doc.body}
-												<span class="design-doc-excerpt"
-													>{plainText(doc.body, 140)}</span
-												>
-											{/if}
-										</span>
-										<span class="design-doc-arrow" aria-hidden="true">→</span>
-									</a>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			</section>
-
-			<section class="seeds-zone reveal" style="--i: 2">
-				<form class="seed-composer" onsubmit={parkSeed}>
-					<div class="seed-composer-main">
-						<label class="seed-composer-label" for="seed-thought">Park a thought</label>
-						<input
-							id="seed-thought"
-							class="seed-input"
-							type="text"
-							placeholder="Something unfinished…"
-							bind:value={seedForm.title}
-							required
-						/>
-					</div>
-					<div class="seed-composer-actions">
+			<form class="capture-strip" onsubmit={parkSeed}>
+				<div class="capture-strip-row">
+					<label class="capture-strip-label" for="seed-thought">Park a thought</label>
+					<input
+						id="seed-thought"
+						class="capture-input"
+						type="text"
+						placeholder="Something unfinished…"
+						bind:value={seedForm.title}
+						required
+					/>
+					<div class="capture-strip-actions">
 						<button
 							type="button"
 							class="text-toggle"
@@ -708,92 +681,34 @@
 							onclick={() => (seedDetailOpen = !seedDetailOpen)}
 							>{seedDetailOpen ? 'Hide detail' : 'Add detail'}</button
 						>
-						<button
-							type="submit"
-							class="btn btn-secondary btn-sm"
-							disabled={seedSaving}
-						>
+						<button type="submit" class="btn btn-ghost btn-sm" disabled={seedSaving}>
 							{seedSaving ? 'Parking…' : 'Park it'}
 						</button>
 					</div>
-					{#if seedDetailOpen}
-						<div class="seed-detail-wrap">
-							<label class="sr-only" for="seed-thought-detail">Detail</label>
-							<textarea
-								id="seed-thought-detail"
-								class="form-textarea seed-detail"
-								rows="3"
-								placeholder="Context, links, half-formed angles…"
-								bind:value={seedForm.description}></textarea>
-						</div>
-					{/if}
-				</form>
-
-				{#if seedObjectives.length > 0}
-					<div class="seeds-lane">
-						<div class="seeds-lane-head">
-							<div>
-								<p class="eyebrow">Unfinished thoughts</p>
-								<h3 class="seeds-lane-title">Seeds</h3>
-							</div>
-							<span class="inbox-count">{seedObjectives.length}</span>
-						</div>
-						<p class="seeds-hint">
-							Seeds are visible to agents in the briefing. Shape one into an objective
-							when it is ready.
-						</p>
-						<div class="seed-list">
-							{#each seedObjectives as seed (seed.id)}
-								<article class="seed-row">
-									<div class="seed-row-main">
-										<div class="seed-row-top">
-											<span class="ref-chip">#{seed.alias}</span>
-											<span class="seed-title">{seed.title}</span>
-											<span class="seed-age"
-												>updated {timeAgo(seed.updatedAt)}</span
-											>
-										</div>
-										{#if seed.description}
-											<p class="seed-excerpt">
-												{plainText(seed.description, 140)}
-											</p>
-										{/if}
-									</div>
-									<div class="seed-actions">
-										<button
-											type="button"
-											class="btn btn-secondary btn-sm"
-											onclick={() => shapeSeed(seed)}
-										>
-											Shape
-										</button>
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm"
-											onclick={() => deleteSeed(seed)}
-										>
-											Delete
-										</button>
-									</div>
-								</article>
-							{/each}
-						</div>
+				</div>
+				{#if seedDetailOpen}
+					<div class="capture-detail-wrap">
+						<label class="sr-only" for="seed-thought-detail">Detail</label>
+						<textarea
+							id="seed-thought-detail"
+							class="form-textarea capture-detail"
+							rows="3"
+							placeholder="Context, links, half-formed angles…"
+							bind:value={seedForm.description}></textarea>
 					</div>
 				{/if}
-			</section>
+			</form>
 
-			<section class="panel plan-panel">
+			<section class="panel plan-panel reveal" style="--i: 1">
 				<header class="panel-head">
 					<div class="panel-heading">
 						<p class="eyebrow">The plan</p>
 						<h2 class="panel-title">Objectives &amp; steps</h2>
 						<p class="panel-subtitle">
-							A plan tree, not columns. Dependencies decide what is ready. Drafts stay
-							parked.
+							What is in play first, then parked work, then what is finished.
 						</p>
 					</div>
 					<div class="panel-head-actions">
-						<span class="inbox-count">{planObjectives.length}</span>
 						<button
 							type="button"
 							class="btn btn-ghost btn-sm"
@@ -802,7 +717,7 @@
 					</div>
 				</header>
 
-				{#if planObjectives.length === 0}
+				{#if planObjectives.length === 0 && seedObjectives.length === 0}
 					<div class="calm-state">
 						<span class="calm-mark" aria-hidden="true">◇</span>
 						<div>
@@ -819,52 +734,52 @@
 						</div>
 					</div>
 				{:else}
-					<div class="plan-tree">
-						{#each planObjectives as objective, index (objective.id)}
-							{@const progress = stepProgress(objective.steps)}
-							{@const isOpen = !!expanded[objective.id]}
-							<article
-								class="objective-node"
-								class:is-draft={objective.planState === 'Draft'}
-							>
-								<div class="objective-node-line" aria-hidden="true">
-									<span class="node-dot"></span>
+					{#snippet objectiveRow(objective, index, movable)}
+						{@const progress = stepProgress(objective.steps)}
+						{@const isOpen = !!expanded[objective.id]}
+						<article
+							class="objective-node"
+							class:is-draft={objective.planState === 'Draft'}
+						>
+							<div class="objective-node-line" aria-hidden="true">
+								<span class="node-dot"></span>
+							</div>
+
+							<div class="objective-row">
+								<div class="objective-main">
+									<div class="objective-title-line">
+										<span class="ref-chip large">#{objective.alias}</span>
+										<a class="objective-title" href={objectiveHref(objective)}
+											>{objective.title}</a
+										>
+									</div>
+									<div class="objective-badges">
+										<StatusBadge
+											status={objective.planState === 'Active'
+												? objective.status || 'planned'
+												: objective.planState}
+											sm
+										/>
+										{#if progress.flagged > 0}
+											<span class="chip chip-flag"
+												>{progress.flagged} flagged</span
+											>
+										{/if}
+										{#if progress.blocked > 0}
+											<span class="chip chip-blocked"
+												>{progress.blocked} blocked</span
+											>
+										{/if}
+										{#if objective.planState === 'Draft'}
+											<span class="calm-note"
+												>Parked · not in the ready set</span
+											>
+										{/if}
+									</div>
 								</div>
 
-								<div class="objective-row">
-									<div class="objective-main">
-										<div class="objective-title-line">
-											<span class="ref-chip large">#{objective.alias}</span>
-											<a
-												class="objective-title"
-												href={objectiveHref(objective)}>{objective.title}</a
-											>
-										</div>
-										<div class="objective-badges">
-											<StatusBadge status={objective.planState} sm />
-											<StatusBadge
-												status={objective.status || 'planned'}
-												sm
-											/>
-											{#if progress.flagged > 0}
-												<span class="chip chip-flag"
-													>{progress.flagged} flagged</span
-												>
-											{/if}
-											{#if progress.blocked > 0}
-												<span class="chip chip-blocked"
-													>{progress.blocked} blocked</span
-												>
-											{/if}
-											{#if objective.planState === 'Draft'}
-												<span class="calm-note"
-													>Parked · not in the ready set</span
-												>
-											{/if}
-										</div>
-									</div>
-
-									<div class="objective-actions">
+								<div class="objective-actions">
+									{#if movable}
 										<button
 											type="button"
 											class="btn btn-ghost btn-icon btn-sm"
@@ -877,158 +792,292 @@
 											type="button"
 											class="btn btn-ghost btn-icon btn-sm"
 											onclick={() => moveObjective(objective, 1)}
-											disabled={index === planObjectives.length - 1}
+											disabled={index === inPlayObjectives.length - 1}
 											title="Move down"
 											aria-label="Move objective down">↓</button
 										>
-										<button
-											type="button"
-											class="btn btn-ghost btn-icon btn-sm"
-											onclick={() => openObjectiveEdit(objective)}
-											title="Edit objective"
-											aria-label="Edit objective">✎</button
-										>
-										{#if objective.planState === 'Draft'}
-											<button
-												type="button"
-												class="btn btn-secondary btn-sm"
-												onclick={() => setPlanState(objective, 'Active')}
-											>
-												Activate
-											</button>
-										{:else}
-											<button
-												type="button"
-												class="btn btn-ghost btn-sm"
-												onclick={() => setPlanState(objective, 'Draft')}
-											>
-												Park
-											</button>
-										{/if}
-									</div>
-								</div>
-
-								<div class="objective-progress-row">
-									<div class="progress-track slim" aria-hidden="true">
-										<span class="progress-fill" style="width: {progress.pct}%"
-										></span>
-									</div>
-									<span class="progress-numbers">
-										{progress.done}/{progress.total} steps
-									</span>
+									{/if}
 									<button
 										type="button"
-										class="text-toggle"
-										aria-expanded={isOpen}
-										onclick={() => toggleExpanded(objective.id)}
+										class="btn btn-ghost btn-icon btn-sm"
+										onclick={() => openObjectiveEdit(objective)}
+										title="Edit objective"
+										aria-label="Edit objective">✎</button
 									>
-										{isOpen
-											? 'Hide steps'
-											: `Show ${progress.total} step${progress.total === 1 ? '' : 's'}`}
-									</button>
-									<a
-										class="text-link objective-open"
-										href={objectiveHref(objective)}>Open objective →</a
-									>
+									{#if objective.planState === 'Draft'}
+										<button
+											type="button"
+											class="btn btn-secondary btn-sm"
+											onclick={() => setPlanState(objective, 'Active')}
+										>
+											Activate
+										</button>
+									{:else}
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm"
+											onclick={() => setPlanState(objective, 'Draft')}
+										>
+											Park
+										</button>
+									{/if}
 								</div>
+							</div>
 
-								{#if isOpen}
-									<div class="step-cluster">
-										{#if !objective.steps || objective.steps.length === 0}
-											<p class="micro-empty">
-												No steps yet. Open the objective to add the first
-												atomic unit of work.
-											</p>
-										{:else}
-											{#each objective.steps as step (step.id)}
-												{@const latest = latestUpdate(step)}
-												{@const deps = (step.dependsOn || []).filter(
-													(dep) => dep.status !== 'done'
-												)}
-												<div
-													class="step-line"
-													class:is-flagged={step.status === 'flagged'}
-												>
-													<div class="step-line-top">
-														<span class="step-ref"
-															>#{objective.alias}.{step.stepNumber}</span
-														>
-														<a
-															class="step-line-title"
-															href={objectiveHref(objective)}
-															>{step.title}</a
-														>
-														<StatusBadge status={step.status} sm />
-														<span class="step-line-spacer"></span>
-														<button
-															type="button"
-															class="btn btn-ghost btn-icon btn-xs"
-															class:flag-on={step.status ===
-																'flagged'}
-															onclick={() => toggleFlag(step)}
-															title={step.status === 'flagged'
-																? 'Clear flag'
-																: 'Flag for human attention'}
-															aria-label={step.status === 'flagged'
-																? 'Clear flag'
-																: 'Flag step'}>!</button
-														>
-													</div>
-													<div class="step-line-meta">
-														{#if step.assignee}
-															<span class="assignee"
-																>@{actorLabel(step.assignee)}</span
-															>
-														{/if}
-														{#if deps.length > 0}
-															<span class="dep-inline">
-																waits on
-																{#each deps as dep (dep.stepId)}
-																	<span
-																		class="dep-chip is-pending"
-																		>#{dep.objectiveAlias}.{dep.stepNumber}</span
-																	>
-																{/each}
-															</span>
-														{:else if step.status === 'open' && objective.planState === 'Active'}
-															<span class="chip chip-ready"
-																>ready</span
-															>
-														{/if}
-														{#if step.updatedAt}<span
-																title={step.updatedAt}
-																>updated {timeAgo(
-																	step.updatedAt
-																)}</span
-															>{/if}
-													</div>
-													{#if latest}
-														<p class="step-line-latest">
-															<StatusBadge
-																status={latest.kind}
-																sm
-																tone={latest.kind === 'Blocker'
-																	? 'blocked'
-																	: latest.kind === 'Result'
-																		? 'done'
-																		: 'neutral'}
-															/>
-															<span
-																>{plainText(latest.body, 150)}</span
-															>
-															<span class="latest-time"
-																>{timeAgo(latest.createdAt)}</span
-															>
-														</p>
-													{/if}
+							<div class="objective-progress-row">
+								<div class="progress-track slim" aria-hidden="true">
+									<span class="progress-fill" style="width: {progress.pct}%"
+									></span>
+								</div>
+								<span class="progress-numbers">
+									{progress.done}/{progress.total} steps
+								</span>
+								<button
+									type="button"
+									class="text-toggle"
+									aria-expanded={isOpen}
+									onclick={() => toggleExpanded(objective.id)}
+								>
+									{isOpen
+										? 'Hide steps'
+										: `Show ${progress.total} step${progress.total === 1 ? '' : 's'}`}
+								</button>
+								<a class="text-link objective-open" href={objectiveHref(objective)}
+									>Open objective →</a
+								>
+							</div>
+
+							{#if isOpen}
+								<div class="step-cluster">
+									{#if !objective.steps || objective.steps.length === 0}
+										<p class="micro-empty">
+											No steps yet. Open the objective to add the first atomic
+											unit of work.
+										</p>
+									{:else}
+										{#each objective.steps as step (step.id)}
+											{@const latest = latestUpdate(step)}
+											{@const deps = (step.dependsOn || []).filter(
+												(dep) => dep.status !== 'done'
+											)}
+											<div
+												class="step-line"
+												class:is-flagged={step.status === 'flagged'}
+											>
+												<div class="step-line-top">
+													<span class="step-ref"
+														>#{objective.alias}.{step.stepNumber}</span
+													>
+													<a
+														class="step-line-title"
+														href={objectiveHref(objective)}
+														>{step.title}</a
+													>
+													<StatusBadge status={step.status} sm />
+													<span class="step-line-spacer"></span>
+													<button
+														type="button"
+														class="btn btn-ghost btn-icon btn-xs"
+														class:flag-on={step.status === 'flagged'}
+														onclick={() => toggleFlag(step)}
+														title={step.status === 'flagged'
+															? 'Clear flag'
+															: 'Flag for human attention'}
+														aria-label={step.status === 'flagged'
+															? 'Clear flag'
+															: 'Flag step'}>!</button
+													>
 												</div>
-											{/each}
-										{/if}
-									</div>
-								{/if}
-							</article>
-						{/each}
-					</div>
+												<div class="step-line-meta">
+													{#if step.assignee}
+														<span class="assignee"
+															>@{actorLabel(step.assignee)}</span
+														>
+													{/if}
+													{#if deps.length > 0}
+														<span class="dep-inline">
+															waits on
+															{#each deps as dep (dep.stepId)}
+																<span class="dep-chip is-pending"
+																	>#{dep.objectiveAlias}.{dep.stepNumber}</span
+																>
+															{/each}
+														</span>
+													{:else if step.status === 'open' && objective.planState === 'Active'}
+														<span class="chip chip-ready">ready</span>
+													{/if}
+													{#if step.updatedAt}<span title={step.updatedAt}
+															>updated {timeAgo(step.updatedAt)}</span
+														>{/if}
+												</div>
+												{#if latest}
+													<p class="step-line-latest">
+														<StatusBadge
+															status={latest.kind}
+															sm
+															tone={latest.kind === 'Blocker'
+																? 'blocked'
+																: latest.kind === 'Result'
+																	? 'done'
+																	: 'neutral'}
+														/>
+														<span>{plainText(latest.body, 150)}</span>
+														<span class="latest-time"
+															>{timeAgo(latest.createdAt)}</span
+														>
+													</p>
+												{/if}
+											</div>
+										{/each}
+									{/if}
+								</div>
+							{/if}
+						</article>
+					{/snippet}
+
+					<section class="plan-tier">
+						<header class="tier-head">
+							<h3 class="tier-title">In play</h3>
+							{#if inPlayObjectives.length > 0}
+								<span class="tier-count">{inPlayObjectives.length}</span>
+							{/if}
+							<span class="tier-hint">Ready and in progress</span>
+						</header>
+						{#if inPlayObjectives.length === 0}
+							<p class="tier-empty">
+								Nothing in play. Shape a seed or activate a draft below, or add an
+								objective.
+							</p>
+						{:else}
+							<div class="plan-tree">
+								{#each inPlayObjectives as objective, index (objective.id)}
+									{@render objectiveRow(objective, index, true)}
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<section class="plan-tier parked-tier">
+						<header class="tier-head">
+							<h3 class="tier-title">Parked</h3>
+							{#if seedObjectives.length + draftObjectives.length > 0}
+								<span class="tier-count"
+									>{seedObjectives.length + draftObjectives.length}</span
+								>
+							{/if}
+							<span class="tier-hint">Drafts and seeds — not in the ready set</span>
+						</header>
+
+						{#if seedObjectives.length === 0 && draftObjectives.length === 0}
+							<p class="tier-empty">
+								Nothing parked. A thought captured above waits here until it is
+								shaped.
+							</p>
+						{/if}
+
+						{#if seedObjectives.length > 0}
+							<div class="plan-tree">
+								{#each seedObjectives as seed (seed.id)}
+									<article class="objective-node is-seed">
+										<div class="objective-node-line" aria-hidden="true">
+											<span class="node-dot"></span>
+										</div>
+										<div class="objective-row">
+											<div class="objective-main">
+												<div class="objective-title-line">
+													<span class="ref-chip large">#{seed.alias}</span
+													>
+													<span class="objective-title is-static"
+														>{seed.title}</span
+													>
+												</div>
+												<div class="objective-badges">
+													<StatusBadge status="Seed" sm />
+													<span class="row-meta"
+														>updated {timeAgo(seed.updatedAt)}</span
+													>
+												</div>
+												{#if seed.description}
+													<p class="seed-excerpt">
+														{plainText(seed.description, 140)}
+													</p>
+												{/if}
+											</div>
+											<div class="objective-actions">
+												<button
+													type="button"
+													class="btn btn-secondary btn-sm"
+													onclick={() => shapeSeed(seed)}
+												>
+													Shape
+												</button>
+												<button
+													type="button"
+													class="btn btn-ghost btn-sm"
+													onclick={() => deleteSeed(seed)}
+												>
+													Delete
+												</button>
+											</div>
+										</div>
+									</article>
+								{/each}
+							</div>
+						{/if}
+
+						{#if draftObjectives.length > 0}
+							<div class="plan-tree">
+								{#each draftObjectives as objective, index (objective.id)}
+									{@render objectiveRow(objective, index, false)}
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					{#if finishedObjectives.length > 0}
+						<section class="plan-tier finished-tier">
+							<h3 class="sr-only">Finished</h3>
+							<button
+								type="button"
+								class="tier-head tier-toggle"
+								aria-expanded={finishedOpen}
+								onclick={() => (finishedOpen = !finishedOpen)}
+							>
+								<span class="tier-caret" aria-hidden="true"
+									>{finishedOpen ? '▾' : '▸'}</span
+								>
+								<span class="tier-title">Finished</span>
+								<span class="tier-count">{finishedObjectives.length}</span>
+								<span class="tier-hint">Closed out. Still readable.</span>
+							</button>
+							{#if finishedOpen}
+								<ul class="finished-list">
+									{#each finishedObjectives as objective (objective.id)}
+										<li class="finished-row">
+											<a
+												class="finished-link"
+												href={objectiveHref(objective)}
+												aria-label={`#${objective.alias} ${objective.title}`}
+												title={objective.title}
+											>
+												<span class="ref-chip">#{objective.alias}</span>
+												<span class="finished-title">{objective.title}</span
+												>
+												<span class="finished-meta"
+													>completed · last activity {timeAgo(
+														objective.updatedAt
+													)}</span
+												>
+												<span class="finished-arrow" aria-hidden="true"
+													>→</span
+												>
+											</a>
+										</li>
+									{/each}
+								</ul>
+							{/if}
+						</section>
+					{/if}
 				{/if}
 			</section>
 		</div>
@@ -1048,24 +1097,6 @@
 					<span class="sr-only">Search Bunker notes</span>
 					<input type="search" placeholder="Search notes…" bind:value={railSearch} />
 				</label>
-
-				{#if pinnedDirectives.length > 0}
-					<div class="rail-zone">
-						<p class="zone-label">Pinned directives</p>
-						<div class="directive-stack">
-							{#each pinnedDirectives as note (note.id)}
-								<a class="directive-card compact" href={noteHref(note)}>
-									<span class="directive-top">
-										<span class="ref-chip">#{note.alias}</span>
-										<span class="pin-mark" title="Pinned directive">◆</span>
-									</span>
-									<span class="directive-title">{note.title}</span>
-									<span class="directive-body">{plainText(note.body, 95)}</span>
-								</a>
-							{/each}
-						</div>
-					</div>
-				{/if}
 
 				<div class="rail-zone">
 					<p class="zone-label">
@@ -1103,25 +1134,41 @@
 				>
 			</section>
 
-			<section class="panel rail-panel quiet-panel">
+			<section class="panel rail-panel">
 				<header class="panel-head compact">
 					<div class="panel-heading">
-						<p class="eyebrow">Steering</p>
-						<h2 class="panel-title">Your preferences</h2>
+						<p class="eyebrow">Framing</p>
+						<h2 class="panel-title">Design docs</h2>
 					</div>
-					<a class="text-link" href="#/preferences">Manage →</a>
+					<button type="button" class="btn btn-ghost btn-sm" onclick={openDesignDocModal}
+						>+ New</button
+					>
 				</header>
-				{#if briefing?.preferences?.length}
-					<ul class="pref-rail-list">
-						{#each briefing.preferences.slice(0, 3) as pref (pref.id)}
-							<li class="pref-rail-item">
-								<span class="pref-mark" aria-hidden="true">✦</span>
-								<span class="pref-rail-text">{pref.text}</span>
+
+				{#if designDocs.length === 0}
+					<p class="micro-empty">
+						No design docs yet. Keep architecture, options, and trade-offs next to the
+						plan.
+					</p>
+				{:else}
+					<ul class="design-doc-list">
+						{#each designDocs as doc (doc.id)}
+							<li>
+								<a class="design-doc-row" href={noteHref(doc)}>
+									<span class="design-doc-main">
+										<span class="design-doc-top">
+											<span class="ref-chip">#{doc.alias}</span>
+											<span class="design-doc-title">{doc.title}</span>
+										</span>
+										<span class="design-doc-age"
+											>updated {timeAgo(doc.updatedAt)}</span
+										>
+									</span>
+									<span class="design-doc-arrow" aria-hidden="true">→</span>
+								</a>
 							</li>
 						{/each}
 					</ul>
-				{:else}
-					<p class="inline-empty">No active preferences.</p>
 				{/if}
 			</section>
 		</aside>

@@ -2,7 +2,14 @@
 	import { renderMarkdown } from '../lib/markdown.js';
 	import { openAliasPopover } from '../lib/aliasPopover.svelte.js';
 
-	let { source = '', campaignId = '', clamp = null, collapsible = false } = $props();
+	let {
+		source = '',
+		campaignId = '',
+		clamp = null,
+		collapsible = false,
+		showLabel = 'Show more',
+		hideLabel = 'Show less'
+	} = $props();
 
 	let containerEl = $state(null);
 	let isOverflowing = $state(false);
@@ -114,14 +121,14 @@
 	});
 
 	function getStyle() {
-		if (!clamp || expanded) return {};
-		return {
-			display: '-webkit-box',
-			'-webkit-line-clamp': String(clamp),
-			'line-clamp': String(clamp),
-			'-webkit-box-orient': 'vertical',
-			overflow: 'hidden'
-		};
+		if (!clamp || expanded) return '';
+		return [
+			'display:-webkit-box',
+			`-webkit-line-clamp:${clamp}`,
+			`line-clamp:${clamp}`,
+			'-webkit-box-orient:vertical',
+			'overflow:hidden'
+		].join(';');
 	}
 
 	function toggleExpand(e) {
@@ -164,8 +171,12 @@
 		{@html rendered}
 	</div>
 	{#if clamp && (isOverflowing || expanded) && collapsible}
-		<button type="button" class="btn btn-ghost btn-sm markdown-toggle" onclick={toggleExpand}>
-			{expanded ? 'Show less' : 'Show more'}
+		<button
+			type="button"
+			class="btn btn-primary-inverted btn-sm markdown-toggle"
+			onclick={toggleExpand}
+		>
+			{expanded ? hideLabel : showLabel}
 		</button>
 	{/if}
 </div>

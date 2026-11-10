@@ -292,18 +292,20 @@
 				<a class="back-link" href="#/campaign/{campaignId}"
 					>← {campaign?.title || 'Campaign'}</a
 				>
-				<div class="objective-ids">
+				{#if readySteps.length > 0 || waitingSteps.length > 0}
+					<div class="objective-ids">
+						{#if readySteps.length > 0}
+							<span class="chip chip-ready">{readySteps.length} ready</span>
+						{/if}
+						{#if waitingSteps.length > 0}
+							<span class="chip chip-blocked">{waitingSteps.length} waiting</span>
+						{/if}
+					</div>
+				{/if}
+				<div class="objective-title-line">
 					<span class="ref-chip large">#{objective.alias}</span>
-					<StatusBadge status={objective.planState} />
-					<StatusBadge status={objective.status || 'planned'} />
-					{#if readySteps.length > 0}
-						<span class="chip chip-ready">{readySteps.length} ready</span>
-					{/if}
-					{#if waitingSteps.length > 0}
-						<span class="chip chip-blocked">{waitingSteps.length} waiting</span>
-					{/if}
+					<h1 class="page-title objective-title">{objective.title}</h1>
 				</div>
-				<h1 class="page-title objective-title">{objective.title}</h1>
 				<p class="objective-dates">
 					Created {formatDate(objective.createdAt)} · updated {timeAgo(
 						objective.updatedAt

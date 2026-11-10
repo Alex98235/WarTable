@@ -559,20 +559,25 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 ### Campaign detail
 
-- **Header:** title, tags. No status buttons.
-- **Framing:** above Seeds. The active Charter note (why, scope, architecture)
-  with an edit action, plus compact DesignDoc notes for components and areas.
-  Empty state invites writing a charter. Documents open as normal notes.
-- **Briefing panel:** "What matters now" — focus, ready steps, blockers, open
-  questions, directives, recent decisions. Collapsible.
-- **Plan tree:** objectives sorted by `SortOrder`, each with `PlanState` badge,
-  derived status, progress, and expandable steps. Steps show `#N.M`, assignee,
-  status, dependency chips, and the latest update. Inline actions: activate draft,
-  reorder, flag, edit.
-- **Quick capture:** one input to save a seed — title plus optional note, no steps.
-- **Seeds lane:** compact list of seeds (`#N`, title, age) with "Shape" to promote
-  into a draft. Seeds never expose ready or blocked actions.
-- **Bunker rail:** search, pinned directives, recent notes, link to full Bunker.
+- **Hero:** title, tags, compact stats, and one primary action. The active Charter
+  note appears as a 2–3 line preview with `Read charter` / `Show less`, an edit
+  action, and a link into the Bunker. No charter and inactive charter states are
+  compact inline invitations.
+- **Bounded brief:** "What matters now" with `Needs you`, `Ready`, and
+  `Questions`, capped at two rows per group plus `+N` counts. Directives and
+  recent decisions collapse into one context chip row; preferences appear only
+  here, capped at four.
+- **Plan tiers:** `In play` (active, unfinished), `Parked` (drafts and seeds),
+  and `Finished` (completed objectives, collapsed by default). Finished rows are
+  one line, with no progress, reorder, or state controls; `updatedAt` is shown
+  as last activity, never as a completion timestamp. Reorder applies only within
+  `In play`.
+- **Quick capture:** one input to save a seed — title plus optional note, no
+  steps. Seed rows live under `Parked`; "Shape" promotes one into a draft. Seeds
+  never expose ready or blocked actions.
+- **Knowledge rail:** sticky on desktop; Bunker search/recent notes plus a
+  compact DesignDoc index and create action. Charter and design docs are not
+  repeated in recent notes. The global Steering panel is not on this page.
 - No SitReps/Intel tabs.
 
 ### Objective detail
