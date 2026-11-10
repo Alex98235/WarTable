@@ -15,217 +15,217 @@ namespace WarTable.Api;
 
 public class Program
 {
-    public static async Task<int> Main(string[] args)
-    {
-        var mode = "serve";
-        var host = "localhost";
-        var port = 5110;
-        var dbPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".wartable",
-            "wartable.db");
+	public static async Task<int> Main(string[] args)
+	{
+		var mode = "serve";
+		var host = "localhost";
+		var port = 5110;
+		var dbPath = Path.Combine(
+			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+			".wartable",
+			"wartable.db");
 
-        for (int i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
-            {
-                case "--mode":
-                case "-m":
-                    if (i + 1 < args.Length) mode = args[++i].ToLowerInvariant();
-                    break;
-                case "--host":
-                case "-H":
-                    if (i + 1 < args.Length) host = args[++i];
-                    break;
-                case "--port":
-                case "-p":
-                    if (i + 1 < args.Length && int.TryParse(args[++i], out var p)) port = p;
-                    break;
-                case "--db":
-                    if (i + 1 < args.Length) dbPath = args[++i];
-                    break;
-                case "--help":
-                case "-h":
-                    PrintHelp();
-                    return 0;
-            }
-        }
+		for (int i = 0; i < args.Length; i++)
+		{
+			switch (args[i])
+			{
+				case "--mode":
+				case "-m":
+					if (i + 1 < args.Length) mode = args[++i].ToLowerInvariant();
+					break;
+				case "--host":
+				case "-H":
+					if (i + 1 < args.Length) host = args[++i];
+					break;
+				case "--port":
+				case "-p":
+					if (i + 1 < args.Length && int.TryParse(args[++i], out var p)) port = p;
+					break;
+				case "--db":
+					if (i + 1 < args.Length) dbPath = args[++i];
+					break;
+				case "--help":
+				case "-h":
+					PrintHelp();
+					return 0;
+			}
+		}
 
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
+		Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
 
-        var connectionString = $"Data Source={dbPath}";
+		var connectionString = $"Data Source={dbPath}";
 
-        if (mode == "mcp")
-        {
-            await RunMcpAsync(connectionString);
-            return 0;
-        }
+		if (mode == "mcp")
+		{
+			await RunMcpAsync(connectionString);
+			return 0;
+		}
 
-        if (mode == "serve")
-        {
-            await RunServeAsync(connectionString, host, port);
-            return 0;
-        }
+		if (mode == "serve")
+		{
+			await RunServeAsync(connectionString, host, port);
+			return 0;
+		}
 
-        Console.Error.WriteLine($"Unknown mode '{mode}'. Use --help for usage.");
-        return 1;
-    }
+		Console.Error.WriteLine($"Unknown mode '{mode}'. Use --help for usage.");
+		return 1;
+	}
 
-    private static async Task RunServeAsync(string connectionString, string host, int port)
-    {
-        var builder = WebApplication.CreateBuilder();
+	private static async Task RunServeAsync(string connectionString, string host, int port)
+	{
+		var builder = WebApplication.CreateBuilder();
 
-        builder.Services.AddDbContext<WarTableDbContext>(options =>
-            options.UseSqlite(connectionString));
+		builder.Services.AddDbContext<WarTableDbContext>(options =>
+			options.UseSqlite(connectionString));
 
-        builder.Services.AddScoped<WarTableService>();
+		builder.Services.AddScoped<WarTableService>();
 
-        builder.Services
-            .AddMcpServer(options =>
-            {
-                options.ServerInfo = new Implementation
-                {
-                    Name = "wartable-mcp",
-                    Version = "1.0.0",
-                };
-            })
-            .WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
-            .WithToolsFromAssembly(serializerOptions: McpJson.Options);
+		builder.Services
+			.AddMcpServer(options =>
+			{
+				options.ServerInfo = new Implementation
+				{
+					Name = "wartable-mcp",
+					Version = "1.0.0",
+				};
+			})
+			.WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
+			.WithToolsFromAssembly(serializerOptions: McpJson.Options);
 
-        // The broadcaster watches the SQLite file for writes. Resolve the concrete
-        // path here (the same one EF opens) so the watcher can be constructed before
-        // the host starts. A null/":memory:" path simply disables the watcher.
-        var databasePath = new SqliteConnectionStringBuilder(connectionString).DataSource;
-        builder.Services.AddSingleton<ActivityBroadcaster>(services => new ActivityBroadcaster(
-            services.GetRequiredService<IServiceScopeFactory>(),
-            databasePath,
-            services.GetRequiredService<ILogger<ActivityBroadcaster>>()));
-        builder.Services.AddSingleton<IHostedService>(
-            services => services.GetRequiredService<ActivityBroadcaster>());
+		// The broadcaster watches the SQLite file for writes. Resolve the concrete
+		// path here (the same one EF opens) so the watcher can be constructed before
+		// the host starts. A null/":memory:" path simply disables the watcher.
+		var databasePath = new SqliteConnectionStringBuilder(connectionString).DataSource;
+		builder.Services.AddSingleton<ActivityBroadcaster>(services => new ActivityBroadcaster(
+			services.GetRequiredService<IServiceScopeFactory>(),
+			databasePath,
+			services.GetRequiredService<ILogger<ActivityBroadcaster>>()));
+		builder.Services.AddSingleton<IHostedService>(
+			services => services.GetRequiredService<ActivityBroadcaster>());
 
-        builder.Services.ConfigureHttpJsonOptions(options =>
-        {
-            options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
-            options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-        });
+		builder.Services.ConfigureHttpJsonOptions(options =>
+		{
+			options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+			options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+		});
 
-        var app = builder.Build();
+		var app = builder.Build();
 
-        // Initialize database (backs up and recreates on schema changes)
-        using (var scope = app.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
-            await DatabaseInitializer.InitializeAsync(db);
-        }
+		// Initialize database (backs up and recreates on schema changes)
+		using (var scope = app.Services.CreateScope())
+		{
+			var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
+			await DatabaseInitializer.InitializeAsync(db);
+		}
 
-        // Serve the built Svelte bundle. A physical wwwroot wins when present
-        // (dotnet run / local build); otherwise fall back to the copy embedded
-        // in the assembly, which is what makes a single-file publish work.
-        var webFiles = ResolveWebFileProvider(builder);
-        if (webFiles is null)
-        {
-            Console.Error.WriteLine(
-                "No wwwroot found. Build the frontend first: npm run build:frontend");
-        }
-        else
-        {
-            app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webFiles });
-            app.UseStaticFiles(new StaticFileOptions { FileProvider = webFiles });
-        }
+		// Serve the built Svelte bundle. A physical wwwroot wins when present
+		// (dotnet run / local build); otherwise fall back to the copy embedded
+		// in the assembly, which is what makes a single-file publish work.
+		var webFiles = ResolveWebFileProvider(builder);
+		if (webFiles is null)
+		{
+			Console.Error.WriteLine(
+				"No wwwroot found. Build the frontend first: npm run build:frontend");
+		}
+		else
+		{
+			app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = webFiles });
+			app.UseStaticFiles(new StaticFileOptions { FileProvider = webFiles });
+		}
 
-        app.MapCampaignEndpoints();
-        app.MapObjectiveEndpoints();
-        app.MapStepEndpoints();
-        app.MapNoteEndpoints();
-        app.MapPreferenceEndpoints();
-        app.MapBriefingEndpoints();
-        app.MapAliasEndpoints();
-        app.MapEventEndpoints();
-        app.MapMcp("/mcp");
+		app.MapCampaignEndpoints();
+		app.MapObjectiveEndpoints();
+		app.MapStepEndpoints();
+		app.MapNoteEndpoints();
+		app.MapPreferenceEndpoints();
+		app.MapBriefingEndpoints();
+		app.MapAliasEndpoints();
+		app.MapEventEndpoints();
+		app.MapMcp("/mcp");
 
-        // Health check
-        app.MapGet("/api/health", () => Results.Ok(new { status = "ok", service = "WarTable" }));
+		// Health check
+		app.MapGet("/api/health", () => Results.Ok(new { status = "ok", service = "WarTable" }));
 
-        app.Urls.Add($"http://{host}:{port}");
+		app.Urls.Add($"http://{host}:{port}");
 
-        var displayHost = host is "0.0.0.0" or "+" or "*" ? "localhost" : host;
-        Console.WriteLine($"WarTable serving on http://{displayHost}:{port}");
-        if (host is "0.0.0.0" or "+" or "*")
-            Console.WriteLine($"Listening on all interfaces (port {port}).");
-        Console.WriteLine($"Press Ctrl+C to stop.");
+		var displayHost = host is "0.0.0.0" or "+" or "*" ? "localhost" : host;
+		Console.WriteLine($"WarTable serving on http://{displayHost}:{port}");
+		if (host is "0.0.0.0" or "+" or "*")
+			Console.WriteLine($"Listening on all interfaces (port {port}).");
+		Console.WriteLine($"Press Ctrl+C to stop.");
 
-        await app.RunAsync();
-    }
+		await app.RunAsync();
+	}
 
-    /// <summary>
-    /// Locates the built frontend. A physical wwwroot is preferred so local
-    /// builds pick up frontend changes; a published single-file binary falls
-    /// back to the bundle embedded in the assembly.
-    /// </summary>
-    private static IFileProvider? ResolveWebFileProvider(WebApplicationBuilder builder)
-    {
-        var candidates = new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "wwwroot"),
-            builder.Environment.WebRootPath,
-        };
+	/// <summary>
+	/// Locates the built frontend. A physical wwwroot is preferred so local
+	/// builds pick up frontend changes; a published single-file binary falls
+	/// back to the bundle embedded in the assembly.
+	/// </summary>
+	private static IFileProvider? ResolveWebFileProvider(WebApplicationBuilder builder)
+	{
+		var candidates = new[]
+		{
+			Path.Combine(AppContext.BaseDirectory, "wwwroot"),
+			builder.Environment.WebRootPath,
+		};
 
-        foreach (var candidate in candidates)
-        {
-            if (!string.IsNullOrWhiteSpace(candidate) && Directory.Exists(candidate))
-                return new PhysicalFileProvider(candidate);
-        }
+		foreach (var candidate in candidates)
+		{
+			if (!string.IsNullOrWhiteSpace(candidate) && Directory.Exists(candidate))
+				return new PhysicalFileProvider(candidate);
+		}
 
-        try
-        {
-            return new ManifestEmbeddedFileProvider(typeof(Program).Assembly, "wwwroot");
-        }
-        catch (InvalidOperationException)
-        {
-            // Built without an embedded manifest (no wwwroot at compile time).
-            return null;
-        }
-    }
+		try
+		{
+			return new ManifestEmbeddedFileProvider(typeof(Program).Assembly, "wwwroot");
+		}
+		catch (InvalidOperationException)
+		{
+			// Built without an embedded manifest (no wwwroot at compile time).
+			return null;
+		}
+	}
 
-    private static async Task RunMcpAsync(string connectionString)
-    {
-        var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
+	private static async Task RunMcpAsync(string connectionString)
+	{
+		var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
 
-        // stdio carries JSON-RPC on stdout; every log line must go to stderr.
-        builder.Logging.ClearProviders();
-        builder.Logging.AddConsole(options =>
-            options.LogToStandardErrorThreshold = LogLevel.Trace);
+		// stdio carries JSON-RPC on stdout; every log line must go to stderr.
+		builder.Logging.ClearProviders();
+		builder.Logging.AddConsole(options =>
+			options.LogToStandardErrorThreshold = LogLevel.Trace);
 
-        builder.Services.AddDbContext<WarTableDbContext>(options =>
-            options.UseSqlite(connectionString));
-        builder.Services.AddScoped<WarTableService>();
+		builder.Services.AddDbContext<WarTableDbContext>(options =>
+			options.UseSqlite(connectionString));
+		builder.Services.AddScoped<WarTableService>();
 
-        builder.Services
-            .AddMcpServer(options =>
-            {
-                options.ServerInfo = new Implementation
-                {
-                    Name = "wartable-mcp",
-                    Version = "1.0.0",
-                };
-            })
-            .WithStdioServerTransport()
-            .WithToolsFromAssembly(serializerOptions: McpJson.Options);
+		builder.Services
+			.AddMcpServer(options =>
+			{
+				options.ServerInfo = new Implementation
+				{
+					Name = "wartable-mcp",
+					Version = "1.0.0",
+				};
+			})
+			.WithStdioServerTransport()
+			.WithToolsFromAssembly(serializerOptions: McpJson.Options);
 
-        var host = builder.Build();
+		var host = builder.Build();
 
-        using (var scope = host.Services.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
-            await DatabaseInitializer.InitializeAsync(db);
-        }
+		using (var scope = host.Services.CreateScope())
+		{
+			var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
+			await DatabaseInitializer.InitializeAsync(db);
+		}
 
-        await host.RunAsync();
-    }
+		await host.RunAsync();
+	}
 
-    private static void PrintHelp()
-    {
-        Console.WriteLine("""
+	private static void PrintHelp()
+	{
+		Console.WriteLine("""
             WarTable — Human-AI planning workspace
 
             USAGE:
@@ -247,5 +247,5 @@ public class Program
               WarTable.Api --host 0.0.0.0           # reachable from the LAN
               WarTable.Api --mode mcp               # MCP stdio server
             """);
-    }
+	}
 }

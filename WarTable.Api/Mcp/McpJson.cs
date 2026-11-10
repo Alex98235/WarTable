@@ -11,16 +11,16 @@ namespace WarTable.Api.Mcp;
 /// </summary>
 public static class McpJson
 {
-    public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-        PropertyNameCaseInsensitive = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        NumberHandling = JsonNumberHandling.AllowReadingFromString,
-        ReferenceHandler = ReferenceHandler.IgnoreCycles,
-        // AIFunctionFactory marks the options read-only; without an explicit
-        // resolver that throws on first tool discovery.
-        TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
-        Converters = { new JsonStringEnumConverter() },
-    };
+	public static JsonSerializerOptions Options { get; } = new(JsonSerializerDefaults.Web)
+	{
+		PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+		PropertyNameCaseInsensitive = true,
+		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+		NumberHandling = JsonNumberHandling.AllowReadingFromString,
+		ReferenceHandler = ReferenceHandler.IgnoreCycles,
+		// AIFunctionFactory marks the options read-only; without an explicit
+		// resolver that throws on first tool discovery.
+		TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+		Converters = { new JsonStringEnumConverter() },
+	};
 }

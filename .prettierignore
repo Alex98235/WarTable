@@ -12,7 +12,6 @@ WarTable.Api.Tests/obj/
 
 # Generated and runtime data
 CHANGELOG.md
-data/
 backups/
 *.db
 *.db-shm

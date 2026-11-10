@@ -8,12 +8,12 @@ using System.Text.Json.Serialization;
 /// </summary>
 public class StepDependency
 {
-    public Guid StepId { get; set; }
-    public Guid DependsOnStepId { get; set; }
+	public Guid StepId { get; set; }
+	public Guid DependsOnStepId { get; set; }
 
-    [JsonIgnore]
-    public Step? Step { get; set; }
+	[JsonIgnore]
+	public Step? Step { get; set; }
 
-    [JsonIgnore]
-    public Step? DependsOnStep { get; set; }
+	[JsonIgnore]
+	public Step? DependsOnStep { get; set; }
 }
