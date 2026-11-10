@@ -17,6 +17,14 @@ public record BriefingStep(
     public string Ref => $"#{ObjectiveAlias}.{StepNumber}";
 }
 
+/// <summary>An unfinished thought captured before drafting. Never actionable.</summary>
+public record BriefingSeed(
+    Guid Id,
+    int Alias,
+    string Title,
+    string Description,
+    DateTime UpdatedAt);
+
 /// <summary>
 /// Bounded, structured context for starting work. Lists are capped so the briefing
 /// stays token-aware as a campaign grows.
@@ -30,6 +38,7 @@ public record Briefing(
     List<BunkerNote> Directives,
     List<Preference> Preferences,
     List<BunkerNote> RecentDecisions,
+    List<BriefingSeed> Seeds,
     List<ActivityEvent> RecentActivity);
 
 /// <summary>One cross-campaign attention inbox item.</summary>
@@ -53,4 +62,5 @@ public record Attention(
     List<AttentionItem> BlockedObjectives,
     List<AttentionItem> OpenQuestions,
     List<AttentionItem> StaleInProgressSteps,
-    List<AttentionItem> DraftObjectives);
+    List<AttentionItem> DraftObjectives,
+    List<AttentionItem> SeedObjectives);

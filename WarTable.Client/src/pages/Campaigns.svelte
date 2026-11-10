@@ -55,13 +55,15 @@
           apiGet('/api/activity', { campaignId: campaign.id, limit: 1 }).catch(() => []),
         ]);
         const objectiveList = Array.isArray(objectives) ? objectives : [];
+        const planList = objectiveList.filter((o) => o.planState !== 'Seed');
         return [
           campaign.id,
           {
-            total: objectiveList.length,
-            active: objectiveList.filter((o) => o.planState === 'Active').length,
-            draft: objectiveList.filter((o) => o.planState === 'Draft').length,
-            completed: objectiveList.filter((o) => o.status === 'completed').length,
+            total: planList.length,
+            active: planList.filter((o) => o.planState === 'Active').length,
+            draft: planList.filter((o) => o.planState === 'Draft').length,
+            completed: planList.filter((o) => o.status === 'completed').length,
+            seeds: objectiveList.filter((o) => o.planState === 'Seed').length,
             lastActivity: activity?.[0]?.createdAt || campaign.updatedAt || campaign.createdAt,
           },
         ];

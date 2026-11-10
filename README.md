@@ -93,7 +93,8 @@ your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
 
 - **Campaign** — a folder for a body of work. It has intent but no status.
 - **Objective** — a durable outcome inside a campaign, with a campaign-scoped
-  alias (`#N`) and a `Draft` or `Active` plan state.
+  alias (`#N`) and a `Seed`, `Draft`, or `Active` plan state. A seed is a captured
+  unfinished thought: visible, but not actionable until drafted.
 - **Step** — atomic, verifiable work with a stable reference (`#N.M`), explicit
   dependencies, and an `Open` / `InProgress` / `Done` status (plus `Flagged` and
   `Blocked`). Objective status is derived from its steps.
@@ -170,6 +171,9 @@ planning and execution record:
 >   outcomes, and **steps** as atomic verifiable work.
 > - When you propose a multi-step plan, offer to import it with `import_plan`.
 >   Draft objectives are visible but not actionable until activated.
+> - Seeds are unfinished human thoughts captured before planning. When the briefing
+>   lists seeds and no ready work is queued, pick one up: discuss it with the human,
+>   then promote it to `Draft` or `Active` with `update_objective`.
 > - Refer to objectives and Bunker notes by their campaign-scoped alias (`#N`) and
 >   steps by `#N.M`. Never refer to work by title or count.
 > - Before starting, call `get_briefing` for the campaign or `get_attention` across

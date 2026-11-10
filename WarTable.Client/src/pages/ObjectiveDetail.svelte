@@ -141,7 +141,14 @@
     if (!objective || objective.planState === planState) return;
     try {
       await apiPut(`/api/objectives/${objective.id}`, { planState, actor: ACTOR });
-      addToast(planState === 'Active' ? 'Objective activated.' : 'Objective parked as a draft.', 'success');
+      addToast(
+        planState === 'Active'
+          ? 'Objective activated.'
+          : planState === 'Seed'
+            ? 'Objective moved back to a seed.'
+            : 'Objective parked as a draft.',
+        'success',
+      );
       await load({ silent: true });
     } catch (err) {
       addToast(err.message || 'Could not change the plan state.', 'error');
@@ -286,6 +293,12 @@
           <button
             type="button"
             class="seg-btn"
+            class:is-active={objective.planState === 'Seed'}
+            onclick={() => setPlanState('Seed')}
+          >Seed</button>
+          <button
+            type="button"
+            class="seg-btn"
             class:is-active={objective.planState === 'Draft'}
             onclick={() => setPlanState('Draft')}
           >Draft</button>
@@ -297,9 +310,11 @@
           >Active</button>
         </div>
         <p class="control-hint">
-          {objective.planState === 'Draft'
-            ? 'Parked: visible, but not in the ready set.'
-            : 'Active: open, unblocked steps are ready to pull.'}
+          {objective.planState === 'Seed'
+            ? 'Seed: an unfinished thought. Shape it into a draft when it is ready.'
+            : objective.planState === 'Draft'
+              ? 'Parked: visible, but not in the ready set.'
+              : 'Active: open, unblocked steps are ready to pull.'}
         </p>
       </div>
 

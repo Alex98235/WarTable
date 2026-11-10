@@ -306,4 +306,38 @@ public class WarTableServiceTests
         Assert.NotNull(byRef);
         Assert.Equal(a.Id, byRef!.Id);
     }
+
+    [Fact]
+    public async Task Seed_IsVisibleButNotActionable_UntilDrafted()
+    {
+        await using var ctx = await TestContext.CreateAsync();
+        var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+        var seed = await ctx.Service.CreateObjectiveAsync(
+            campaign.Id, "Seed Thought", "Rough idea", PlanState.Seed, Human);
+        await ctx.Service.CreateStepAsync(
+            seed.Id, "Open step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+        var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+        Assert.Empty(briefing.ReadySteps);
+        var briefingSeed = Assert.Single(briefing.Seeds);
+        Assert.Equal(seed.Alias, briefingSeed.Alias);
+        Assert.Equal("Seed Thought", briefingSeed.Title);
+
+        var attention = await ctx.Service.GetAttentionAsync(campaign.Id);
+        var attentionSeed = Assert.Single(attention.SeedObjectives);
+        Assert.Equal("SeedObjective", attentionSeed.Kind);
+        Assert.Equal(seed.Id, attentionSeed.EntityId);
+        Assert.Empty(attention.DraftObjectives);
+
+        await ctx.Service.UpdateObjectiveAsync(
+            seed.Id, new ObjectivePatch(PlanState: PlanState.Draft), Human);
+
+        briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+        attention = await ctx.Service.GetAttentionAsync(campaign.Id);
+        Assert.Empty(briefing.Seeds);
+        Assert.Empty(briefing.ReadySteps);
+        var draftItem = Assert.Single(attention.DraftObjectives);
+        Assert.Equal(seed.Id, draftItem.EntityId);
+        Assert.Empty(attention.SeedObjectives);
+    }
 }

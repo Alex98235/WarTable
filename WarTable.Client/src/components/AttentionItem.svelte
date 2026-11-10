@@ -10,6 +10,7 @@
     OpenQuestion: { label: 'Open question', mark: '?', tone: 'question' },
     StaleStep: { label: 'Stale work', mark: '◷', tone: 'stale' },
     DraftObjective: { label: 'Parked draft', mark: '◇', tone: 'draft' },
+    SeedObjective: { label: 'Seed · needs shaping', mark: '◌', tone: 'seed' },
   };
 
   let meta = $derived(metaByKind[item.kind] || { label: item.kind, mark: '·', tone: 'neutral' });

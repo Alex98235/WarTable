@@ -21,6 +21,7 @@
     { value: 'questions', label: 'Questions' },
     { value: 'stale', label: 'Stale' },
     { value: 'drafts', label: 'Drafts' },
+    { value: 'seeds', label: 'Seeds' },
   ];
 
   const ageOptions = [
@@ -38,6 +39,7 @@
   ]);
 
   let drafts = $derived(attention?.draftObjectives ?? []);
+  let seeds = $derived(attention?.seedObjectives ?? []);
 
   function ageInDays(since) {
     if (!since) return null;
@@ -69,11 +71,19 @@
       : [],
   );
 
+  let filteredSeeds = $derived(
+    kindFilter === 'all' || kindFilter === 'seeds'
+      ? seeds.filter(matchesFilters)
+      : [],
+  );
+
   let urgentCount = $derived(
     baseGroups.reduce((sum, group) => sum + group.items.length, 0),
   );
   let visibleCount = $derived(
-    filteredGroups.reduce((sum, group) => sum + group.items.length, 0) + filteredDrafts.length,
+    filteredGroups.reduce((sum, group) => sum + group.items.length, 0) +
+      filteredDrafts.length +
+      filteredSeeds.length,
   );
   let hasFilters = $derived(kindFilter !== 'all' || campaignFilter !== '' || ageFilter !== 'any');
 
@@ -125,13 +135,14 @@
     <h1 class="page-title">What needs a human</h1>
     <p class="lede">
       Flagged steps come first, then blockers, open questions, and work that has gone quiet. Draft plans
-      are parked separately so they never masquerade as urgent.
+      and seeds are parked separately so they never masquerade as urgent.
     </p>
   </div>
   <div class="page-actions">
     {#if refreshing}<span class="sync-note">Syncing…</span>{/if}
     <span class="stat-inline"><strong>{urgentCount}</strong> urgent</span>
     <span class="stat-inline"><strong>{drafts.length}</strong> parked</span>
+    <span class="stat-inline"><strong>{seeds.length}</strong> seeds</span>
   </div>
 </div>
 
@@ -186,7 +197,7 @@
     <p class="lede">{error}</p>
     <button type="button" class="btn btn-primary" onclick={() => load()}>Try again</button>
   </div>
-{:else if filteredGroups.length === 0 && filteredDrafts.length === 0}
+{:else if filteredGroups.length === 0 && filteredDrafts.length === 0 && filteredSeeds.length === 0}
   <div class="empty-state">
     <h3>{hasFilters ? 'Nothing matches those filters' : 'The inbox is clear'}</h3>
     <p>
@@ -229,6 +240,26 @@
         </header>
         <div class="attention-list">
           {#each filteredDrafts as item (item.entityId)}
+            <AttentionItem {item} />
+          {/each}
+        </div>
+      </section>
+    {/if}
+
+    {#if filteredSeeds.length > 0}
+      <section class="panel parked-panel seed-panel">
+        <header class="attention-group-head">
+          <div>
+            <p class="eyebrow">Unfinished thoughts · calm by design</p>
+            <h2 class="panel-title">Seeds to shape</h2>
+            <p class="panel-subtitle">
+              Seeds are visible to agents in the briefing. Shape one into a draft when it is ready.
+            </p>
+          </div>
+          <span class="inbox-count big">{filteredSeeds.length}</span>
+        </header>
+        <div class="attention-list">
+          {#each filteredSeeds as item (item.entityId)}
             <AttentionItem {item} />
           {/each}
         </div>

@@ -9,7 +9,7 @@ document is the source of truth for a supported production deployment.
 These are two different shapes, and only one of them is the production contract:
 
 | | Quickstart | Production |
-|---|---|---|
+| --- | --- | --- |
 | Guide | [`quickstart/README.md`](../quickstart/README.md) | This document |
 | Image tag | `latest` (moving) | Immutable `X.Y.Z` |
 | Data | Named volume `wartable-data` | Bind mount `./data:/data` |
@@ -25,7 +25,7 @@ production setup before relying on backups, controlled updates, or rollback.
 ## 1. Decisions at a glance
 
 | Area | Decision |
-|---|---|
+| --- | --- |
 | Server host | Linux `amd64`; Docker Engine with Compose v2 already installed |
 | Server distribution | Public container image, run with Docker Compose |
 | Agent distribution | Self-contained standalone binary for local stdio |
@@ -91,14 +91,6 @@ intended co-located setup; it is not a remote-filesystem deployment.
 
 ## 3. Topology
 
-```text
-desktop browser ─┐
-desktop agent  ──┤
-                 ├──> WarTable server (LAN, container) ──> SQLite + WAL
-laptop browser ──┤
-laptop agent   ──┘
-```
-
 - One HTTP server process owns the database for normal operation.
 - Browsers are thin clients. They keep no persistent data and do not write
   offline.
@@ -118,7 +110,7 @@ local filesystem.
 ## 4. Runtime requirements
 
 | Requirement | Value |
-|---|---|
+| --- | --- |
 | Host architecture | `linux/amd64` for the container; `linux-x64` or `win-x64` for the binary |
 | Container runtime | Docker Engine with Compose v2 |
 | HTTP port | `5110` |

@@ -100,6 +100,7 @@ public partial class WarTableService
 
     private const int BriefingStepLimit = 20;
     private const int BriefingNoteLimit = 10;
+    private const int BriefingSeedLimit = 10;
     private const int BriefingPreferenceLimit = 20;
     private const int BriefingActivityLimit = 20;
     private const int AttentionLimit = 50;
@@ -1421,6 +1422,13 @@ public partial class WarTableService
 
         var recentActivity = (await GetActivityAsync(campaignId, since)).Take(BriefingActivityLimit).ToList();
 
+        var seeds = await _db.Objectives.AsNoTracking()
+            .Where(o => o.CampaignId == campaignId && o.PlanState == PlanState.Seed)
+            .OrderByDescending(o => o.UpdatedAt)
+            .Take(BriefingSeedLimit)
+            .Select(o => new BriefingSeed(o.Id, o.Alias, o.Title, o.Description, o.UpdatedAt))
+            .ToListAsync();
+
         return new Briefing(
             campaign,
             ready.Take(BriefingStepLimit).ToList(),
@@ -1430,6 +1438,7 @@ public partial class WarTableService
             directives,
             preferences,
             recentDecisions,
+            seeds,
             recentActivity);
     }
 
@@ -1503,7 +1512,19 @@ public partial class WarTableService
                                      .Take(AttentionLimit)
                                      .ToListAsync();
 
-        return new Attention(flagged, blockedObjectives, openQuestions, staleInProgress, draftObjectives);
+        var seedObjectives = await (from o in _db.Objectives.AsNoTracking()
+                                    join c in _db.Campaigns.AsNoTracking() on o.CampaignId equals c.Id
+                                    where o.PlanState == PlanState.Seed &&
+                                          (!hasCampaign || o.CampaignId == cid)
+                                    orderby o.UpdatedAt descending
+                                    select new AttentionItem(
+                                        "SeedObjective", o.CampaignId, c.Title, o.Id, o.Title,
+                                        "Unshaped thought (needs drafting)", o.CreatedAt,
+                                        o.Id, o.Alias, null, "Seed"))
+                                    .Take(AttentionLimit)
+                                    .ToListAsync();
+
+        return new Attention(flagged, blockedObjectives, openQuestions, staleInProgress, draftObjectives, seedObjectives);
     }
 
     // ── Helpers ──

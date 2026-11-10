@@ -20,6 +20,7 @@
     done: 'done',
     flagged: 'flagged',
     draft: 'draft',
+    seed: 'seed',
     active: 'active',
     superseded: 'muted',
     resolved: 'done',
@@ -48,6 +49,7 @@
     'in-progress': 'In progress',
     'needs-review': 'Needs review',
     inprogress: 'In progress',
+    seed: 'Seed',
   };
 
   function keyOf(value) {

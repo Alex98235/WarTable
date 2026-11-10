@@ -16,7 +16,7 @@ public class Objective
     /// <summary>Markdown. Outcome and constraints.</summary>
     public string Description { get; set; } = "";
 
-    /// <summary>Draft objectives are visible but not actionable.</summary>
+    /// <summary>Seed and draft objectives are visible but not actionable.</summary>
     public PlanState PlanState { get; set; } = PlanState.Draft;
 
     /// <summary>Derived cache computed from the child steps.</summary>
@@ -39,9 +39,13 @@ public class Objective
     public List<Step> Steps { get; set; } = new();
 }
 
-/// <summary>Whether an objective is parked (Draft) or being worked (Active).</summary>
+/// <summary>
+/// Plan state: a seed is a captured unfinished thought, a draft is a shaped park,
+/// and active objectives are being worked.
+/// </summary>
 public enum PlanState
 {
+    Seed,
     Draft,
     Active,
 }

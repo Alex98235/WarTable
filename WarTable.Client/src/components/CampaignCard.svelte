@@ -13,6 +13,7 @@
   let completed = $derived(stats.completed ?? 0);
   let active = $derived(stats.active ?? 0);
   let draft = $derived(stats.draft ?? 0);
+  let seeds = $derived(stats.seeds ?? 0);
   let pct = $derived(total ? Math.round((completed / total) * 100) : 0);
   let lastActivity = $derived(stats.lastActivity || campaign.updatedAt || campaign.createdAt);
 </script>
@@ -47,6 +48,7 @@
         <span class="progress-counts">
           {#if active > 0}<span>{active} active</span>{/if}
           {#if draft > 0}<span>{draft} draft</span>{/if}
+          {#if seeds > 0}<span>{seeds} seed{seeds === 1 ? '' : 's'}</span>{/if}
         </span>
       </div>
       <div class="progress-track" aria-hidden="true">

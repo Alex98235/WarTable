@@ -25,6 +25,7 @@
 
   let urgentCount = $derived(groups.reduce((sum, group) => sum + group.items.length, 0));
   let drafts = $derived(attention?.draftObjectives ?? []);
+  let seeds = $derived(attention?.seedObjectives ?? []);
 
   let recentCampaigns = $derived(
     [...campaigns]
@@ -85,13 +86,15 @@
           apiGet('/api/activity', { campaignId: campaign.id, limit: 1 }).catch(() => []),
         ]);
         const objectiveList = Array.isArray(objectives) ? objectives : [];
+        const planList = objectiveList.filter((o) => o.planState !== 'Seed');
         return [
           campaign.id,
           {
-            total: objectiveList.length,
-            active: objectiveList.filter((o) => o.planState === 'Active').length,
-            draft: objectiveList.filter((o) => o.planState === 'Draft').length,
-            completed: objectiveList.filter((o) => o.status === 'completed').length,
+            total: planList.length,
+            active: planList.filter((o) => o.planState === 'Active').length,
+            draft: planList.filter((o) => o.planState === 'Draft').length,
+            completed: planList.filter((o) => o.status === 'completed').length,
+            seeds: objectiveList.filter((o) => o.planState === 'Seed').length,
             lastActivity: activity?.[0]?.createdAt || campaign.updatedAt || campaign.createdAt,
           },
         ];
@@ -212,6 +215,27 @@
           </div>
           {#if drafts.length > 3}
             <a class="more-link" href="#/attention">+{drafts.length - 3} more parked plans</a>
+          {/if}
+        </div>
+      {/if}
+
+      {#if seeds.length > 0}
+        <div class="parked-zone seed-zone">
+          <div class="parked-head">
+            <div>
+              <p class="eyebrow">Seeds</p>
+              <h3>Seeds to shape</h3>
+            </div>
+            <span class="parked-count">{seeds.length}</span>
+          </div>
+          <p class="parked-hint">Unfinished thoughts. Shape one into a draft when it is ready.</p>
+          <div class="parked-list">
+            {#each seeds.slice(0, 3) as item (item.entityId)}
+              <AttentionItem {item} />
+            {/each}
+          </div>
+          {#if seeds.length > 3}
+            <a class="more-link" href="#/attention">+{seeds.length - 3} more seeds</a>
           {/if}
         </div>
       {/if}

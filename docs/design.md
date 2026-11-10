@@ -141,8 +141,13 @@ with objectives in `Draft`. Draft objectives do not pollute the ready set or the
 urgent attention queue. They sit in the plan tree with a calm badge until either
 party activates them.
 
-**Requirements:** objective-level `PlanState`, draft filtering in briefing and
-attention.
+Before that, a passing idea can be captured as a `Seed`: a one-line unfinished
+thought with an alias. Seeds appear in the briefing and attention so the idea is
+not lost, but they never produce ready steps. Drafting a seed promotes it to
+`Draft`.
+
+**Requirements:** objective-level `PlanState`, seed and draft filtering in
+briefing and attention.
 
 ### G. Project close
 
@@ -180,12 +185,12 @@ A durable outcome. The unit of planning.
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
 | `Description` | Markdown. Outcome and constraints. |
-| `PlanState` | `Draft` or `Active`. Objective-level. |
+| `PlanState` | `Seed`, `Draft`, or `Active`. Objective-level. A seed is a captured unfinished thought. |
 | `Status` | Derived cache: `Planned`, `InProgress`, `NeedsReview`, `Blocked`, `Completed`. |
 | `SortOrder` | Display order. |
 | `CreatedAt`, `UpdatedAt`, `DeletedAt` | Soft delete. |
 
-Steps drive `Status`. A draft objective is visible but not actionable.
+Steps drive `Status`. A seed or draft objective is visible but not actionable.
 
 ### Step
 
@@ -306,10 +311,10 @@ Every mutation writes one event.
 These are not tables.
 
 - **Briefing** — intent, focus, ready steps, blockers, flagged steps, open
-  questions, active directives, active preferences, recent decisions, recent
-  activity. Bounded and token-aware.
+  questions, active directives, active preferences, recent decisions, seeds, and
+  recent activity. Bounded and token-aware.
 - **Attention** — cross-campaign inbox: flagged steps, blocked objectives, open
-  questions, stale in-progress steps. Draft plans get a calm separate section.
+  questions, stale in-progress steps. Draft plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
 
 ### Aliases and addressing
@@ -332,7 +337,7 @@ timestamps are caches.
 ### Lifecycle
 
 - **Campaign:** no status. Created as a folder. Archive later via `ArchivedAt`.
-- **Objective:** `Draft` → `Active` → completed (derived from steps). Either actor
+- **Objective:** `Seed` → `Draft` → `Active` → completed (derived from steps). Either actor
   can change `PlanState`. There is no separate "abandoned" state; delete or leave
   it Draft.
 - **Step:** `Open` → `InProgress` → `Done`. `Flagged` and `Blocked` can occur at
@@ -511,8 +516,8 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ### Dashboard
 
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
-  questions, stale in-progress work. Each item shows campaign, objective/step,
-  reason, age, and a link.
+  questions, stale in-progress work, and seeds awaiting draft. Each item shows
+  campaign, objective/step, reason, age, and a link.
 - **Campaign folders** below: title, intent excerpt, active/draft objective
   counts, last activity, tags. No status badges and no status counts.
 - **Recent decisions and preferences** as small secondary panels.
@@ -532,6 +537,9 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   derived status, progress, and expandable steps. Steps show `#N.M`, assignee,
   status, dependency chips, and the latest update. Inline actions: activate draft,
   reorder, flag, edit.
+- **Quick capture:** one input to save a seed — title plus optional note, no steps.
+- **Seeds lane:** compact list of seeds (`#N`, title, age) with "Shape" to promote
+  into a draft. Seeds never expose ready or blocked actions.
 - **Bunker rail:** search, pinned directives, recent notes, link to full Bunker.
 - No SitReps/Intel tabs.
 
@@ -559,7 +567,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ### Attention
 
 - Cross-campaign inbox with filters by kind, campaign, and age.
-- Draft plans appear in a separate "parked" section, not as urgent items.
+- Draft plans and seeds appear in calm separate sections, not as urgent items.
 
 ## 10. Impact on the current codebase (historical)
 

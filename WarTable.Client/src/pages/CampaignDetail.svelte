@@ -50,9 +50,22 @@
   let editingObjective = $state(null);
   let objectiveEditForm = $state({ title: '', description: '', planState: 'Draft' });
   let objectiveEditSaving = $state(false);
+  let shapingSeed = $state(false);
+
+  let seedForm = $state({ title: '', description: '' });
+  let seedDetailOpen = $state(false);
+  let seedSaving = $state(false);
+
+  let seedObjectives = $derived(
+    objectives
+      .filter((objective) => objective.planState === 'Seed')
+      .map((objective) => objectiveDetails[objective.id] || objective)
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))),
+  );
 
   let planObjectives = $derived(
     [...objectives]
+      .filter((objective) => objective.planState !== 'Seed')
       .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
       .map((objective) => objectiveDetails[objective.id] || objective),
   );
@@ -208,11 +221,22 @@
   }
 
   function openObjectiveEdit(objective) {
+    shapingSeed = false;
     editingObjective = objective;
     objectiveEditForm = {
       title: objective.title || '',
       description: objective.description || '',
       planState: objective.planState || 'Draft',
+    };
+  }
+
+  function shapeSeed(seed) {
+    shapingSeed = true;
+    editingObjective = seed;
+    objectiveEditForm = {
+      title: seed.title || '',
+      description: seed.description || '',
+      planState: 'Draft',
     };
   }
 
@@ -227,14 +251,57 @@
         planState: objectiveEditForm.planState,
         actor: ACTOR,
       });
-      addToast('Objective updated.', 'success');
+      addToast(shapingSeed ? 'Seed shaped into the plan.' : 'Objective updated.', 'success');
       editingObjective = null;
+      shapingSeed = false;
+      expansionInitialized = false;
       await load({ silent: true });
     } catch (err) {
       addToast(err.message || 'Could not update the objective.', 'error');
     } finally {
       objectiveEditSaving = false;
     }
+  }
+
+  async function parkSeed(event) {
+    event.preventDefault();
+    if (!seedForm.title.trim()) {
+      addToast('A thought needs a few words.', 'warning');
+      return;
+    }
+    seedSaving = true;
+    try {
+      await apiPost('/api/objectives', {
+        campaignId,
+        title: seedForm.title.trim(),
+        description: seedForm.description,
+        planState: 'Seed',
+        actor: ACTOR,
+      });
+      addToast('Thought parked as a seed.', 'success');
+      seedForm = { title: '', description: '' };
+      seedDetailOpen = false;
+      await load({ silent: true });
+    } catch (err) {
+      addToast(err.message || 'Could not park the thought.', 'error');
+    } finally {
+      seedSaving = false;
+    }
+  }
+
+  function deleteSeed(seed) {
+    showConfirm(
+      `Delete seed #${seed.alias} "${seed.title}"? This cannot be undone.`,
+      async () => {
+        try {
+          await apiDelete(`/api/objectives/${seed.id}`, { actor: ACTOR });
+          addToast('Seed deleted.', 'success');
+          await load({ silent: true });
+        } catch (err) {
+          addToast(err.message || 'Could not delete the seed.', 'error');
+        }
+      },
+    );
   }
 
   async function createObjective(event) {
@@ -374,6 +441,84 @@
       {#if briefing}
         <BriefingPanel {briefing} {campaignId} />
       {/if}
+
+      <section class="seeds-zone reveal" style="--i: 1">
+        <form class="seed-composer" onsubmit={parkSeed}>
+          <div class="seed-composer-main">
+            <label class="seed-composer-label" for="seed-thought">Park a thought</label>
+            <input
+              id="seed-thought"
+              class="seed-input"
+              type="text"
+              placeholder="Something unfinished…"
+              bind:value={seedForm.title}
+              required
+            />
+          </div>
+          <div class="seed-composer-actions">
+            <button
+              type="button"
+              class="text-toggle"
+              aria-expanded={seedDetailOpen}
+              onclick={() => (seedDetailOpen = !seedDetailOpen)}
+            >{seedDetailOpen ? 'Hide detail' : 'Add detail'}</button>
+            <button type="submit" class="btn btn-secondary btn-sm" disabled={seedSaving}>
+              {seedSaving ? 'Parking…' : 'Park it'}
+            </button>
+          </div>
+          {#if seedDetailOpen}
+            <div class="seed-detail-wrap">
+              <label class="sr-only" for="seed-thought-detail">Detail</label>
+              <textarea
+                id="seed-thought-detail"
+                class="form-textarea seed-detail"
+                rows="3"
+                placeholder="Context, links, half-formed angles…"
+                bind:value={seedForm.description}
+              ></textarea>
+            </div>
+          {/if}
+        </form>
+
+        {#if seedObjectives.length > 0}
+          <div class="seeds-lane">
+            <div class="seeds-lane-head">
+              <div>
+                <p class="eyebrow">Unfinished thoughts</p>
+                <h3 class="seeds-lane-title">Seeds</h3>
+              </div>
+              <span class="inbox-count">{seedObjectives.length}</span>
+            </div>
+            <p class="seeds-hint">
+              Seeds are visible to agents in the briefing. Shape one into an objective when it is ready.
+            </p>
+            <div class="seed-list">
+              {#each seedObjectives as seed (seed.id)}
+                <article class="seed-row">
+                  <div class="seed-row-main">
+                    <div class="seed-row-top">
+                      <span class="ref-chip">#{seed.alias}</span>
+                      <span class="seed-title">{seed.title}</span>
+                      <span class="seed-age">updated {timeAgo(seed.updatedAt)}</span>
+                    </div>
+                    {#if seed.description}
+                      <p class="seed-excerpt">{plainText(seed.description, 140)}</p>
+                    {/if}
+                  </div>
+                  <div class="seed-actions">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick={() => shapeSeed(seed)}>
+                      Shape
+                    </button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick={() => deleteSeed(seed)}>
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              {/each}
+            </div>
+          </div>
+        {/if}
+      </section>
 
       <section class="panel plan-panel">
         <header class="panel-head">
@@ -749,9 +894,12 @@
         <div class="modal-header">
           <div>
             <p class="eyebrow">#{editingObjective.alias}</p>
-            <h2 id="edit-objective-inline-title">Edit objective</h2>
+            <h2 id="edit-objective-inline-title">{shapingSeed ? 'Shape this seed' : 'Edit objective'}</h2>
+            {#if shapingSeed}
+              <p class="panel-subtitle">Saving moves it out of the seed pile and into your plan.</p>
+            {/if}
           </div>
-          <button type="button" class="modal-close" onclick={() => (editingObjective = null)} aria-label="Close">×</button>
+          <button type="button" class="modal-close" onclick={() => { editingObjective = null; shapingSeed = false; }} aria-label="Close">×</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
