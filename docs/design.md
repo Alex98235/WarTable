@@ -268,6 +268,27 @@ Links to objectives and steps are optional and many-to-many.
 **Directives are always-on.** They are hard, campaign-scoped rules: "public API
 must stay backward compatible." Other kinds are searched on demand.
 
+### Semantic knowledge search
+
+Optional and provider-neutral. WarTable sends text to any OpenAI-compatible
+`/v1/embeddings` service; the service never owns the index. A disposable SQLite
+sidecar (`wartable.embeddings.db`) stores heading-aware chunks, content hashes,
+model/profile fingerprints, and normalized float32 vectors. Reindexing is
+incremental and runs in a background worker; the main database schema is
+unchanged.
+
+Search remains evidence-first: hybrid keyword + cosine ranking, top notes with
+snippet, alias, kind, heading context, match source (`keyword`, `semantic`, or
+`both`), and score. If embeddings are disabled, unavailable, or the index is
+empty, the same API returns keyword results with `degraded: true`. The Bunker
+keeps its browse list by default; a `Semantic` switch turns the note list into a
+matches panel and runs only on Enter, because embedding calls cost time and
+money. Numeric scores stay internal: hybrid RRF and cosine scores are not
+comparable, so the match chip and ordering carry the signal.
+Model prompt differences live in profiles (`QueryTemplate`, `DocumentTemplate`,
+dimensions, max input), not in provider-specific branches. A vector database is
+deliberately out of scope until the corpus outgrows brute force.
+
 ### Preference
 
 Human-scoped soft rules. The "friendship record" for the one human.
@@ -450,6 +471,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `add_note` | `campaign_id`, `kind`, `title`, `body`, `tags`, `pinned`, `links` | |
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
+| `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
 | `update_note` | `note_id`, `title`, `body`, `status`, `pinned`, `supersedes_id` | |
 
 ### Preferences
@@ -554,6 +576,10 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 - Search and filters by kind and status.
 - Pinned directives at the top.
+- `Semantic` switch: turns search into meaning search, replaces the browse list
+  with ranked match cards, hides pin/delete/edit actions on results, and keeps
+  the normal detail panel. Pinned directives collapse to a quiet reminder.
+  Degraded/index-building states are stated inline; no raw scores.
 - Note detail: markdown body, links to objectives/steps, supersession chain,
   provenance.
 - Capture form.
@@ -584,7 +610,7 @@ history; the implementation is authoritative.
 | `SitRep`, `SitRepObjective` | Removed. Replaced by `StepUpdate` and `ActivityEvent`. |
 | `Intel` | Replaced by `BunkerNote` with status, supersession, and links. |
 | — | Add `Preference`, `Evidence`, `ActivityEvent`. |
-| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 30 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
+| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 31 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
 | Networking | Add `/api/events` (SSE) driven by `ActivityBroadcaster`: a `FileSystemWatcher` on the SQLite DB/WAL signals new activity, so idle clients cause no database polling. Clients resync with a `since` cursor. |
 | UI | Remove SitReps/Intel tabs and campaign status controls; add plan tree, Bunker, Preferences, Attention. Subscribe to live events. |
 | README | Done: rewritten for the v0.1.0 product. |

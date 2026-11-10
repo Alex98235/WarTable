@@ -1,15 +1,20 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Protocol;
+using WarTable.Api.Configuration;
 using WarTable.Api.Data;
 using WarTable.Api.Endpoints;
 using WarTable.Api.Mcp;
+using WarTable.Api.Options;
 using WarTable.Api.Services;
+using WarTable.Api.Services.Embeddings;
 
 namespace WarTable.Api;
 
@@ -17,6 +22,13 @@ public class Program
 {
 	public static async Task<int> Main(string[] args)
 	{
+		var dotEnv = DotEnv.Load();
+		if (dotEnv.Loaded)
+			Console.Error.WriteLine(
+				$"WarTable: loaded environment from {dotEnv.Path} ({dotEnv.Keys.Count} variable(s)).");
+		foreach (var warning in dotEnv.Warnings)
+			Console.Error.WriteLine($"WarTable: {warning}");
+
 		var mode = "serve";
 		var host = "localhost";
 		var port = 5110;
@@ -80,6 +92,9 @@ public class Program
 
 		builder.Services.AddScoped<WarTableService>();
 
+		var databasePath = new SqliteConnectionStringBuilder(connectionString).DataSource;
+		AddKnowledgeServices(builder.Services, builder.Configuration, databasePath);
+
 		builder.Services
 			.AddMcpServer(options =>
 			{
@@ -95,7 +110,6 @@ public class Program
 		// The broadcaster watches the SQLite file for writes. Resolve the concrete
 		// path here (the same one EF opens) so the watcher can be constructed before
 		// the host starts. A null/":memory:" path simply disables the watcher.
-		var databasePath = new SqliteConnectionStringBuilder(connectionString).DataSource;
 		builder.Services.AddSingleton<ActivityBroadcaster>(services => new ActivityBroadcaster(
 			services.GetRequiredService<IServiceScopeFactory>(),
 			databasePath,
@@ -137,6 +151,7 @@ public class Program
 		app.MapObjectiveEndpoints();
 		app.MapStepEndpoints();
 		app.MapNoteEndpoints();
+		app.MapKnowledgeEndpoints();
 		app.MapPreferenceEndpoints();
 		app.MapBriefingEndpoints();
 		app.MapAliasEndpoints();
@@ -200,6 +215,9 @@ public class Program
 			options.UseSqlite(connectionString));
 		builder.Services.AddScoped<WarTableService>();
 
+		var databasePath = new SqliteConnectionStringBuilder(connectionString).DataSource;
+		AddKnowledgeServices(builder.Services, builder.Configuration, databasePath);
+
 		builder.Services
 			.AddMcpServer(options =>
 			{
@@ -221,6 +239,39 @@ public class Program
 		}
 
 		await host.RunAsync();
+	}
+
+	private static void AddKnowledgeServices(
+		IServiceCollection services,
+		IConfiguration configuration,
+		string databasePath)
+	{
+		services.Configure<EmbeddingsOptions>(configuration.GetSection(EmbeddingsOptions.SectionName));
+		services.PostConfigure<EmbeddingsOptions>(options =>
+		{
+			if (!string.IsNullOrWhiteSpace(options.SidecarPath))
+				return;
+
+			var directory = Path.GetDirectoryName(databasePath);
+			options.SidecarPath = Path.Combine(
+				string.IsNullOrWhiteSpace(directory) ? "." : directory,
+				"wartable.embeddings.db");
+		});
+
+		services.AddSingleton<EmbeddingProfileProvider>();
+		services.AddHttpClient<IEmbeddingClient, OpenAiEmbeddingClient>((provider, client) =>
+		{
+			var options = provider.GetRequiredService<IOptions<EmbeddingsOptions>>().Value;
+			client.Timeout = TimeSpan.FromSeconds(Math.Max(1, options.TimeoutSeconds));
+		});
+		services.AddSingleton<IKnowledgeIndex>(provider =>
+		{
+			var options = provider.GetRequiredService<IOptions<EmbeddingsOptions>>().Value;
+			return new SqliteKnowledgeIndex(options.SidecarPath!);
+		});
+		services.AddScoped<KnowledgeIndexService>();
+		services.AddScoped<KnowledgeSearchService>();
+		services.AddHostedService<KnowledgeIndexWorker>();
 	}
 
 	private static void PrintHelp()

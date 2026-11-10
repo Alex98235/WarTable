@@ -2,6 +2,7 @@ using System.ComponentModel;
 using ModelContextProtocol.Server;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
+using WarTable.Api.Services.Embeddings;
 
 namespace WarTable.Api.Mcp.Tools;
 
@@ -124,6 +125,42 @@ public static class BunkerTools
 				search,
 				noteKind,
 				noteStatus);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "search_knowledge")]
+	[Description(
+		"Search campaign knowledge semantically and by keyword. Returns ranked Bunker notes " +
+		"with snippets. Falls back to keyword-only results when embeddings are unavailable.")]
+	public static async Task<object> SearchKnowledgeAsync(
+		KnowledgeSearchService service,
+		string query,
+		string? campaign_id = null,
+		string? mode = null,
+		int? limit = null)
+	{
+		try
+		{
+			if (string.IsNullOrWhiteSpace(query))
+				return McpResults.Error("query is required");
+
+			var campaignId = McpArgs.Guid(campaign_id);
+			if (!string.IsNullOrWhiteSpace(campaign_id) && campaignId is null)
+				return McpResults.Error("campaign_id must be a GUID");
+
+			var searchMode = KnowledgeSearchMode.Hybrid;
+			if (!string.IsNullOrWhiteSpace(mode) &&
+				!Enum.TryParse(mode, ignoreCase: true, out searchMode))
+			{
+				return McpResults.Error(
+					$"Invalid mode: {mode}. Valid values: {string.Join(", ", Enum.GetNames<KnowledgeSearchMode>())}");
+			}
+
+			return await service.SearchAsync(campaignId, query, searchMode, limit);
 		}
 		catch (Exception ex)
 		{

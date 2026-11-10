@@ -110,9 +110,89 @@ your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
 SQLite on the server is the single source of truth. Browsers are thin clients;
 there are no accounts and no offline write queue.
 
+## Semantic knowledge search (optional)
+
+WarTable can index Bunker notes and answer "have we said anything about X?"
+semantically as well as by keyword. The embedding model is **not bundled**:
+WarTable talks to any standalone service that exposes the OpenAI-compatible
+`POST /v1/embeddings` contract (Ollama, llama.cpp, LM Studio, vLLM, or a hosted
+provider). The service is stateless; WarTable owns chunking, the disposable
+sidecar index, ranking, and fallback.
+
+Enable it in `WarTable.Api/appsettings.json`, a local `.env`, or with
+environment variables:
+
+```json
+"Embeddings": {
+  "Enabled": true,
+  "Endpoint": "http://localhost:11434/v1",
+  "Model": "embeddinggemma",
+  "Dimensions": 768,
+  "MaxInputTokens": 512
+}
+```
+
+```bash
+# Environment equivalent
+Embeddings__Enabled=true
+Embeddings__Endpoint=http://localhost:11434/v1
+Embeddings__Model=embeddinggemma
+Embeddings__Dimensions=768
+```
+
+For local development, copy `.env.example` to `.env` and set the values there:
+
+```bash
+cp .env.example .env
+```
+
+WarTable loads the nearest `.env` automatically at startup (walking up from the
+current directory and application directory). Existing process environment
+variables take precedence, so shell/CI overrides still win. Set
+`WARTABLE_SKIP_DOTENV=1` to disable loading or `WARTABLE_ENV_FILE=/path/.env`
+to point at a specific file. `.env` is gitignored.
+
+When running through Docker Compose, `docker-compose.yml` passes the
+`Embeddings__*` values into the container. Its endpoint default is
+`http://host.docker.internal:11434/v1`, because `localhost` inside the
+container means the container itself. On Linux the compose file adds
+`host-gateway` for that name. If Ollama runs as a Compose service, set the
+endpoint to that service instead, for example
+`http://ollama:11434/v1`. Values in `.env` are used for Compose interpolation,
+so the same file can configure local and container runs; use the appropriate
+endpoint for each.
+
+`Dimensions` is optional; if omitted, the first index pass uses the vector size
+returned by the service. `Embeddings__ApiKey` is sent as a Bearer token when set.
+The index lives in `wartable.embeddings.db` beside the main database and is safe
+to delete; WarTable rebuilds it in the background.
+
+Built-in prompt profiles cover EmbeddingGemma, BGE, E5, Nomic, Qwen3-Embedding,
+OpenAI `text-embedding-3`, and raw text. Matching is by model id; override with
+`Embeddings:Profile` or add `Embeddings:Profiles` entries with
+`QueryTemplate` / `DocumentTemplate` (placeholders: `{text}`, `{title}`,
+`{kind}`, `{tags}`, `{heading}`, `{campaign}`, `{instruction}`). The external
+service only needs to turn text into vectors.
+
+Search is hybrid by default: existing keyword matches plus semantic chunks,
+merged with reciprocal rank fusion. If the service is down, disabled, or the
+index is empty, the API returns keyword results with `degraded: true` rather
+than failing.
+
+```bash
+curl 'http://localhost:5110/api/knowledge/search?q=rate+limit&campaignId=<id>'
+curl 'http://localhost:5110/api/knowledge/status'
+curl -X POST 'http://localhost:5110/api/knowledge/reindex'
+```
+
+Agents use the `search_knowledge` MCP tool. In the Bunker, turn on
+`Semantic` and press Enter to search meaning across live notes; results are
+evidence (note, alias, snippet, heading context, match source), not generated
+answers.
+
 ## Connect an agent (OpenCode)
 
-WarTable exposes 30 MCP tools over stdio and Streamable HTTP. The recommended
+WarTable exposes 31 MCP tools over stdio and Streamable HTTP. The recommended
 OpenCode V2 configuration for an agent on the same machine as the source
 checkout is:
 
@@ -183,6 +263,9 @@ planning and execution record:
 >   done. Flag work that needs human review.
 > - Record durable decisions, gotchas, references, and open questions in the
 >   campaign Bunker with `add_note`. Directives are hard, always-on campaign rules.
+> - Before adding a note, or when the human asks whether something was already
+>   discussed, use `search_knowledge` (hybrid semantic + keyword) and cite the
+>   note alias and snippet rather than assuming.
 > - Preferences are advisory, human-global rules. If a campaign directive
 >   conflicts with a preference, surface the conflict.
 > - Objective status is derived from steps; do not set it directly.

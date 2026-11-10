@@ -70,6 +70,41 @@ The service publishes `5110`, bind-mounts `./data` to `/data`, restarts
 --mode serve --host 0.0.0.0 --port 5110 --db /data/wartable.db
 ```
 
+### Optional semantic search
+
+The Compose file passes these `Embeddings__*` values into the container and
+reads them from `.env` when present:
+
+```text
+Embeddings__Enabled       default: false
+Embeddings__Endpoint      default: http://host.docker.internal:11434/v1
+Embeddings__Model         default: embeddinggemma
+Embeddings__Dimensions    default: 768
+Embeddings__MaxInputTokens default: 512
+```
+
+Use `host.docker.internal`, not `localhost`, for an embedding service running on
+the host: inside the container `localhost` is the container. The Compose file
+adds the Linux `host-gateway` mapping for that name. If Ollama is a Compose
+service, set the endpoint to its service name, for example
+`http://ollama:11434/v1`. To enable semantic search:
+
+```bash
+# .env
+Embeddings__Enabled=true
+```
+
+Then recreate the service and verify the index:
+
+```bash
+docker compose up -d
+curl -fsS http://localhost:5110/api/knowledge/status
+```
+
+The index is `/data/wartable.embeddings.db`; it is disposable and rebuilds when
+the model or profile changes. If the service is unavailable, search falls back
+to keyword results with `degraded: true`.
+
 ## Operations
 
 ```bash
@@ -141,7 +176,7 @@ It tags the result `wartable:${WARTABLE_TAG}`. The base file never builds.
 [`smoke-image.yml`](../.github/workflows/smoke-image.yml) pulls an
 already-published image and exercises it without building or pushing anything.
 It starts the image with a fresh named volume, waits for `/api/health`, creates a
-campaign, checks the MCP `initialize` response and `tools/list` (30 tools),
+campaign, checks the MCP `initialize` response and `tools/list` (31 tools),
 restarts the container, and verifies that the campaign and `/data/wartable.db`
 survived.
 
@@ -156,7 +191,7 @@ The `image` input defaults to `ghcr.io/alex98235/wartable:0.1.0` when the
 workflow is started from the UI. The job logs in to GHCR with `GITHUB_TOKEN` and
 `packages: read`; that login is kept for private forks and to avoid anonymous
 pull rate limits. A successful run ends with
-`IMAGE SMOKE OK image=... digest=... campaign=... tools=30`; a failure dumps
+`IMAGE SMOKE OK image=... digest=... campaign=... tools=31`; a failure dumps
 the container logs before the job exits.
 
 ## Version-to-version update test
