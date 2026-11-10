@@ -1,0 +1,30 @@
+{
+	"extends": ["stylelint-config-standard"],
+	"overrides": [
+		{
+			"files": ["**/*.svelte", "**/*.html"],
+			"customSyntax": "postcss-html"
+		}
+	],
+	"rules": {
+		"alpha-value-notation": null,
+		"at-rule-empty-line-before": null,
+		"color-function-alias-notation": null,
+		"color-function-notation": null,
+		"comment-empty-line-before": null,
+		"custom-property-empty-line-before": null,
+		"media-feature-range-notation": null,
+		"no-descending-specificity": null,
+		"no-duplicate-selectors": null,
+		"property-no-deprecated": null,
+		"property-no-vendor-prefix": null,
+		"rule-empty-line-before": null,
+		"selector-pseudo-class-no-unknown": [
+			true,
+			{
+				"ignorePseudoClasses": ["global"]
+			}
+		],
+		"value-keyword-case": null
+	}
+}
