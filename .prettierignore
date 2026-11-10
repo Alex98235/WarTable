@@ -1,0 +1,18 @@
+# Node
+node_modules/
+package-lock.json
+WarTable.Client/package-lock.json
+
+# Build output
+WarTable.Api/wwwroot/
+WarTable.Api/bin/
+WarTable.Api/obj/
+WarTable.Api.Tests/bin/
+WarTable.Api.Tests/obj/
+
+# Generated and runtime data
+CHANGELOG.md
+backups/
+*.db
+*.db-shm
+*.db-wal

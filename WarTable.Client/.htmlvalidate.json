@@ -1,0 +1,24 @@
+{
+	"extends": ["html-validate:recommended"],
+	"rules": {
+		"doctype-style": [
+			"error",
+			{
+				"style": "lowercase"
+			}
+		],
+		"void-style": [
+			"error",
+			{
+				"style": "selfclose"
+			}
+		],
+		"element-required-content": [
+			"error",
+			{
+				"ignore": ["title"]
+			}
+		],
+		"no-trailing-whitespace": "off"
+	}
+}

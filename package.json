@@ -1,17 +1,42 @@
 {
-  "name": "wartable",
-  "private": true,
-  "scripts": {
-    "build:frontend": "npm --prefix WarTable.Client run build",
-    "build:backend": "dotnet build WarTable.Api/WarTable.Api.csproj",
-    "build": "npm run build:frontend && npm run build:backend",
-    "changelog": "git-cliff -o CHANGELOG.md",
-    "release": "node scripts/release.mjs",
-    "dev:frontend": "npm --prefix WarTable.Client run dev",
-    "dev:backend": "dotnet run --project WarTable.Api -- --mode serve",
-    "dev": "concurrently -n fe,be -c cyan,magenta \"npm run dev:frontend\" \"npm run dev:backend\""
-  },
-  "devDependencies": {
-    "concurrently": "^9.1.0"
-  }
+	"name": "wartable",
+	"private": true,
+	"scripts": {
+		"build:frontend": "npm --prefix WarTable.Client run build",
+		"build:backend": "dotnet build WarTable.Api/WarTable.Api.csproj",
+		"build": "npm run build:frontend && npm run build:backend",
+		"changelog": "git-cliff -o CHANGELOG.md",
+		"release": "node scripts/release.mjs",
+		"dev:frontend": "npm --prefix WarTable.Client run dev",
+		"dev:backend": "dotnet run --project WarTable.Api -- --mode serve",
+		"dev": "concurrently -n fe,be -c cyan,magenta \"npm run dev:frontend\" \"npm run dev:backend\"",
+		"format:frontend": "prettier --write \"WarTable.Client/**/*.{svelte,js,mjs,css,html,json}\"",
+		"format:backend": "dotnet format WarTable.slnx && dotnet format WarTable.Api.Tests/WarTable.Api.Tests.csproj",
+		"format": "npm run format:frontend && npm run format:backend",
+		"format:frontend/backend": "npm run format:frontend && npm run format:backend",
+		"format-check:css": "prettier --check \"WarTable.Client/**/*.css\"",
+		"format-check:html": "prettier --check \"WarTable.Client/**/*.html\"",
+		"format-check:js": "prettier --check \"WarTable.Client/**/*.{js,mjs,svelte}\"",
+		"format-check": "npm run format-check:css && npm run format-check:html && npm run format-check:js",
+		"lint:js": "eslint --config WarTable.Client/eslint.config.js \"WarTable.Client/src/**/*.{js,svelte}\"",
+		"lint:css": "stylelint --config WarTable.Client/.stylelintrc.json \"WarTable.Client/src/**/*.{css,svelte}\"",
+		"lint": "npm run lint:js && npm run lint:css",
+		"validate:html": "html-validate --config WarTable.Client/.htmlvalidate.json \"WarTable.Client/**/*.html\"",
+		"validate": "npm run format-check && npm run lint && npm run validate:html",
+		"init": "npm install && cd WarTable.Client && npm install"
+	},
+	"devDependencies": {
+		"@eslint/js": "^10.0.1",
+		"concurrently": "^10.0.7",
+		"eslint": "^10.14.0",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "^3.24.1",
+		"globals": "^17.14.0",
+		"html-validate": "^11.21.0",
+		"postcss-html": "^2.0.0",
+		"prettier": "^3.9.10",
+		"prettier-plugin-svelte": "^4.1.1",
+		"stylelint": "^18.0.0",
+		"stylelint-config-standard": "^41.0.0"
+	}
 }

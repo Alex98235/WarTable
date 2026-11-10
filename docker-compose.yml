@@ -1,27 +1,39 @@
 services:
-  wartable:
-    platform: linux/amd64
-    image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}
-    container_name: wartable
-    restart: unless-stopped
-    ports:
-      - "5110:5110"
-    volumes:
-      - ./data:/data
-    command:
-      - --mode
-      - serve
-      - --host
-      - 0.0.0.0
-      - --port
-      - "5110"
-      - --db
-      - /data/wartable.db
-    environment:
-      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:5110/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    wartable:
+        platform: linux/amd64
+        image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}
+        container_name: wartable
+        restart: unless-stopped
+        ports:
+            - '5110:5110'
+        volumes:
+            - ./data:/data
+        command:
+            - --mode
+            - serve
+            - --host
+            - 0.0.0.0
+            - --port
+            - '5110'
+            - --db
+            - /data/wartable.db
+        environment:
+            Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+            # Optional semantic search. Override these in `.env` or leave the
+            # defaults; inside the container 127.0.0.1/localhost is the
+            # container, so the host Ollama endpoint is used by default.
+            Embeddings__Enabled: "${Embeddings__Enabled:-false}"
+            Embeddings__Endpoint: "${Embeddings__Endpoint:-http://host.docker.internal:11434/v1}"
+            Embeddings__Model: "${Embeddings__Model:-embeddinggemma}"
+            Embeddings__Dimensions: "${Embeddings__Dimensions:-768}"
+            Embeddings__MaxInputTokens: "${Embeddings__MaxInputTokens:-512}"
+            Embeddings__ApiKey: "${Embeddings__ApiKey:-}"
+            Embeddings__Profile: "${Embeddings__Profile:-}"
+        extra_hosts:
+            - 'host.docker.internal:host-gateway'
+        healthcheck:
+            test: ['CMD', 'curl', '-fsS', 'http://localhost:5110/api/health']
+            interval: 30s
+            timeout: 5s
+            retries: 3
+            start_period: 10s

@@ -89,7 +89,7 @@ laptop agent   ──┘
 
 The human opens the dashboard and sees an attention inbox: two flagged steps, one
 blocked objective, one open question. The agent starts with a single briefing
-call: campaign intent, current focus, ready steps, blockers, directives,
+call: campaign charter, current focus, ready steps, blockers, directives,
 preferences, recent decisions. It does not read forty journal entries.
 
 **Requirements:** computed briefing, attention queue, ready computation from
@@ -109,8 +109,9 @@ scope, provenance, retire/edit, always injected.
 Planning finishes in chat. The agent asks whether to move the plan to WarTable.
 On approval it calls `import_plan` once: campaign (or existing campaign),
 objectives, steps, dependencies. The plan lands as `Draft` or `Active` depending
-on the intent. The agent activates it and starts work. If the agent's
-instructions require human approval first, it asks; the tool does not force it.
+on the requested `plan_state`. The agent activates it and starts work. If the
+agent's instructions require human approval first, it asks; the tool does not
+force it.
 
 **Requirements:** atomic bulk import, aliases returned, `PlanState`, one call
 instead of dozens of `create_step` calls.
@@ -141,8 +142,13 @@ with objectives in `Draft`. Draft objectives do not pollute the ready set or the
 urgent attention queue. They sit in the plan tree with a calm badge until either
 party activates them.
 
-**Requirements:** objective-level `PlanState`, draft filtering in briefing and
-attention.
+Before that, a passing idea can be captured as a `Seed`: a one-line unfinished
+thought with an alias. Seeds appear in the briefing and attention so the idea is
+not lost, but they never produce ready steps. Drafting a seed promotes it to
+`Draft`.
+
+**Requirements:** objective-level `PlanState`, seed and draft filtering in
+briefing and attention.
 
 ### G. Project close
 
@@ -162,10 +168,16 @@ A namespace and folder. It is not a work item and has no status.
 |---|---|
 | `Id` | GUID |
 | `Title` | |
-| `Intent` | Markdown. Why this project exists. Replaces `Description`. |
 | `NextAliasNumber` | Campaign-scoped monotonic counter for objectives and notes. |
 | `CreatedAt`, `UpdatedAt` | |
 | `ArchivedAt` | Nullable. Future archive support. |
+
+The campaign charter is a `Charter` Bunker note, not a campaign column. One
+active charter is allowed; campaign creation can create it automatically. A
+`DesignDoc` note records a component or area. Both are ordinary notes for
+aliases, links, status, search, activity, and MCP note tools. The old
+`Campaign.Intent` column is retained only so older SQLite files stay writable;
+the application never reads or exposes it.
 
 Relationships: objectives, bunker notes.
 
@@ -180,12 +192,12 @@ A durable outcome. The unit of planning.
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
 | `Description` | Markdown. Outcome and constraints. |
-| `PlanState` | `Draft` or `Active`. Objective-level. |
+| `PlanState` | `Seed`, `Draft`, or `Active`. Objective-level. A seed is a captured unfinished thought. |
 | `Status` | Derived cache: `Planned`, `InProgress`, `NeedsReview`, `Blocked`, `Completed`. |
 | `SortOrder` | Display order. |
 | `CreatedAt`, `UpdatedAt`, `DeletedAt` | Soft delete. |
 
-Steps drive `Status`. A draft objective is visible but not actionable.
+Steps drive `Status`. A seed or draft objective is visible but not actionable.
 
 ### Step
 
@@ -263,6 +275,27 @@ Links to objectives and steps are optional and many-to-many.
 **Directives are always-on.** They are hard, campaign-scoped rules: "public API
 must stay backward compatible." Other kinds are searched on demand.
 
+### Semantic knowledge search
+
+Optional and provider-neutral. WarTable sends text to any OpenAI-compatible
+`/v1/embeddings` service; the service never owns the index. A disposable SQLite
+sidecar (`wartable.embeddings.db`) stores heading-aware chunks, content hashes,
+model/profile fingerprints, and normalized float32 vectors. Reindexing is
+incremental and runs in a background worker; the main database schema is
+unchanged.
+
+Search remains evidence-first: hybrid keyword + cosine ranking, top notes with
+snippet, alias, kind, heading context, match source (`keyword`, `semantic`, or
+`both`), and score. If embeddings are disabled, unavailable, or the index is
+empty, the same API returns keyword results with `degraded: true`. The Bunker
+keeps its browse list by default; a `Semantic` switch turns the note list into a
+matches panel and runs only on Enter, because embedding calls cost time and
+money. Numeric scores stay internal: hybrid RRF and cosine scores are not
+comparable, so the match chip and ordering carry the signal.
+Model prompt differences live in profiles (`QueryTemplate`, `DocumentTemplate`,
+dimensions, max input), not in provider-specific branches. A vector database is
+deliberately out of scope until the corpus outgrows brute force.
+
 ### Preference
 
 Human-scoped soft rules. The "friendship record" for the one human.
@@ -305,11 +338,11 @@ Every mutation writes one event.
 
 These are not tables.
 
-- **Briefing** — intent, focus, ready steps, blockers, flagged steps, open
-  questions, active directives, active preferences, recent decisions, recent
-  activity. Bounded and token-aware.
+- **Briefing** - charter excerpt, focus, ready steps, blockers, flagged steps,
+  open questions, active directives, active preferences, recent decisions,
+  design-doc excerpts, seeds, and recent activity. Bounded and token-aware.
 - **Attention** — cross-campaign inbox: flagged steps, blocked objectives, open
-  questions, stale in-progress steps. Draft plans get a calm separate section.
+  questions, stale in-progress steps. Draft plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
 
 ### Aliases and addressing
@@ -332,7 +365,7 @@ timestamps are caches.
 ### Lifecycle
 
 - **Campaign:** no status. Created as a folder. Archive later via `ArchivedAt`.
-- **Objective:** `Draft` → `Active` → completed (derived from steps). Either actor
+- **Objective:** `Seed` → `Draft` → `Active` → completed (derived from steps). Either actor
   can change `PlanState`. There is no separate "abandoned" state; delete or leave
   it Draft.
 - **Step:** `Open` → `InProgress` → `Done`. `Flagged` and `Blocked` can occur at
@@ -351,10 +384,10 @@ choosing.
 Same data, two projections. Multiple browser clients are the same human surface:
 they see the same server state and receive the same live updates.
 
-**Human surface:** intent, plan review, approval when the human chooses to
-require it, attention inbox, Bunker curation, preference capture. Optimized for
-reading, correcting, reordering, and flagging — not for building plans from
-scratch.
+**Human surface:** charter and framing docs, plan review, approval when the
+human chooses to require it, attention inbox, Bunker curation, preference
+capture. Optimized for reading, correcting, reordering, and flagging - not for
+building plans from scratch.
 
 **Agent surface:** briefing, ready/assigned steps, dependency graph, step
 updates, evidence, notes, preferences. Optimized for one-call context assembly
@@ -370,6 +403,8 @@ names are `snake_case`; enum values are PascalCase strings. Data payloads use
 as the server. Agents on a desktop or laptop connect to the server over the LAN
 via MCP Streamable HTTP at `/mcp`. Both transports share the same tool classes,
 the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK, and the same database.
+The initialize response includes baseline usage instructions; clients may treat
+them as system context, but the README prompt remains the explicit fallback.
 The HTTP transport is stateless: `POST /mcp` handles one JSON-RPC message per
 request, `GET`/`DELETE` return 405, and no `Mcp-Session-Id` is minted. Protocol
 version is negotiated by the SDK. Tool payloads keep `snake_case` and string
@@ -379,10 +414,10 @@ enums.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_campaign` | `title`, `intent`, `tags` | Folder, no status. |
+| `create_campaign` | `title`, `charter`, `tags` | Folder, no status. A non-empty charter is stored as a `Charter` note. |
 | `get_campaign` | `campaign_id` | Metadata and summaries, not a full dump. |
 | `list_campaigns` | `search`, `include_archived` | |
-| `update_campaign` | `campaign_id`, `title`, `intent`, `tags` | |
+| `update_campaign` | `campaign_id`, `title`, `tags`, `archived_at` | Edit the charter with `update_note`. |
 | `delete_campaign` | `campaign_id` | Hard delete for now. |
 
 ### Plans and briefing
@@ -399,7 +434,7 @@ enums.
 
 ```json
 {
-  "campaign": { "title": "Auth overhaul", "intent": "Replace the legacy auth flow." },
+  "campaign": { "title": "Auth overhaul", "charter": "Replace the legacy auth flow." },
   "objectives": [
     {
       "key": "schema",
@@ -445,6 +480,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `add_note` | `campaign_id`, `kind`, `title`, `body`, `tags`, `pinned`, `links` | |
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
+| `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
 | `update_note` | `note_id`, `title`, `body`, `status`, `pinned`, `supersedes_id` | |
 
 ### Preferences
@@ -471,9 +507,18 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 ### Recommended agent behavior
 
 - Read `get_briefing` before starting work. Do not read the whole campaign.
+  Use `get_plan` when the complete objective and step graph is needed.
+- Read the campaign Charter and relevant DesignDoc notes before proposing work.
+  The charter is the durable why, scope, and architecture; update it with
+  `update_note`. Campaigns have no separate intent field.
 - When a planning phase finishes, offer to import the plan. Import as `Draft` if
   it will not be executed immediately; activate when starting.
-- Record durable decisions, gotchas, and references in the Bunker as they arise.
+- Pick up seeds when no ready work is queued: discuss the thought with the human,
+  then promote it with `update_objective`; do not execute it as-is.
+- Record durable decisions, gotchas, references, and open questions in the Bunker
+  as they arise. Use DesignDoc notes for component-level design detail.
+- Before adding a note, or when asked whether something was already discussed,
+  use `search_knowledge` and cite the note alias and snippet.
 - Capture a preference when the human expresses a durable preference. If it is
   ambiguous, ask before storing it.
 - Post step updates as work progresses, especially blockers and results. Attach
@@ -482,6 +527,8 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 - Flag a step when human input is needed.
 - If a campaign directive conflicts with a human preference, follow the
   directive and say so.
+- Subagents do not inherit the parent agent's prompt or conversation. A subagent
+  with WarTable tools should call `get_briefing` or `get_plan` itself.
 
 ## 8. HTTP API
 
@@ -511,28 +558,39 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ### Dashboard
 
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
-  questions, stale in-progress work. Each item shows campaign, objective/step,
-  reason, age, and a link.
-- **Campaign folders** below: title, intent excerpt, active/draft objective
+  questions, stale in-progress work, and seeds awaiting draft. Each item shows
+  campaign, objective/step, reason, age, and a link.
+- **Campaign folders** below: title, charter excerpt, active/draft objective
   counts, last activity, tags. No status badges and no status counts.
 - **Recent decisions and preferences** as small secondary panels.
 
 ### Campaigns list
 
-- Folder cards: title, intent excerpt, progress summary, last activity, tags.
+- Folder cards: title, charter excerpt, progress summary, last activity, tags.
 - Search. No status filter. Archived campaigns hidden by default once archive
   exists.
 
 ### Campaign detail
 
-- **Header:** title, intent (markdown, editable), tags. No status buttons.
-- **Briefing panel:** "What matters now" — focus, ready steps, blockers, open
-  questions, directives, recent decisions. Collapsible.
-- **Plan tree:** objectives sorted by `SortOrder`, each with `PlanState` badge,
-  derived status, progress, and expandable steps. Steps show `#N.M`, assignee,
-  status, dependency chips, and the latest update. Inline actions: activate draft,
-  reorder, flag, edit.
-- **Bunker rail:** search, pinned directives, recent notes, link to full Bunker.
+- **Hero:** title, tags, compact stats, and one primary action. The active Charter
+  note appears as a 2–3 line preview with `Read charter` / `Show less`, an edit
+  action, and a link into the Bunker. No charter and inactive charter states are
+  compact inline invitations.
+- **Bounded brief:** "What matters now" with `Needs you`, `Ready`, and
+  `Questions`, capped at two rows per group plus `+N` counts. Directives and
+  recent decisions collapse into one context chip row; preferences appear only
+  here, capped at four.
+- **Plan tiers:** `In play` (active, unfinished), `Parked` (drafts and seeds),
+  and `Finished` (completed objectives, collapsed by default). Finished rows are
+  one line, with no progress, reorder, or state controls; `updatedAt` is shown
+  as last activity, never as a completion timestamp. Reorder applies only within
+  `In play`.
+- **Quick capture:** one input to save a seed — title plus optional note, no
+  steps. Seed rows live under `Parked`; "Shape" promotes one into a draft. Seeds
+  never expose ready or blocked actions.
+- **Knowledge rail:** sticky on desktop; Bunker search/recent notes plus a
+  compact DesignDoc index and create action. Charter and design docs are not
+  repeated in recent notes. The global Steering panel is not on this page.
 - No SitReps/Intel tabs.
 
 ### Objective detail
@@ -546,6 +604,10 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 - Search and filters by kind and status.
 - Pinned directives at the top.
+- `Semantic` switch: turns search into meaning search, replaces the browse list
+  with ranked match cards, hides pin/delete/edit actions on results, and keeps
+  the normal detail panel. Pinned directives collapse to a quiet reminder.
+  Degraded/index-building states are stated inline; no raw scores.
 - Note detail: markdown body, links to objectives/steps, supersession chain,
   provenance.
 - Capture form.
@@ -559,7 +621,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ### Attention
 
 - Cross-campaign inbox with filters by kind, campaign, and age.
-- Draft plans appear in a separate "parked" section, not as urgent items.
+- Draft plans and seeds appear in calm separate sections, not as urgent items.
 
 ## 10. Impact on the current codebase (historical)
 
@@ -569,14 +631,14 @@ history; the implementation is authoritative.
 | Current | Change |
 |---|---|
 | `Campaign.Status` | Removed. Campaign is a folder. |
-| `Campaign.Description` | Renamed to `Intent`. |
+| `Campaign.Description` | Removed. Replaced by the `Charter` Bunker note. |
 | `Objective.Status` | Becomes a derived cache; add `PlanState`. |
 | `Step.ParallelGroup` | Removed. Add `DependsOn`; derive parallelism. |
 | `Step` | Add `StepNumber`, updates, evidence. |
 | `SitRep`, `SitRepObjective` | Removed. Replaced by `StepUpdate` and `ActivityEvent`. |
 | `Intel` | Replaced by `BunkerNote` with status, supersession, and links. |
 | — | Add `Preference`, `Evidence`, `ActivityEvent`. |
-| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 30 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
+| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 31 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
 | Networking | Add `/api/events` (SSE) driven by `ActivityBroadcaster`: a `FileSystemWatcher` on the SQLite DB/WAL signals new activity, so idle clients cause no database polling. Clients resync with a `since` cursor. |
 | UI | Remove SitReps/Intel tabs and campaign status controls; add plan tree, Bunker, Preferences, Attention. Subscribe to live events. |
 | README | Done: rewritten for the v0.1.0 product. |
@@ -610,8 +672,9 @@ commitments.
 3. **Questions — resolved.** A question is a Bunker note kind.
 4. **Preference capture.** Should the agent write directly, or propose and let the
    human confirm? A review queue is safer but adds friction.
-5. **Campaign intent — resolved.** The campaign has a dedicated markdown `Intent`
-   field.
+5. **Campaign intent - resolved.** The campaign has one active `Charter` Bunker
+   note (why, scope, architecture), created with the campaign or written later.
+   The old `Intent` column is legacy storage only.
 6. **Re-import.** How should `import_plan` update an existing plan without
    duplicating objectives?
 7. **Dependency UX.** How are dependencies added and edited in the UI? How are

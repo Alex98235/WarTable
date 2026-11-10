@@ -212,7 +212,6 @@ vite.config.ts.timestamp-*
 
 # WarTable build output and runtime data
 /WarTable.Api/wwwroot/
-data/
 backups/
 *.db
 *.db-shm

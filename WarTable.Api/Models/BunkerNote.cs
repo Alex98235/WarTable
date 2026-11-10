@@ -9,57 +9,59 @@ using System.Text.Json.Serialization;
 /// </summary>
 public class BunkerNote
 {
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid CampaignId { get; set; }
+	public Guid Id { get; set; } = Guid.NewGuid();
+	public Guid CampaignId { get; set; }
 
-    /// <summary>Campaign-scoped identifier shown as <c>#N</c>. Shared counter with objectives.</summary>
-    public int Alias { get; set; }
+	/// <summary>Campaign-scoped identifier shown as <c>#N</c>. Shared counter with objectives.</summary>
+	public int Alias { get; set; }
 
-    public BunkerNoteKind Kind { get; set; } = BunkerNoteKind.Context;
-    public string Title { get; set; } = "";
+	public BunkerNoteKind Kind { get; set; } = BunkerNoteKind.Context;
+	public string Title { get; set; } = "";
 
-    /// <summary>Markdown.</summary>
-    public string Body { get; set; } = "";
+	/// <summary>Markdown.</summary>
+	public string Body { get; set; } = "";
 
-    public BunkerNoteStatus Status { get; set; } = BunkerNoteStatus.Active;
-    public bool Pinned { get; set; }
-    public string Tags { get; set; } = "";
-    public string CreatedBy { get; set; } = "human";
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+	public BunkerNoteStatus Status { get; set; } = BunkerNoteStatus.Active;
+	public bool Pinned { get; set; }
+	public string Tags { get; set; } = "";
+	public string CreatedBy { get; set; } = "human";
+	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    /// <summary>For decisions that replace earlier decisions.</summary>
-    public Guid? SupersedesId { get; set; }
+	/// <summary>For decisions that replace earlier decisions.</summary>
+	public Guid? SupersedesId { get; set; }
 
-    public DateTime? DeletedAt { get; set; }
+	public DateTime? DeletedAt { get; set; }
 
-    [JsonIgnore]
-    public Campaign? Campaign { get; set; }
+	[JsonIgnore]
+	public Campaign? Campaign { get; set; }
 
-    public List<BunkerNoteLink> Links { get; set; } = new();
+	public List<BunkerNoteLink> Links { get; set; } = new();
 
-    /// <summary>Populated by the service for serialization.</summary>
-    [NotMapped]
-    public List<Guid> LinkedObjectiveIds { get; set; } = new();
+	/// <summary>Populated by the service for serialization.</summary>
+	[NotMapped]
+	public List<Guid> LinkedObjectiveIds { get; set; } = new();
 
-    /// <summary>Populated by the service for serialization.</summary>
-    [NotMapped]
-    public List<Guid> LinkedStepIds { get; set; } = new();
+	/// <summary>Populated by the service for serialization.</summary>
+	[NotMapped]
+	public List<Guid> LinkedStepIds { get; set; } = new();
 }
 
 public enum BunkerNoteKind
 {
-    Directive,
-    Decision,
-    Gotcha,
-    Reference,
-    Context,
-    Question,
+	Directive,
+	Decision,
+	Gotcha,
+	Reference,
+	Context,
+	Question,
+	Charter,
+	DesignDoc,
 }
 
 public enum BunkerNoteStatus
 {
-    Active,
-    Superseded,
-    Resolved,
+	Active,
+	Superseded,
+	Resolved,
 }

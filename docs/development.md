@@ -45,6 +45,27 @@ dotnet run --project WarTable.Api -- --mode mcp
 `--host 0.0.0.0` to accept LAN connections. The database defaults to
 `~/.wartable/wartable.db`; override it with `--db`.
 
+## Local environment
+
+Copy `.env.example` to `.env` for local settings:
+
+```bash
+cp .env.example .env
+```
+
+WarTable loads the nearest `.env` at startup, walking up from the current
+directory and the application directory. Process environment variables win, so
+shell/CI overrides are not replaced. `WARTABLE_SKIP_DOTENV=1` disables loading;
+`WARTABLE_ENV_FILE=/path/.env` selects a specific file. `.env` is gitignored.
+Parsing and interpolation are handled by the `DotNetEnv` package; WarTable only
+selects the file and preserves precedence.
+
+Semantic search is optional. Set `Embeddings__Enabled=true` and start an
+OpenAI-compatible embedding service; `.env.example` contains the model and
+dimension defaults. In Docker Compose, use `host.docker.internal` rather than
+`localhost` for a service running on the host; the compose file already supplies
+that default and the Linux host-gateway mapping.
+
 ## Tests
 
 ```bash
@@ -54,6 +75,26 @@ dotnet test WarTable.Api.Tests/WarTable.Api.Tests.csproj
 The test project is not part of `WarTable.slnx`, so point the command at the
 test project explicitly. Tests cover status derivation, dependency handling,
 alias resolution, plan import, briefing bounds, and related service behavior.
+
+## Format and lint
+
+Root dev Dependencies include Prettier, ESLint, Stylelint, and html-validate.
+The frontend uses its own configs in `WarTable.Client/`, invoked from the root:
+
+```bash
+npm run format:frontend          # write formatting for Svelte, JS, CSS, HTML, JSON
+npm run format:frontend/backend  # frontend write + dotnet format
+npm run format-check:css/html/js # verify all frontend formatting
+npm run lint:js                  # ESLint for JS and Svelte
+npm run lint:css                 # Stylelint for CSS and Svelte styles
+npm run lint:js/css              # both linters
+npm run validate:html            # html-validate
+npm run validate                 # format check + both linters + HTML validation
+```
+
+`npm run format:frontend/backend` also reformats the C# source. That is
+deliberate, but it is a broad write; run it only when the backend formatting
+change is wanted. `npm run validate` does not modify files.
 
 ## Frontend dev loop
 

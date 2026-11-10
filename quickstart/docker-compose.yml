@@ -1,7 +1,7 @@
 # WarTable quickstart
 #
 # One-file Compose deployment for a first run. It uses the public
-# `latest` image and a named volume, so there is no checkout, `.env`,
+# `latest` image and a named volume, so there is no checkout, required `.env`,
 # host data directory, or chown step.
 #
 #   docker compose up -d
@@ -34,6 +34,17 @@ services:
       - /data/wartable.db
     environment:
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+      # Optional semantic search. Disabled by default. Set these in an
+      # optional `.env` beside this file, or export them before `docker compose up`.
+      Embeddings__Enabled: "${Embeddings__Enabled:-false}"
+      Embeddings__Endpoint: "${Embeddings__Endpoint:-http://host.docker.internal:11434/v1}"
+      Embeddings__Model: "${Embeddings__Model:-embeddinggemma}"
+      Embeddings__Dimensions: "${Embeddings__Dimensions:-768}"
+      Embeddings__MaxInputTokens: "${Embeddings__MaxInputTokens:-512}"
+      Embeddings__ApiKey: "${Embeddings__ApiKey:-}"
+      Embeddings__Profile: "${Embeddings__Profile:-}"
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:5110/api/health"]
       interval: 30s
