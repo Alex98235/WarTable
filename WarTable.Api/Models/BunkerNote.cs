@@ -55,6 +55,8 @@ public enum BunkerNoteKind
 	Reference,
 	Context,
 	Question,
+	Charter,
+	DesignDoc,
 }
 
 public enum BunkerNoteStatus

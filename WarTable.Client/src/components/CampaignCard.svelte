@@ -8,7 +8,7 @@
 	let { campaign, stats = {} } = $props();
 
 	let tags = $derived(parseTags(campaign.tags));
-	let intent = $derived(plainText(campaign.intent, 170));
+	let excerpt = $derived(plainText(campaign.charterExcerpt, 170));
 	let total = $derived(stats.total ?? 0);
 	let completed = $derived(stats.completed ?? 0);
 	let active = $derived(stats.active ?? 0);
@@ -26,7 +26,7 @@
 			<span class="folder-age" title="Last activity">{timeAgo(lastActivity)}</span>
 		</div>
 
-		<p class="folder-intent">{intent || 'No intent recorded yet.'}</p>
+		<p class="folder-charter">{excerpt || 'No charter yet.'}</p>
 
 		{#if tags.length > 0}
 			<div class="tag-row">

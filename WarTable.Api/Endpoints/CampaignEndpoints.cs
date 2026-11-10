@@ -5,14 +5,13 @@ namespace WarTable.Api.Endpoints;
 /// <summary>Body for creating a campaign.</summary>
 public record CreateCampaignRequest(
 	string Title,
-	string Intent = "",
+	string Charter = "",
 	string Tags = "",
 	string? Actor = null);
 
 /// <summary>Body for patching a campaign. Omitted members are left unchanged.</summary>
 public record UpdateCampaignRequest(
 	string? Title = null,
-	string? Intent = null,
 	string? Tags = null,
 	DateTime? ArchivedAt = null,
 	string? Actor = null);
@@ -47,7 +46,7 @@ public static class CampaignEndpoints
 			{
 				var created = await service.CreateCampaignAsync(
 					request.Title,
-					request.Intent,
+					request.Charter,
 					request.Tags,
 					Actor(request.Actor));
 				return Results.Created($"/api/campaigns/{created.Id}", created);
@@ -64,7 +63,6 @@ public static class CampaignEndpoints
 			{
 				var patch = new CampaignPatch(
 					request.Title,
-					request.Intent,
 					request.Tags,
 					request.ArchivedAt);
 				var updated = await service.UpdateCampaignAsync(id, patch, Actor(request.Actor));

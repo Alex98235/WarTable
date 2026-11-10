@@ -9,11 +9,13 @@ namespace WarTable.Api.Mcp.Tools;
 public static class CampaignTools
 {
 	[McpServerTool(Name = "create_campaign")]
-	[Description("Create a new campaign in the planning workspace.")]
+	[Description(
+		"Create a new campaign in the planning workspace. A non-empty charter is " +
+		"stored as the campaign's Charter note (why it exists, scope, architecture).")]
 	public static async Task<object> CreateCampaignAsync(
 		WarTableService service,
 		string title,
-		string? intent = null,
+		string? charter = null,
 		string? tags = null,
 		string? actor = null)
 	{
@@ -24,7 +26,7 @@ public static class CampaignTools
 
 			var campaign = await service.CreateCampaignAsync(
 				title,
-				intent ?? "",
+				charter ?? "",
 				tags ?? "",
 				McpArgs.Actor(actor));
 
@@ -79,13 +81,15 @@ public static class CampaignTools
 	}
 
 	[McpServerTool(Name = "update_campaign")]
-	[Description("Update campaign metadata. Only the fields you include are changed.")]
+	[Description(
+		"Update campaign metadata (title, tags, archived_at). The charter is a " +
+		"Bunker note; edit it with update_note.")]
 	public static async Task<object> UpdateCampaignAsync(
 		WarTableService service,
 		string campaign_id,
 		string? title = null,
-		string? intent = null,
 		string? tags = null,
+		DateTime? archived_at = null,
 		string? actor = null)
 	{
 		try
@@ -96,8 +100,8 @@ public static class CampaignTools
 
 			var patch = new CampaignPatch(
 				Title: title,
-				Intent: intent,
-				Tags: tags);
+				Tags: tags,
+				ArchivedAt: archived_at);
 
 			var updated = await service.UpdateCampaignAsync(id.Value, patch, McpArgs.Actor(actor));
 			return updated is null

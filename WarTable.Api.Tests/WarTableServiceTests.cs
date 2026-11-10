@@ -50,7 +50,7 @@ public class WarTableServiceTests
 		PlanState planState = PlanState.Active)
 	{
 		var ctx = await TestContext.CreateAsync();
-		var campaign = await ctx.Service.CreateCampaignAsync("Test Campaign", "Intent", "test", Human);
+		var campaign = await ctx.Service.CreateCampaignAsync("Test Campaign", "", "test", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
 			campaign.Id, "Test Objective", "Description", planState, Human);
 		return (ctx, campaign, objective);
@@ -176,12 +176,86 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
+	public async Task CreateCampaign_WithCharter_CreatesCharterNote()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+
+		var campaign = await ctx.Service.CreateCampaignAsync(
+			"Chartered", "# Why\n\nBecause.", "tag", Human);
+
+		var charter = Assert.Single(await ctx.Service.GetNotesAsync(
+			campaign.Id, null, BunkerNoteKind.Charter, null));
+		Assert.Equal("Charter", charter.Title);
+		Assert.Equal("# Why\n\nBecause.", charter.Body);
+		Assert.Equal(1, charter.Alias);
+		Assert.Equal(1, campaign.CharterAlias);
+		Assert.Equal("# Why\n\nBecause.", campaign.CharterExcerpt);
+
+		var listed = Assert.Single(await ctx.Service.GetCampaignsAsync());
+		Assert.Equal("# Why\n\nBecause.", listed.CharterExcerpt);
+		Assert.Equal(1, listed.CharterAlias);
+	}
+
+	[Fact]
+	public async Task CreateNote_RejectsSecondCharter()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "First charter", "", Human);
+
+		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+			ctx.Service.CreateNoteAsync(
+				campaign.Id,
+				BunkerNoteKind.Charter,
+				"Another charter",
+				"Second",
+				"",
+				false,
+				Human,
+				Array.Empty<Guid>(),
+				Array.Empty<Guid>(),
+				null));
+
+		Assert.Contains("already has a charter", exception.Message, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public async Task Briefing_IncludesCharterAndDesignDocs()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync(
+			"Framed", "Charter body", "", Human);
+
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id,
+			BunkerNoteKind.DesignDoc,
+			"Index lifecycle",
+			"Design body",
+			"search, index",
+			false,
+			Human,
+			Array.Empty<Guid>(),
+			Array.Empty<Guid>(),
+			null);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+
+		Assert.NotNull(briefing.Charter);
+		Assert.Equal("Charter", briefing.Charter!.Title);
+		Assert.Equal("Charter body", briefing.Charter.Excerpt);
+		Assert.Equal(1, briefing.Campaign.CharterAlias);
+		Assert.Equal("Charter body", briefing.Campaign.CharterExcerpt);
+		var designDoc = Assert.Single(briefing.DesignDocs);
+		Assert.Equal("Index lifecycle", designDoc.Title);
+		Assert.Equal(BunkerNoteKind.DesignDoc, designDoc.Kind);
+	}
+
+	[Fact]
 	public async Task ImportPlan_IsAtomicOnUnknownDependency()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 
 		var request = new ImportPlanRequest(
-			Campaign: new ImportPlanCampaign("Atomic", "Intent", "tag"),
+			Campaign: new ImportPlanCampaign("Atomic", "", "tag"),
 			Objectives:
 			[
 				new ImportPlanObjective(
@@ -210,7 +284,7 @@ public class WarTableServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 
 		var request = new ImportPlanRequest(
-			Campaign: new ImportPlanCampaign("Imported", "Intent", "tag"),
+			Campaign: new ImportPlanCampaign("Imported", "", "tag"),
 			Objectives:
 			[
 				new ImportPlanObjective(

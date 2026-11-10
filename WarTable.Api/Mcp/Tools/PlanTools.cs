@@ -73,7 +73,7 @@ public static class PlanTools
 			{
 				importedCampaign = new ImportPlanCampaign(
 					Title: campaign.Title,
-					Intent: campaign.Intent,
+					Charter: campaign.Charter,
 					Tags: campaign.Tags);
 			}
 
@@ -176,7 +176,7 @@ public static class PlanTools
 public sealed class ImportPlanCampaignInput
 {
 	public string Title { get; set; } = "";
-	public string? Intent { get; set; }
+	public string? Charter { get; set; }
 	public string? Tags { get; set; }
 }
 

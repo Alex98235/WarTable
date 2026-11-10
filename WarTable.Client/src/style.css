@@ -1099,7 +1099,7 @@ img {
 	white-space: nowrap;
 }
 
-.folder-intent {
+.folder-charter {
 	display: -webkit-box;
 	-webkit-line-clamp: 2;
 	line-clamp: 2;
@@ -2033,6 +2033,200 @@ img {
 	padding: 12px 2px;
 	font-size: 0.78rem;
 	font-style: italic;
+	color: var(--ink-muted);
+}
+
+/* ==========================================================================
+   Framing — charter and design docs
+   ========================================================================== */
+
+.framing-zone {
+	display: flex;
+	flex-direction: column;
+	gap: 13px;
+	padding-top: 18px;
+	border-top: 1px solid var(--line);
+}
+
+.framing-head {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 16px;
+	flex-wrap: wrap;
+}
+
+.framing-title {
+	font-size: 1.34rem;
+	line-height: 1.2;
+}
+
+.framing-hint {
+	margin-top: 5px;
+	max-width: 74ch;
+	font-size: 0.8rem;
+	line-height: 1.55;
+	color: var(--ink-muted);
+}
+
+.charter-leaf {
+	padding: 13px 18px 15px;
+	border: 1px solid var(--line);
+	border-left: 3px solid color-mix(in srgb, var(--olive) 48%, var(--line));
+	border-radius: var(--radius-sm);
+	background: var(--paper-raised);
+	box-shadow: var(--shadow-sm);
+}
+
+.charter-leaf-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px 14px;
+	flex-wrap: wrap;
+	margin-bottom: 7px;
+}
+
+.charter-meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.charter-age {
+	font-size: 0.68rem;
+	font-weight: 600;
+	color: var(--ink-muted);
+	white-space: nowrap;
+}
+
+.charter-actions {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	flex-shrink: 0;
+}
+
+.charter-body {
+	color: var(--ink-soft);
+	font-size: 0.9rem;
+	line-height: 1.62;
+}
+
+.charter-empty {
+	display: flex;
+	align-items: flex-start;
+	gap: 13px;
+	padding: 15px 18px;
+	border: 1px dashed var(--line-strong);
+	border-radius: var(--radius-sm);
+	background: var(--paper-tint);
+}
+
+.charter-empty-mark {
+	font-size: 1rem;
+	line-height: 1.5;
+	color: var(--brass);
+}
+
+.charter-empty h3 {
+	font-family: var(--font-body);
+	font-size: 0.92rem;
+	font-weight: 700;
+}
+
+.charter-empty p {
+	margin: 3px 0 10px;
+	max-width: 70ch;
+	font-size: 0.79rem;
+	line-height: 1.55;
+	color: var(--ink-muted);
+}
+
+.design-docs {
+	margin-top: 3px;
+}
+
+.design-docs-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 2px;
+}
+
+.design-docs-head .zone-label {
+	margin: 0;
+}
+
+.design-doc-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.design-doc-list li:first-child .design-doc-row {
+	border-top: 1px solid var(--line);
+}
+
+.design-doc-row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 9px 6px;
+	border-bottom: 1px solid var(--line);
+	color: var(--ink);
+	transition:
+		background 0.13s var(--ease-out),
+		border-color 0.13s var(--ease-out);
+}
+
+.design-doc-row:hover {
+	background: var(--paper-tint);
+	color: var(--ink);
+}
+
+.design-doc-main {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+}
+
+.design-doc-top {
+	display: flex;
+	align-items: baseline;
+	gap: 7px;
+	flex-wrap: wrap;
+}
+
+.design-doc-title {
+	font-size: 0.86rem;
+	font-weight: 650;
+	line-height: 1.4;
+	color: var(--ink-soft);
+	overflow-wrap: anywhere;
+}
+
+.design-doc-age {
+	margin-left: auto;
+	font-size: 0.68rem;
+	color: var(--ink-muted);
+	white-space: nowrap;
+}
+
+.design-doc-excerpt {
+	font-size: 0.74rem;
+	line-height: 1.5;
+	color: var(--ink-muted);
+	overflow-wrap: anywhere;
+}
+
+.design-doc-arrow {
+	flex-shrink: 0;
+	font-size: 0.85rem;
 	color: var(--ink-muted);
 }
 
@@ -4505,6 +4699,28 @@ a.evidence-value:hover {
 
 	.campaign-hero {
 		padding: 20px;
+	}
+
+	.charter-leaf {
+		padding: 13px 14px 15px;
+	}
+
+	.charter-actions {
+		width: 100%;
+		justify-content: flex-end;
+	}
+
+	.charter-empty {
+		padding: 14px;
+	}
+
+	.design-docs-head {
+		flex-wrap: wrap;
+	}
+
+	.design-doc-age {
+		width: 100%;
+		margin-left: 0;
 	}
 
 	.hero-actions {

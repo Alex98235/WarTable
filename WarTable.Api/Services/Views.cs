@@ -25,6 +25,16 @@ public record BriefingSeed(
 	string Description,
 	DateTime UpdatedAt);
 
+/// <summary>A bounded framing-document excerpt for campaign orientation.</summary>
+public record BriefingDocument(
+	Guid Id,
+	int Alias,
+	string Title,
+	BunkerNoteKind Kind,
+	string Excerpt,
+	string Tags,
+	DateTime UpdatedAt);
+
 /// <summary>
 /// Bounded, structured context for starting work. Lists are capped so the briefing
 /// stays token-aware as a campaign grows.
@@ -38,6 +48,8 @@ public record Briefing(
 	List<BunkerNote> Directives,
 	List<Preference> Preferences,
 	List<BunkerNote> RecentDecisions,
+	BriefingDocument? Charter,
+	List<BriefingDocument> DesignDocs,
 	List<BriefingSeed> Seeds,
 	List<ActivityEvent> RecentActivity);
 

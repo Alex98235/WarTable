@@ -89,7 +89,7 @@ laptop agent   ──┘
 
 The human opens the dashboard and sees an attention inbox: two flagged steps, one
 blocked objective, one open question. The agent starts with a single briefing
-call: campaign intent, current focus, ready steps, blockers, directives,
+call: campaign charter, current focus, ready steps, blockers, directives,
 preferences, recent decisions. It does not read forty journal entries.
 
 **Requirements:** computed briefing, attention queue, ready computation from
@@ -109,8 +109,9 @@ scope, provenance, retire/edit, always injected.
 Planning finishes in chat. The agent asks whether to move the plan to WarTable.
 On approval it calls `import_plan` once: campaign (or existing campaign),
 objectives, steps, dependencies. The plan lands as `Draft` or `Active` depending
-on the intent. The agent activates it and starts work. If the agent's
-instructions require human approval first, it asks; the tool does not force it.
+on the requested `plan_state`. The agent activates it and starts work. If the
+agent's instructions require human approval first, it asks; the tool does not
+force it.
 
 **Requirements:** atomic bulk import, aliases returned, `PlanState`, one call
 instead of dozens of `create_step` calls.
@@ -167,10 +168,16 @@ A namespace and folder. It is not a work item and has no status.
 |---|---|
 | `Id` | GUID |
 | `Title` | |
-| `Intent` | Markdown. Why this project exists. Replaces `Description`. |
 | `NextAliasNumber` | Campaign-scoped monotonic counter for objectives and notes. |
 | `CreatedAt`, `UpdatedAt` | |
 | `ArchivedAt` | Nullable. Future archive support. |
+
+The campaign charter is a `Charter` Bunker note, not a campaign column. One
+active charter is allowed; campaign creation can create it automatically. A
+`DesignDoc` note records a component or area. Both are ordinary notes for
+aliases, links, status, search, activity, and MCP note tools. The old
+`Campaign.Intent` column is retained only so older SQLite files stay writable;
+the application never reads or exposes it.
 
 Relationships: objectives, bunker notes.
 
@@ -331,9 +338,9 @@ Every mutation writes one event.
 
 These are not tables.
 
-- **Briefing** — intent, focus, ready steps, blockers, flagged steps, open
-  questions, active directives, active preferences, recent decisions, seeds, and
-  recent activity. Bounded and token-aware.
+- **Briefing** - charter excerpt, focus, ready steps, blockers, flagged steps,
+  open questions, active directives, active preferences, recent decisions,
+  design-doc excerpts, seeds, and recent activity. Bounded and token-aware.
 - **Attention** — cross-campaign inbox: flagged steps, blocked objectives, open
   questions, stale in-progress steps. Draft plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
@@ -377,10 +384,10 @@ choosing.
 Same data, two projections. Multiple browser clients are the same human surface:
 they see the same server state and receive the same live updates.
 
-**Human surface:** intent, plan review, approval when the human chooses to
-require it, attention inbox, Bunker curation, preference capture. Optimized for
-reading, correcting, reordering, and flagging — not for building plans from
-scratch.
+**Human surface:** charter and framing docs, plan review, approval when the
+human chooses to require it, attention inbox, Bunker curation, preference
+capture. Optimized for reading, correcting, reordering, and flagging - not for
+building plans from scratch.
 
 **Agent surface:** briefing, ready/assigned steps, dependency graph, step
 updates, evidence, notes, preferences. Optimized for one-call context assembly
@@ -405,10 +412,10 @@ enums.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_campaign` | `title`, `intent`, `tags` | Folder, no status. |
+| `create_campaign` | `title`, `charter`, `tags` | Folder, no status. A non-empty charter is stored as a `Charter` note. |
 | `get_campaign` | `campaign_id` | Metadata and summaries, not a full dump. |
 | `list_campaigns` | `search`, `include_archived` | |
-| `update_campaign` | `campaign_id`, `title`, `intent`, `tags` | |
+| `update_campaign` | `campaign_id`, `title`, `tags`, `archived_at` | Edit the charter with `update_note`. |
 | `delete_campaign` | `campaign_id` | Hard delete for now. |
 
 ### Plans and briefing
@@ -425,7 +432,7 @@ enums.
 
 ```json
 {
-  "campaign": { "title": "Auth overhaul", "intent": "Replace the legacy auth flow." },
+  "campaign": { "title": "Auth overhaul", "charter": "Replace the legacy auth flow." },
   "objectives": [
     {
       "key": "schema",
@@ -540,19 +547,22 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
   questions, stale in-progress work, and seeds awaiting draft. Each item shows
   campaign, objective/step, reason, age, and a link.
-- **Campaign folders** below: title, intent excerpt, active/draft objective
+- **Campaign folders** below: title, charter excerpt, active/draft objective
   counts, last activity, tags. No status badges and no status counts.
 - **Recent decisions and preferences** as small secondary panels.
 
 ### Campaigns list
 
-- Folder cards: title, intent excerpt, progress summary, last activity, tags.
+- Folder cards: title, charter excerpt, progress summary, last activity, tags.
 - Search. No status filter. Archived campaigns hidden by default once archive
   exists.
 
 ### Campaign detail
 
-- **Header:** title, intent (markdown, editable), tags. No status buttons.
+- **Header:** title, tags. No status buttons.
+- **Framing:** above Seeds. The active Charter note (why, scope, architecture)
+  with an edit action, plus compact DesignDoc notes for components and areas.
+  Empty state invites writing a charter. Documents open as normal notes.
 - **Briefing panel:** "What matters now" — focus, ready steps, blockers, open
   questions, directives, recent decisions. Collapsible.
 - **Plan tree:** objectives sorted by `SortOrder`, each with `PlanState` badge,
@@ -603,7 +613,7 @@ history; the implementation is authoritative.
 | Current | Change |
 |---|---|
 | `Campaign.Status` | Removed. Campaign is a folder. |
-| `Campaign.Description` | Renamed to `Intent`. |
+| `Campaign.Description` | Removed. Replaced by the `Charter` Bunker note. |
 | `Objective.Status` | Becomes a derived cache; add `PlanState`. |
 | `Step.ParallelGroup` | Removed. Add `DependsOn`; derive parallelism. |
 | `Step` | Add `StepNumber`, updates, evidence. |
@@ -644,8 +654,9 @@ commitments.
 3. **Questions — resolved.** A question is a Bunker note kind.
 4. **Preference capture.** Should the agent write directly, or propose and let the
    human confirm? A review queue is safer but adds friction.
-5. **Campaign intent — resolved.** The campaign has a dedicated markdown `Intent`
-   field.
+5. **Campaign intent - resolved.** The campaign has one active `Charter` Bunker
+   note (why, scope, architecture), created with the campaign or written later.
+   The old `Intent` column is legacy storage only.
 6. **Re-import.** How should `import_plan` update an existing plan without
    duplicating objectives?
 7. **Dependency UX.** How are dependencies added and edited in the UI? How are

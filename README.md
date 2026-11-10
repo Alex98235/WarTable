@@ -91,7 +91,7 @@ your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
 
 ## Concepts
 
-- **Campaign** — a folder for a body of work. It has intent but no status.
+- **Campaign** — a folder for a body of work. It has a Charter note but no status.
 - **Objective** — a durable outcome inside a campaign, with a campaign-scoped
   alias (`#N`) and a `Seed`, `Draft`, or `Active` plan state. A seed is a captured
   unfinished thought: visible, but not actionable until drafted.

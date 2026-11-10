@@ -16,7 +16,7 @@
 	let searchTimer = null;
 
 	let showCreate = $state(false);
-	let createForm = $state({ title: '', intent: '', tags: '' });
+	let createForm = $state({ title: '', charter: '', tags: '' });
 	let creating = $state(false);
 
 	async function load({ silent = false } = {}) {
@@ -83,7 +83,7 @@
 	}
 
 	function openCreate() {
-		createForm = { title: '', intent: '', tags: '' };
+		createForm = { title: '', charter: '', tags: '' };
 		showCreate = true;
 	}
 
@@ -97,7 +97,7 @@
 		try {
 			await apiPost('/api/campaigns', {
 				title: createForm.title.trim(),
-				intent: createForm.intent,
+				charter: createForm.charter,
 				tags: parseTags(createForm.tags).join(', '),
 				actor: ACTOR
 			});
@@ -143,7 +143,7 @@
 		<span class="sr-only">Search campaigns</span>
 		<input
 			type="search"
-			placeholder="Search title, intent, or tags…"
+			placeholder="Search title, charter, or tags…"
 			bind:value={search}
 			oninput={onSearchInput}
 		/>
@@ -255,16 +255,20 @@
 						/>
 					</div>
 					<div class="form-group">
-						<label class="form-label" for="campaign-intent"
-							>Intent <span class="optional">(markdown)</span></label
+						<label class="form-label" for="campaign-charter"
+							>Charter <span class="optional">(markdown)</span></label
 						>
 						<MarkdownEditor
-							id="campaign-intent"
-							bind:value={createForm.intent}
+							id="campaign-charter"
+							bind:value={createForm.charter}
 							campaignId=""
-							placeholder="Why does this project exist? What does done feel like?"
-							rows={4}
+							placeholder="Why this campaign exists, what is in scope, and how it is put together."
+							rows={5}
 						/>
+						<p class="form-hint">
+							Stored as the campaign's Charter note, so agents read the same framing
+							you do. You can edit it any time from the campaign.
+						</p>
 					</div>
 					<div class="form-group">
 						<label class="form-label" for="campaign-tags"

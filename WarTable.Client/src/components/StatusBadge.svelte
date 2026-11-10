@@ -25,6 +25,8 @@
 		superseded: 'muted',
 		resolved: 'done',
 		// Bunker note kinds
+		charter: 'reference',
+		designdoc: 'context',
 		directive: 'directive',
 		decision: 'decision',
 		gotcha: 'gotcha',
@@ -49,7 +51,8 @@
 		'in-progress': 'In progress',
 		'needs-review': 'Needs review',
 		inprogress: 'In progress',
-		seed: 'Seed'
+		seed: 'Seed',
+		designdoc: 'Design doc'
 	};
 
 	function keyOf(value) {

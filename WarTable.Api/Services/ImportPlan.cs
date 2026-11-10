@@ -6,7 +6,7 @@ namespace WarTable.Api.Services;
 /// <summary>Campaign metadata supplied when import_plan creates a new campaign.</summary>
 public record ImportPlanCampaign(
 	string? Title = null,
-	string? Intent = null,
+	string? Charter = null,
 	string? Tags = null);
 
 /// <summary>One step in an import. <c>Key</c> is a client-side handle for dependencies.</summary>
@@ -79,7 +79,7 @@ public partial class WarTableService
 			{
 				campaign = await CreateCampaignAsync(
 					request.Campaign!.Title!,
-					request.Campaign.Intent ?? "",
+					request.Campaign.Charter ?? "",
 					request.Campaign.Tags ?? "",
 					actor);
 			}

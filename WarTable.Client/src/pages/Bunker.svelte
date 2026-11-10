@@ -1,12 +1,14 @@
 <script>
 	import {
 		ACTOR,
+		NOTE_CREATE_KINDS,
 		NOTE_KINDS,
 		NOTE_STATUSES,
 		apiDelete,
 		apiGet,
 		apiPost,
 		apiPut,
+		noteKindLabel,
 		parseTags,
 		plainText,
 		stepRef,
@@ -528,7 +530,8 @@
 		<h1 class="page-title">The Bunker</h1>
 		<p class="lede">
 			Directives are always applied. Decisions, gotchas, references, context, and questions
-			are searched when they matter. Nothing here is a status report.
+			are searched when they matter. The charter frames the campaign; design docs hold the
+			longer thinking. Nothing here is a status report.
 		</p>
 	</div>
 	<div class="page-actions">
@@ -621,7 +624,7 @@
 			<span class="sr-only">Filter by kind</span>
 			<select class="form-select" bind:value={kindFilter} onchange={applyFilters}>
 				<option value="">All kinds</option>
-				{#each NOTE_KINDS as kind}<option value={kind}>{kind}</option>{/each}
+				{#each NOTE_KINDS as kind}<option value={kind}>{noteKindLabel(kind)}</option>{/each}
 			</select>
 		</label>
 
@@ -768,7 +771,7 @@
 					<div class="inline-empty">
 						{hasFilters
 							? 'No notes match those filters.'
-							: 'The Bunker is empty. Capture a directive, decision, gotcha, reference, context note, or question.'}
+							: 'The Bunker is empty. Capture a design doc, directive, decision, gotcha, reference, context note, or question.'}
 					</div>
 				{:else}
 					<ul class="note-list">
@@ -1028,7 +1031,8 @@
 								value={captureForm.kind}
 								onchange={(e) => kindDefaultPinned(e.currentTarget.value)}
 							>
-								{#each NOTE_KINDS as kind}<option value={kind}>{kind}</option
+								{#each NOTE_CREATE_KINDS as kind}<option value={kind}
+										>{noteKindLabel(kind)}</option
 									>{/each}
 							</select>
 						</div>
