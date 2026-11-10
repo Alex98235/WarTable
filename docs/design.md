@@ -403,6 +403,8 @@ names are `snake_case`; enum values are PascalCase strings. Data payloads use
 as the server. Agents on a desktop or laptop connect to the server over the LAN
 via MCP Streamable HTTP at `/mcp`. Both transports share the same tool classes,
 the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK, and the same database.
+The initialize response includes baseline usage instructions; clients may treat
+them as system context, but the README prompt remains the explicit fallback.
 The HTTP transport is stateless: `POST /mcp` handles one JSON-RPC message per
 request, `GET`/`DELETE` return 405, and no `Mcp-Session-Id` is minted. Protocol
 version is negotiated by the SDK. Tool payloads keep `snake_case` and string
@@ -505,9 +507,18 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 ### Recommended agent behavior
 
 - Read `get_briefing` before starting work. Do not read the whole campaign.
+  Use `get_plan` when the complete objective and step graph is needed.
+- Read the campaign Charter and relevant DesignDoc notes before proposing work.
+  The charter is the durable why, scope, and architecture; update it with
+  `update_note`. Campaigns have no separate intent field.
 - When a planning phase finishes, offer to import the plan. Import as `Draft` if
   it will not be executed immediately; activate when starting.
-- Record durable decisions, gotchas, and references in the Bunker as they arise.
+- Pick up seeds when no ready work is queued: discuss the thought with the human,
+  then promote it with `update_objective`; do not execute it as-is.
+- Record durable decisions, gotchas, references, and open questions in the Bunker
+  as they arise. Use DesignDoc notes for component-level design detail.
+- Before adding a note, or when asked whether something was already discussed,
+  use `search_knowledge` and cite the note alias and snippet.
 - Capture a preference when the human expresses a durable preference. If it is
   ambiguous, ask before storing it.
 - Post step updates as work progresses, especially blockers and results. Attach
@@ -516,6 +527,8 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 - Flag a step when human input is needed.
 - If a campaign directive conflicts with a human preference, follow the
   directive and say so.
+- Subagents do not inherit the parent agent's prompt or conversation. A subagent
+  with WarTable tools should call `get_briefing` or `get_plan` itself.
 
 ## 8. HTTP API
 

@@ -27,6 +27,8 @@ services:
             Embeddings__Model: "${Embeddings__Model:-embeddinggemma}"
             Embeddings__Dimensions: "${Embeddings__Dimensions:-768}"
             Embeddings__MaxInputTokens: "${Embeddings__MaxInputTokens:-512}"
+            Embeddings__ApiKey: "${Embeddings__ApiKey:-}"
+            Embeddings__Profile: "${Embeddings__Profile:-}"
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         healthcheck:

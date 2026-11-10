@@ -13,7 +13,7 @@ These are two different shapes, and only one of them is the production contract:
 | Guide | [`quickstart/README.md`](../quickstart/README.md) | This document |
 | Image tag | `latest` (moving) | Immutable `X.Y.Z` |
 | Data | Named volume `wartable-data` | Bind mount `./data:/data` |
-| Configuration | No `.env`, no checkout required | `.env` with `WARTABLE_TAG` |
+| Configuration | No required `.env`, no checkout required | `.env` with `WARTABLE_TAG` |
 | Updates | Pull and recreate by hand | [`scripts/update.sh`](../scripts/update.sh) with backup and rollback |
 | Intended use | First run, evaluation, trusted-LAN convenience | Always-on server whose data matters |
 
@@ -160,7 +160,8 @@ The image and Compose file are deliverables of the production contract.
 - Entry point: run `WarTable.Api` in serve mode with
   `--host 0.0.0.0 --port 5110 --db /data/wartable.db`.
 - Logs: stdout/stderr only. The image must not require a log file.
-- No secrets, API keys, or environment-specific configuration are required.
+- No secrets or API keys are required for the core server. Optional embedding
+  providers may need `Embeddings__ApiKey`.
 
 The image does not need `sqlite3` or a shell for normal operation. Cold backups
 are taken from the host. A shell may be present for debugging, but it is not an
@@ -193,6 +194,16 @@ services:
       - /data/wartable.db
     environment:
       Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+      # Optional semantic search. Disabled by default.
+      Embeddings__Enabled: "${Embeddings__Enabled:-false}"
+      Embeddings__Endpoint: "${Embeddings__Endpoint:-http://host.docker.internal:11434/v1}"
+      Embeddings__Model: "${Embeddings__Model:-embeddinggemma}"
+      Embeddings__Dimensions: "${Embeddings__Dimensions:-768}"
+      Embeddings__MaxInputTokens: "${Embeddings__MaxInputTokens:-512}"
+      Embeddings__ApiKey: "${Embeddings__ApiKey:-}"
+      Embeddings__Profile: "${Embeddings__Profile:-}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:5110/api/health"]
       interval: 30s
@@ -201,11 +212,24 @@ services:
       start_period: 10s
 ```
 
-`.env`:
+`.env` beside `docker-compose.yml`:
 
 ```dotenv
 WARTABLE_TAG=0.1.0
+
+# Optional semantic search; disabled by default.
+Embeddings__Enabled=false
+Embeddings__Endpoint=http://host.docker.internal:11434/v1
+Embeddings__Model=embeddinggemma
+Embeddings__Dimensions=768
+Embeddings__MaxInputTokens=512
+# Embeddings__ApiKey=
+# Embeddings__Profile=
 ```
+
+Compose reads this file for `${...}` substitution and passes only the variables
+listed under `environment` into the container. It is **not** mounted into the
+container.
 
 Pin the immutable `X.Y.Z` release being deployed; `0.1.0` is the first final
 release. `X.Y` is a moving minor alias; `latest` is opt-in testing only and must
@@ -245,6 +269,41 @@ sudo chown -R 10001:10001 data
   container must keep the same data.
 - A named volume is acceptable if you prefer it, but the default Compose file
   uses a bind mount.
+
+### 5.4 Optional semantic search
+
+Embeddings are disabled by default and are not required for health, planning, or
+MCP. WarTable does not bundle a model; it calls an external OpenAI-compatible
+`POST /v1/embeddings` service. To enable it, set these values in the `.env` used
+by Compose:
+
+```dotenv
+Embeddings__Enabled=true
+Embeddings__Endpoint=http://host.docker.internal:11434/v1
+Embeddings__Model=embeddinggemma
+Embeddings__Dimensions=768
+Embeddings__MaxInputTokens=512
+```
+
+Required when enabling: `Enabled`, `Endpoint`, and `Model`. `Dimensions` and
+`MaxInputTokens` should match the model; `ApiKey` is for hosted providers;
+`Profile` overrides the built-in prompt profile. The Compose file already passes
+these values and maps `host.docker.internal` to the Linux host gateway.
+
+`localhost` inside the container is the container itself. If Ollama runs as a
+Compose service, use its service name, for example `http://ollama:11434/v1`;
+otherwise use a reachable host or LAN address. The disposable index is
+`/data/wartable.embeddings.db` and is covered by the `./data` bind mount. Recreate
+the service after changing `.env`, then verify:
+
+```bash
+docker compose up -d
+curl -fsS http://localhost:5110/api/knowledge/status
+```
+
+If the service is unavailable or the index is still building, search falls back
+to keyword results with `degraded: true`. Semantic search does not change the
+container health check or the deployment contract.
 
 ---
 

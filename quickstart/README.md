@@ -2,8 +2,8 @@
 
 The shortest path from nothing to a running WarTable server. This uses the
 public `ghcr.io/alex98235/wartable:latest` image and a Docker named volume, so
-you do **not** need to clone the repository, create a `.env` file, make a host
-data directory, or run `chown`.
+you do **not** need to clone the repository, create a `.env` file for the
+default run, make a host data directory, or run `chown`.
 
 Use this to try WarTable or run it on a trusted LAN. It follows `latest`, which
 moves when a release is published. For a controlled production deployment with
@@ -59,7 +59,56 @@ curl -fsS http://localhost:5110/api/health
 ```
 
 The Compose file uses the same `latest` image and `wartable-data` volume. It is
-the only file you need in that directory.
+the only file required for the default run. An optional `.env` beside it can
+enable semantic search.
+
+## Optional semantic search
+
+Semantic search is off by default. If you run an OpenAI-compatible embedding
+service on the Docker host (for example Ollama), create a `.env` next to
+`docker-compose.yml`:
+
+```dotenv
+Embeddings__Enabled=true
+Embeddings__Endpoint=http://host.docker.internal:11434/v1
+Embeddings__Model=embeddinggemma
+Embeddings__Dimensions=768
+Embeddings__MaxInputTokens=512
+```
+
+Then recreate the service and check the index:
+
+```bash
+docker compose up -d
+curl -fsS http://localhost:5110/api/knowledge/status
+```
+
+Compose reads `.env` in this directory for `${...}` substitution. The file is
+not mounted into the container; only the variables listed under `environment`
+in `docker-compose.yml` are passed through as process environment.
+
+The Compose file maps `host.docker.internal` to the Linux host gateway.
+`localhost` inside the container is the container itself, not the host. If the
+embedding service is another Compose service, use its service name instead, for
+example `http://ollama:11434/v1`. Set `Embeddings__ApiKey` for a hosted provider.
+`Dimensions` should match the model, or leave it unset to detect the vector size
+on the first index pass. `Embeddings__Profile` is only needed to override the
+built-in prompt profile.
+
+For the one-command `docker run` path, add these flags to the existing command:
+
+```bash
+--add-host=host.docker.internal:host-gateway \
+-e Embeddings__Enabled=true \
+-e Embeddings__Endpoint=http://host.docker.internal:11434/v1 \
+-e Embeddings__Model=embeddinggemma \
+-e Embeddings__Dimensions=768 \
+-e Embeddings__MaxInputTokens=512
+```
+
+The index is `/data/wartable.embeddings.db` inside the named volume and rebuilds
+automatically. If the embedding service is unavailable, search falls back to
+keyword results with `degraded: true`.
 
 ## Everyday commands
 

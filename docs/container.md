@@ -76,12 +76,19 @@ The Compose file passes these `Embeddings__*` values into the container and
 reads them from `.env` when present:
 
 ```text
-Embeddings__Enabled       default: false
-Embeddings__Endpoint      default: http://host.docker.internal:11434/v1
-Embeddings__Model         default: embeddinggemma
-Embeddings__Dimensions    default: 768
+Embeddings__Enabled        default: false
+Embeddings__Endpoint       default: http://host.docker.internal:11434/v1
+Embeddings__Model          default: embeddinggemma
+Embeddings__Dimensions     default: 768
 Embeddings__MaxInputTokens default: 512
+Embeddings__ApiKey         default: empty (sent as Bearer token when set)
+Embeddings__Profile        default: auto (matches the model id)
 ```
+
+Compose reads `.env` from the directory containing `docker-compose.yml` (the
+repository root for production) and uses it for `${...}` substitution. The file
+is **not** mounted into the container; only variables listed under
+`environment` become process environment for WarTable.
 
 Use `host.docker.internal`, not `localhost`, for an embedding service running on
 the host: inside the container `localhost` is the container. The Compose file
@@ -90,7 +97,7 @@ service, set the endpoint to its service name, for example
 `http://ollama:11434/v1`. To enable semantic search:
 
 ```bash
-# .env
+# .env beside docker-compose.yml
 Embeddings__Enabled=true
 ```
 

@@ -158,9 +158,11 @@ When running through Docker Compose, `docker-compose.yml` passes the
 container means the container itself. On Linux the compose file adds
 `host-gateway` for that name. If Ollama runs as a Compose service, set the
 endpoint to that service instead, for example
-`http://ollama:11434/v1`. Values in `.env` are used for Compose interpolation,
-so the same file can configure local and container runs; use the appropriate
-endpoint for each.
+`http://ollama:11434/v1`. Compose reads `.env` from the directory containing
+the compose file and uses it for `${...}` substitution; the file is not
+mounted into the container, so only variables listed under `environment`
+reach WarTable. The same `.env` can configure local and container runs; use the
+appropriate endpoint for each.
 
 `Dimensions` is optional; if omitted, the first index pass uses the vector size
 returned by the service. `Embeddings__ApiKey` is sent as a Bearer token when set.
@@ -249,6 +251,10 @@ planning and execution record:
 >
 > - Use **campaigns** as project-wide folders, **objectives** as durable
 >   outcomes, and **steps** as atomic verifiable work.
+> - A campaign's **Charter** note is its durable framing: why it exists, scope,
+>   and architecture. Read the charter and relevant `DesignDoc` notes before
+>   proposing work. Update the charter with `update_note`; campaigns have no
+>   separate intent field.
 > - When you propose a multi-step plan, offer to import it with `import_plan`.
 >   Draft objectives are visible but not actionable until activated.
 > - Seeds are unfinished human thoughts captured before planning. When the briefing
@@ -257,12 +263,14 @@ planning and execution record:
 > - Refer to objectives and Bunker notes by their campaign-scoped alias (`#N`) and
 >   steps by `#N.M`. Never refer to work by title or count.
 > - Before starting, call `get_briefing` for the campaign or `get_attention` across
->   campaigns. Read active directives and preferences first.
+>   campaigns. Use `get_plan` when you need the complete objective and step graph.
+>   Read active directives, the charter, and preferences first.
 > - Move steps `Open` -> `InProgress` -> `Done` as you work. Use `add_step_update`
 >   for notes, blockers, results, and handoffs; attach evidence when a step is
 >   done. Flag work that needs human review.
 > - Record durable decisions, gotchas, references, and open questions in the
->   campaign Bunker with `add_note`. Directives are hard, always-on campaign rules.
+>   campaign Bunker with `add_note`. Use `DesignDoc` notes for component-level
+>   design detail. Directives are hard, always-on campaign rules.
 > - Before adding a note, or when the human asks whether something was already
 >   discussed, use `search_knowledge` (hybrid semantic + keyword) and cite the
 >   note alias and snippet rather than assuming.
@@ -271,6 +279,11 @@ planning and execution record:
 > - Objective status is derived from steps; do not set it directly.
 > - WarTable does not enforce approval gates. Verify before implementation only if
 >   your own instructions require it.
+
+This instruction applies to subagents too. Subagents do not inherit the parent
+agent's prompt or conversation in OpenCode, OpenClaw, or similar clients. If you
+are a subagent with WarTable tools, call `get_briefing` or `get_plan` yourself
+rather than relying on the parent's summary.
 
 For the HTTP API and live-update internals, see
 [`docs/design.md`](docs/design.md). For deployment, see
