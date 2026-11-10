@@ -18,13 +18,11 @@
 		"format-check:html": "prettier --check \"WarTable.Client/**/*.html\"",
 		"format-check:js": "prettier --check \"WarTable.Client/**/*.{js,mjs,svelte}\"",
 		"format-check": "npm run format-check:css && npm run format-check:html && npm run format-check:js",
-		"format-check:css/html/js": "npm run format-check:css && npm run format-check:html && npm run format-check:js",
 		"lint:js": "eslint --config WarTable.Client/eslint.config.js \"WarTable.Client/src/**/*.{js,svelte}\"",
 		"lint:css": "stylelint --config WarTable.Client/.stylelintrc.json \"WarTable.Client/src/**/*.{css,svelte}\"",
 		"lint": "npm run lint:js && npm run lint:css",
-		"lint:js/css": "npm run lint:js && npm run lint:css",
 		"validate:html": "html-validate --config WarTable.Client/.htmlvalidate.json \"WarTable.Client/**/*.html\"",
-		"validate": "npm run format-check:css/html/js && npm run lint:js/css && npm run validate:html",
+		"validate": "npm run format-check && npm run lint && npm run validate:html",
 		"init": "npm install && cd WarTable.Client && npm install"
 	},
 	"devDependencies": {
