@@ -103,6 +103,7 @@ public class Program
 					Name = "wartable-mcp",
 					Version = "1.0.0",
 				};
+				options.ServerInstructions = WarTableMcpInstructions.Text;
 			})
 			.WithHttpTransport(options => options.SessionMode = HttpServerSessionMode.Stateless)
 			.WithToolsFromAssembly(serializerOptions: McpJson.Options);
@@ -226,6 +227,7 @@ public class Program
 					Name = "wartable-mcp",
 					Version = "1.0.0",
 				};
+				options.ServerInstructions = WarTableMcpInstructions.Text;
 			})
 			.WithStdioServerTransport()
 			.WithToolsFromAssembly(serializerOptions: McpJson.Options);
