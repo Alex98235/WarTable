@@ -31,6 +31,10 @@ RUN dotnet publish WarTable.Api/WarTable.Api.csproj \
     --no-restore \
     /p:UseAppHost=false
 
+# ── Health check tool ───────────────────────────────────────────────────────
+# Static BusyBox provides wget without requiring apt/curl in the runtime image.
+FROM busybox:1.38.0-musl AS healthcheck
+
 # ── Runtime ─────────────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 
@@ -40,13 +44,12 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 ENV ASPNETCORE_HTTP_PORTS=5110 \
     DOTNET_RUNNING_IN_CONTAINER=true
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 wartable \
+RUN groupadd --gid 10001 wartable \
     && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin wartable \
     && mkdir -p /data \
     && chown -R 10001:10001 /data
+
+COPY --from=healthcheck /bin/busybox /usr/local/bin/busybox
 
 WORKDIR /app
 COPY --from=build /app/publish ./
@@ -56,7 +59,7 @@ EXPOSE 5110
 USER 10001:10001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -fsS http://localhost:5110/api/health || exit 1
+    CMD ["/usr/local/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5110/api/health"]
 
 ENTRYPOINT ["dotnet", "WarTable.Api.dll"]
 CMD ["--mode", "serve", "--host", "0.0.0.0", "--port", "5110", "--db", "/data/wartable.db"]

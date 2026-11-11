@@ -124,8 +124,10 @@ docker compose exec wartable sh       # debugging shell
 curl -fsS http://localhost:5110/api/health
 ```
 
-The image health check runs `curl -fsS http://localhost:5110/api/health` every
-30 seconds. A healthy response is HTTP 200 with `{"status":"ok"}`.
+The image health check performs an HTTP GET to
+`http://127.0.0.1:5110/api/health` every 30 seconds using a static BusyBox
+`wget`, so the runtime image does not need `curl` or an apt step. A healthy
+response is HTTP 200 with `{"status":"ok"}`.
 
 `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command` is set to
 `Warning` in Compose so idle operation does not log every SQL statement.
