@@ -12,6 +12,8 @@ public static class WarTableMcpInstructions
 		WarTable is the shared planning and execution record for this project. It stores campaigns, objectives, steps, and Bunker notes; it does not execute work.
 
 		- Start with get_briefing for the campaign, or get_attention across campaigns. Use get_plan when you need the complete objective and step structure.
+		- Resolve the campaign before planning or recording work. Prefer an explicit campaign id or title. Otherwise call list_campaigns and match on title, tags, Charter text, repository/project name, and recent notes. A similar title does not prove a match: if one campaign clearly matches, say which one you are using; if several plausibly match, show their titles and ids and ask; never silently pick one.
+		- If no campaign exists, do not invent one or proceed as if one exists. Ask whether to create one, propose the repository or directory name as the title plus a short charter from the project README/AGENTS, and proceed without WarTable if declined. Do not duplicate a campaign that already exists under a different or more generic title; use it and propose updating its charter, tags, or title instead.
 		- Read the campaign Charter and relevant DesignDoc notes before proposing work. The charter is the durable why, scope, and architecture. Update it with update_note; campaigns have no separate intent field.
 		- Refer to objectives and Bunker notes as #N and steps as #N.M. Never refer to work by title or count.
 		- Seeds are unfinished human thoughts. When no ready work is queued, discuss a seed with the human and promote it with update_objective; do not execute it as-is.

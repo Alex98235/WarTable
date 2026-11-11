@@ -251,6 +251,21 @@ planning and execution record:
 >
 > - Use **campaigns** as project-wide folders, **objectives** as durable
 >   outcomes, and **steps** as atomic verifiable work.
+> - Resolve the campaign before planning or recording work. Prefer an explicit
+>   campaign ID or title from the human. Otherwise call `list_campaigns` and match
+>   on title, tags, Charter text, repository/project name, and recent notes.
+> - A campaign title is a human label, not a canonical project ID. A title similar
+>   in theme to the current project does not automatically mean it is a match. If
+>   exactly one campaign clearly matches, state which campaign you are using. If
+>   several plausibly match, show their titles and IDs and ask. Never silently pick
+>   one.
+> - If no campaign exists, do not invent one or proceed as if one exists. Ask
+>   whether to create one; propose the repository or directory name as the title,
+>   plus a short charter based on the project README/AGENTS. If the human declines,
+>   proceed without WarTable for that task.
+> - Do not create a duplicate campaign for a project that already has one under a
+>   different or more generic title. Use the existing campaign and propose updating
+>   its charter, tags, or title instead.
 > - A campaign's **Charter** note is its durable framing: why it exists, scope,
 >   and architecture. Read the charter and relevant `DesignDoc` notes before
 >   proposing work. Update the charter with `update_note`; campaigns have no

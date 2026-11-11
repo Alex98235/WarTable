@@ -508,6 +508,17 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 - Read `get_briefing` before starting work. Do not read the whole campaign.
   Use `get_plan` when the complete objective and step graph is needed.
+- Resolve the campaign before planning or recording work. Prefer an explicit
+  campaign ID or title; otherwise use `list_campaigns` and match on title, tags,
+  Charter text, repository/project name, and recent notes. A title similar in
+  theme to the current project does not prove a match. If one campaign clearly
+  matches, state which one; if several plausibly match, show their titles and IDs
+  and ask. Never silently pick one.
+- If no campaign exists, ask before creating one. Propose the repository or
+  directory name as the title and a short charter from the project README/AGENTS.
+  If the human declines, proceed without WarTable. Do not duplicate an existing
+  campaign under a more generic title; use it and propose updating its charter,
+  tags, or title instead.
 - Read the campaign Charter and relevant DesignDoc notes before proposing work.
   The charter is the durable why, scope, and architecture; update it with
   `update_note`. Campaigns have no separate intent field.
