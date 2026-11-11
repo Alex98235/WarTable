@@ -1,9 +1,16 @@
 # Development
 
-This page covers building WarTable from source, the local frontend loop, tests,
-building the container locally, and the release tooling. For the deployed
-production contract, see [`deployment.md`](deployment.md); for container
-operations, see [`container.md`](container.md).
+This page covers the local loop: prerequisites, build, tests, formatting and
+linting, the frontend dev server, the local container build, release commands,
+CI, and the repository layout.
+
+It does not cover how the code is organized — see
+[`architecture.md`](architecture.md) — or how to run a real deployment — see
+[`deployment.md`](deployment.md) for the production contract and
+[`container.md`](container.md) for container operations. Configuration
+variables and precedence are in [`configuration.md`](configuration.md).
+Commit, branch, and pull-request policy, including the rules agents must follow,
+is in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 
 ## Prerequisites
 
@@ -17,8 +24,7 @@ operations, see [`container.md`](container.md).
 Install the frontend and root tooling once:
 
 ```bash
-npm install
-npm --prefix WarTable.Client install
+npm run init
 ```
 
 Build both sides:
@@ -29,11 +35,6 @@ npm run build:frontend   # Svelte bundle into WarTable.Api/wwwroot
 npm run build:backend    # dotnet build WarTable.Api/WarTable.Api.csproj
 ```
 
-The frontend build must run before the backend compiles in a clean tree: the API
-project embeds `wwwroot` into the assembly so a published single-file binary
-contains the UI. A physical `wwwroot` is used first at runtime, which is what
-makes the local dev loop work.
-
 Run the backend directly:
 
 ```bash
@@ -43,7 +44,8 @@ dotnet run --project WarTable.Api -- --mode mcp
 
 `serve` is the default and listens on `http://localhost:5110`. Use
 `--host 0.0.0.0` to accept LAN connections. The database defaults to
-`~/.wartable/wartable.db`; override it with `--db`.
+`~/.wartable/wartable.db`; override it with `--db`. See
+[`architecture.md`](architecture.md#programcs-modes) for what each mode wires up.
 
 ## Local environment
 
@@ -57,44 +59,52 @@ WarTable loads the nearest `.env` at startup, walking up from the current
 directory and the application directory. Process environment variables win, so
 shell/CI overrides are not replaced. `WARTABLE_SKIP_DOTENV=1` disables loading;
 `WARTABLE_ENV_FILE=/path/.env` selects a specific file. `.env` is gitignored.
-Parsing and interpolation are handled by the `DotNetEnv` package; WarTable only
-selects the file and preserves precedence.
+[`configuration.md`](configuration.md) is the authoritative list of variables
+and defaults.
 
 Semantic search is optional. Set `Embeddings__Enabled=true` and start an
 OpenAI-compatible embedding service; `.env.example` contains the model and
 dimension defaults. In Docker Compose, use `host.docker.internal` rather than
-`localhost` for a service running on the host; the compose file already supplies
-that default and the Linux host-gateway mapping.
+`localhost` for a service running on the host.
 
 ## Tests
 
 ```bash
-dotnet test WarTable.Api.Tests/WarTable.Api.Tests.csproj
+dotnet test WarTable.slnx
 ```
 
-The test project is not part of `WarTable.slnx`, so point the command at the
-test project explicitly. Tests cover status derivation, dependency handling,
-alias resolution, plan import, briefing bounds, and related service behavior.
+Tests cover status derivation, dependency handling, alias resolution, plan
+import, briefing bounds, and related service behavior.
 
 ## Format and lint
 
-Root dev Dependencies include Prettier, ESLint, Stylelint, and html-validate.
+Root dev dependencies include Prettier, ESLint, Stylelint, and html-validate.
 The frontend uses its own configs in `WarTable.Client/`, invoked from the root:
 
 ```bash
-npm run format:frontend          # write formatting for Svelte, JS, CSS, HTML, JSON
-npm run format:frontend/backend  # frontend write + dotnet format
-npm run format-check:css/html/js # verify all frontend formatting
-npm run lint:js                  # ESLint for JS and Svelte
-npm run lint:css                 # Stylelint for CSS and Svelte styles
-npm run lint:js/css              # both linters
-npm run validate:html            # html-validate
-npm run validate                 # format check + both linters + HTML validation
+npm run format:frontend       # write formatting for Svelte, JS, CSS, HTML, JSON
+npm run format:frontend/backend # frontend + backend formatting
+npm run format-check:backend  # verify C# formatting without writing
+npm run format-check:css      # verify CSS formatting
+npm run format-check:html     # verify HTML formatting
+npm run format-check:js       # verify JS, MJS, and Svelte formatting
+npm run format-check:css/html/js # all three format checks
+npm run lint:js               # ESLint for JS and Svelte
+npm run lint:css              # Stylelint for CSS and Svelte styles
+npm run lint:js/css           # both linters
+npm run validate:html         # html-validate
+npm run validate              # format checks + both linters + HTML validation
 ```
 
-`npm run format:frontend/backend` also reformats the C# source. That is
-deliberate, but it is a broad write; run it only when the backend formatting
-change is wanted. `npm run validate` does not modify files.
+`npm run validate` is the gate: it runs the format checks, both linters, and
+HTML validation, and it never modifies files. Run it before opening a pull
+request. `format-check` and `lint` are aggregate aliases for the same checks;
+the slash-suffixed names are convenience aliases for the exact commands above.
+
+`npm run format:backend` runs `dotnet format` over the solution. The backend tree
+currently passes `format-check:backend`; if the formatter produces changes, run
+it deliberately and commit formatting separately from behavior changes.
+`format:frontend/backend` includes it.
 
 ## Frontend dev loop
 
@@ -134,7 +144,8 @@ docker build --platform linux/amd64 -t wartable:local .
 
 The build has three stages: Node 22 builds the Svelte client, the .NET 10 SDK
 publishes `WarTable.Api`, and the ASP.NET 10 runtime image runs as non-root user
-`10001:10001`.
+`10001:10001`. [`container.md#image-build`](container.md#image-build) is the
+container-side reference.
 
 ## Changelog and release
 
@@ -172,13 +183,15 @@ That workflow:
    change warning, and a compare link to the release body.
 
 A manual `release.yml` run builds the image without pushing it, which is useful
-for exercising the workflow without publishing.
+for exercising the workflow without publishing. Release artifacts and the
+production pinning rules are part of the deployment contract; see
+[`deployment.md` section 10](deployment.md#10-versioning-and-release-artifacts).
 
 ## GitHub Actions
 
 | Workflow | Trigger | Purpose |
-|---|---|---|
-| [`ci.yml`](../.github/workflows/ci.yml) | push to `main`, pull request | Builds the frontend and backend |
+| --- | --- | --- |
+| [`ci.yml`](../.github/workflows/ci.yml) | pull request, manual dispatch | Builds frontend and backend, checks backend formatting, runs `npm run validate` and backend tests; `pr-title` validates the Conventional Commit PR title |
 | [`release.yml`](../.github/workflows/release.yml) | `v*` tag push, manual | Builds binaries, publishes the image, creates the GitHub release |
 | [`smoke-image.yml`](../.github/workflows/smoke-image.yml) | manual | Pulls a published image and verifies health, REST, MCP, restart, and persistence |
 | [`update-image.yml`](../.github/workflows/update-image.yml) | manual | Runs `scripts/update.sh` between two published versions and verifies rollback |
@@ -186,27 +199,31 @@ for exercising the workflow without publishing.
 Run the image checks after publishing:
 
 ```bash
-gh workflow run smoke-image.yml -f image=ghcr.io/alex98235/wartable:0.1.0
+gh workflow run smoke-image.yml -f image=ghcr.io/alex98235/wartable:<X.Y.Z>
 gh workflow run update-image.yml -f from_version=<from> -f to_version=<to>
 gh run watch
 ```
 
 `smoke-image.yml` accepts any published image reference. `update-image.yml`
 requires two published version tags. Both accept a private fork package when the
-workflow token has package read access.
+workflow token has package read access. The workflows themselves are documented
+in [`container.md`](container.md#smoke-test-the-published-image).
 
 ## Repository layout
 
 ```text
-WarTable.Api/          ASP.NET minimal API, HTTP endpoints, MCP tools, EF Core/SQLite
-WarTable.Api.Tests/    xUnit test project
-WarTable.Client/       Svelte 5 + Vite frontend
-docs/                  Deployment contract, container operations, design, and this guide
-quickstart/            One-file Compose deployment and first-run guide
-scripts/               update.sh (manual update/rollback) and release.mjs (tagging)
-.github/workflows/     CI, release, image smoke test, image update test
-docker-compose.yml     Production Compose: pinned image + bind mount
+WarTable.Api/             ASP.NET minimal API, HTTP endpoints, MCP tools, EF Core/SQLite
+WarTable.Api.Tests/       xUnit test project
+WarTable.Client/          Svelte 5 + Vite frontend
+docs/                     Architecture, design, configuration, deployment, container, this guide
+quickstart/               One-file Compose deployment and first-run guide
+scripts/                  update.sh (manual update/rollback) and release.mjs (tagging)
+.github/workflows/        CI, release, image smoke test, image update test
+docker-compose.yml        Production Compose: pinned image + bind mount
 docker-compose.build.yml  Local-build override; use it with the base file
-Dockerfile             Three-stage frontend/backend/runtime image
-cliff.toml             git-cliff release-note configuration
+Dockerfile                Three-stage frontend/backend/runtime image
+cliff.toml                git-cliff release-note configuration
 ```
+
+Code-level ownership for each project is in
+[`architecture.md`](architecture.md).

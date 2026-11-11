@@ -62,54 +62,6 @@ The Compose file uses the same `latest` image and `wartable-data` volume. It is
 the only file required for the default run. An optional `.env` beside it can
 enable semantic search.
 
-## Optional semantic search
-
-Semantic search is off by default. If you run an OpenAI-compatible embedding
-service on the Docker host (for example Ollama), create a `.env` next to
-`docker-compose.yml`:
-
-```dotenv
-Embeddings__Enabled=true
-Embeddings__Endpoint=http://host.docker.internal:11434/v1
-Embeddings__Model=embeddinggemma
-Embeddings__Dimensions=768
-Embeddings__MaxInputTokens=512
-```
-
-Then recreate the service and check the index:
-
-```bash
-docker compose up -d
-curl -fsS http://localhost:5110/api/knowledge/status
-```
-
-Compose reads `.env` in this directory for `${...}` substitution. The file is
-not mounted into the container; only the variables listed under `environment`
-in `docker-compose.yml` are passed through as process environment.
-
-The Compose file maps `host.docker.internal` to the Linux host gateway.
-`localhost` inside the container is the container itself, not the host. If the
-embedding service is another Compose service, use its service name instead, for
-example `http://ollama:11434/v1`. Set `Embeddings__ApiKey` for a hosted provider.
-`Dimensions` should match the model, or leave it unset to detect the vector size
-on the first index pass. `Embeddings__Profile` is only needed to override the
-built-in prompt profile.
-
-For the one-command `docker run` path, add these flags to the existing command:
-
-```bash
---add-host=host.docker.internal:host-gateway \
--e Embeddings__Enabled=true \
--e Embeddings__Endpoint=http://host.docker.internal:11434/v1 \
--e Embeddings__Model=embeddinggemma \
--e Embeddings__Dimensions=768 \
--e Embeddings__MaxInputTokens=512
-```
-
-The index is `/data/wartable.embeddings.db` inside the named volume and rebuilds
-automatically. If the embedding service is unavailable, search falls back to
-keyword results with `degraded: true`.
-
 ## Everyday commands
 
 The container is named `wartable` in both options, so these work either way:
@@ -173,36 +125,27 @@ WARTABLE_PORT=5111 docker compose up -d
 Then open `http://localhost:5111` and check
 `curl -fsS http://localhost:5111/api/health`.
 
-## Back up and restore
+## Optional semantic search
 
-Stop the container before taking a cold backup:
+Semantic search is off by default. To enable it with Compose, add the
+`Embeddings__*` keys from `.env.example` to a `.env` beside `docker-compose.yml`
+and recreate the service. Compose substitutes those values into the container
+environment; the `.env` file itself is not mounted.
 
-```bash
-docker stop wartable
-docker run --rm \
-  -v wartable-data:/data:ro \
-  -v "$PWD:/backup" \
-  alpine tar -czf /backup/wartable-backup.tar.gz -C /data .
-docker start wartable
-```
+The complete key list, defaults, endpoint guidance (`host.docker.internal` for
+a host service, a Compose service name for a container), and keyword fallback
+behavior are in
+[`docs/configuration.md`](../docs/configuration.md#semantic-search). For the
+one-command path, pass the same values with `-e` and add
+`--add-host=host.docker.internal:host-gateway`.
 
-Restore into an empty volume instead of merging old and new database files:
+## Data and backups
 
-```bash
-docker rm -f wartable
-docker volume rm wartable-data
-docker volume create wartable-data
-docker run --rm \
-  -v wartable-data:/data \
-  -v "$PWD:/backup:ro" \
-  alpine tar -xzf /backup/wartable-backup.tar.gz -C /data
-# Start it again with the same command you used originally.
-```
-
-Keep the archive outside the checkout and verify it before deleting the old
-volume. The production backup and restore rules are in
-[`docs/deployment.md`](../docs/deployment.md#82-backups); data ownership and
-persistence are covered in
+The named volume is the entire data footprint. To take a cold backup or restore
+one, use the procedures in the deployment contract rather than inventing a
+volume copy: [Backups](../docs/deployment.md#82-backups) and
+[Restore](../docs/deployment.md#83-restore). Data ownership and persistence are
+covered in
 [`docs/container.md`](../docs/container.md#data-ownership-and-persistence).
 
 ## Troubleshooting
@@ -231,10 +174,14 @@ WarTable has no accounts, login, API keys, or TLS. Anyone who can reach port
 5110 can read and change the campaign data. Run it only on a trusted LAN. If you
 need access from outside the LAN, put it behind a VPN or an authenticated
 reverse proxy; that is outside the supported contract. See
+[`SECURITY.md`](../SECURITY.md) and
 [`docs/deployment.md`](../docs/deployment.md#7-network-and-security).
 
 ## Next steps
 
+- [Configuration](../docs/configuration.md) — flags, `.env`, and embedding keys.
+- [Agent instructions](../docs/agent-instructions.md) — connect an agent and
+  copy the fallback system prompt.
 - [Production deployment](../docs/deployment.md) — pinned image, bind mount,
   backup, updates, and rollback.
 - [Container operations](../docs/container.md) — tags, volumes, logs, and image

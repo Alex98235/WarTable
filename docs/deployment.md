@@ -4,6 +4,14 @@
 that connect over MCP stdio. There are no accounts and no cloud service. This
 document is the source of truth for a supported production deployment.
 
+It owns topology, runtime requirements, supported distributions, the production
+Compose contract, data and backup, schema lifecycle, updates and rollback,
+release artifacts, the network boundary, and the runbook. It does not repeat
+container build commands ([`container.md`](container.md)), the environment
+variable catalogue ([`configuration.md`](configuration.md)), or local
+development ([`development.md`](development.md)). Start at
+[`index.md`](index.md) for the documentation map.
+
 ## Quickstart versus production
 
 These are two different shapes, and only one of them is the production contract:
@@ -143,7 +151,9 @@ The local-filesystem requirement is real:
 
 ## 5. Container contract
 
-The image and Compose file are deliverables of the production contract.
+The image and the root [`docker-compose.yml`](../docker-compose.yml) are
+deliverables of the production contract. The Compose file is the only copy of
+the service definition; this section explains the requirements behind it.
 
 ### 5.1 Image
 
@@ -165,84 +175,45 @@ The image and Compose file are deliverables of the production contract.
 
 The image does not need `sqlite3` or a shell for normal operation. Cold backups
 are taken from the host. A shell may be present for debugging, but it is not an
-operational dependency. CI publishes the image to the public GHCR package
-`ghcr.io/alex98235/wartable`.
+operational dependency.
 
 ### 5.2 Compose
 
-The Compose file must pin an immutable version tag, not `latest`:
+The production service definition lives in
+[`docker-compose.yml`](../docker-compose.yml). Do not fork a second copy of it
+into documentation or deployment notes; change the file and let this page
+describe the intent. It must keep these properties:
 
-```yaml
-services:
-  wartable:
-    platform: linux/amd64
-    image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}
-    container_name: wartable
-    restart: unless-stopped
-    ports:
-      - "5110:5110"
-    volumes:
-      - ./data:/data
-    command:
-      - --mode
-      - serve
-      - --host
-      - 0.0.0.0
-      - --port
-      - "5110"
-      - --db
-      - /data/wartable.db
-    environment:
-      Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
-      # Optional semantic search. Disabled by default.
-      Embeddings__Enabled: "${Embeddings__Enabled:-false}"
-      Embeddings__Endpoint: "${Embeddings__Endpoint:-http://host.docker.internal:11434/v1}"
-      Embeddings__Model: "${Embeddings__Model:-embeddinggemma}"
-      Embeddings__Dimensions: "${Embeddings__Dimensions:-768}"
-      Embeddings__MaxInputTokens: "${Embeddings__MaxInputTokens:-512}"
-      Embeddings__ApiKey: "${Embeddings__ApiKey:-}"
-      Embeddings__Profile: "${Embeddings__Profile:-}"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "/usr/local/bin/busybox",
-          "wget",
-          "-q",
-          "-O",
-          "/dev/null",
-          "http://127.0.0.1:5110/api/health",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-```
+- `platform: linux/amd64` and `image:
+  ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}`.
+- An immutable tag is required. Compose fails fast when `WARTABLE_TAG` is unset,
+  and the file never defaults to `latest`.
+- `container_name: wartable`, `restart: unless-stopped`.
+- Port `5110` published on the host.
+- Bind mount `./data:/data` so the database and backups are host-visible.
+- The serve-mode command line above with `--db /data/wartable.db`.
+- `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning`
+  so idle operation does not log every SQL statement.
+- `extra_hosts: host.docker.internal:host-gateway` for a host-side embedding
+  service.
+- A BusyBox `wget` health check against `http://127.0.0.1:5110/api/health`
+  every 30 seconds.
 
-`.env` beside `docker-compose.yml`:
+`.env` beside the Compose file carries the release pin and any optional
+overrides:
 
 ```dotenv
-WARTABLE_TAG=0.1.0
-
-# Optional semantic search; disabled by default.
-Embeddings__Enabled=false
-Embeddings__Endpoint=http://host.docker.internal:11434/v1
-Embeddings__Model=embeddinggemma
-Embeddings__Dimensions=768
-Embeddings__MaxInputTokens=512
-# Embeddings__ApiKey=
-# Embeddings__Profile=
+# Immutable release being deployed. Current releases are the Git tags and
+# GitHub Releases in this repository; any X.Y.Z tag is valid.
+WARTABLE_TAG=X.Y.Z
 ```
 
-Compose reads this file for `${...}` substitution and passes only the variables
-listed under `environment` into the container. It is **not** mounted into the
-container.
-
-Pin the immutable `X.Y.Z` release being deployed; `0.1.0` is the first final
-release. `X.Y` is a moving minor alias; `latest` is opt-in testing only and must
-never be the documented production default.
+`X.Y.Z` is immutable, `X.Y` is a moving minor alias, and `latest` is opt-in
+testing only. Never document or deploy `latest` in production. Compose reads
+`.env` for `${...}` substitution and passes only the variables listed under
+`environment` into the container; it is **not** mounted into the container.
+[`configuration.md`](configuration.md) is the catalogue of every variable and
+its defaults.
 
 For the no-checkout first run that uses `latest` and a named volume, see the
 [quickstart](../quickstart/README.md). The quickstart is deliberately not the
@@ -258,9 +229,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 The base `docker-compose.yml` never builds; production always pulls the
-published image.
-
-See [`container.md`](container.md) for build and operation commands.
+published image. [`container.md`](container.md) covers direct image builds,
+image tags, and container operations.
 
 ### 5.3 Data volume
 
@@ -283,27 +253,18 @@ sudo chown -R 10001:10001 data
 
 Embeddings are disabled by default and are not required for health, planning, or
 MCP. WarTable does not bundle a model; it calls an external OpenAI-compatible
-`POST /v1/embeddings` service. To enable it, set these values in the `.env` used
-by Compose:
+`POST /v1/embeddings` service.
 
-```dotenv
-Embeddings__Enabled=true
-Embeddings__Endpoint=http://host.docker.internal:11434/v1
-Embeddings__Model=embeddinggemma
-Embeddings__Dimensions=768
-Embeddings__MaxInputTokens=512
-```
+Deployment-specific points:
 
-Required when enabling: `Enabled`, `Endpoint`, and `Model`. `Dimensions` and
-`MaxInputTokens` should match the model; `ApiKey` is for hosted providers;
-`Profile` overrides the built-in prompt profile. The Compose file already passes
-these values and maps `host.docker.internal` to the Linux host gateway.
-
-`localhost` inside the container is the container itself. If Ollama runs as a
-Compose service, use its service name, for example `http://ollama:11434/v1`;
-otherwise use a reachable host or LAN address. The disposable index is
-`/data/wartable.embeddings.db` and is covered by the `./data` bind mount. Recreate
-the service after changing `.env`, then verify:
+- The Compose file already forwards the `Embeddings__*` values and maps
+  `host.docker.internal` to the Linux host gateway.
+- `localhost` inside the container is the container itself. If Ollama runs as a
+  Compose service, use its service name, for example
+  `http://ollama:11434/v1`; otherwise use a reachable host or LAN address.
+- The disposable index is `/data/wartable.embeddings.db` and is covered by the
+  `./data` bind mount.
+- After changing `.env`, recreate the service and verify:
 
 ```bash
 docker compose up -d
@@ -312,7 +273,8 @@ curl -fsS http://localhost:5110/api/knowledge/status
 
 If the service is unavailable or the index is still building, search falls back
 to keyword results with `degraded: true`. Semantic search does not change the
-container health check or the deployment contract.
+container health check or the deployment contract. Settings, defaults, and
+profiles are documented in [`configuration.md`](configuration.md).
 
 ---
 
@@ -372,6 +334,9 @@ WorkingDirectory=/var/lib/wartable
 WantedBy=multi-user.target
 ```
 
+Agent-side client configuration is in
+[`agent-instructions.md`](agent-instructions.md).
+
 ---
 
 ## 7. Network and security
@@ -392,6 +357,7 @@ WantedBy=multi-user.target
   deployment change without revisiting this contract.
 
 The durable rule is LAN-only: no public exposure, no built-in accounts or TLS.
+Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
 
 ---
 
@@ -478,6 +444,8 @@ Consequences:
 
 The server also exposes MCP over stdio with `--mode mcp`. Both transports use
 the official `ModelContextProtocol.AspNetCore` SDK and the same tool classes.
+The tool surface itself is described in [`design.md`](design.md) and
+[`agent-instructions.md`](agent-instructions.md).
 
 ### 9.2 Co-located agents
 
@@ -511,14 +479,16 @@ the official `ModelContextProtocol.AspNetCore` SDK and the same tool classes.
 
 ## 10. Versioning and release artifacts
 
-- Releases are driven by annotated Git tags of the form `vX.Y.Z`.
+- Releases are driven by annotated Git tags of the form `vX.Y.Z`. The current
+  release is whatever tag (and matching GitHub Release) is newest; this document
+  deliberately does not hard-code a version number.
 - CI publishes the public `linux/amd64` image to
   `ghcr.io/alex98235/wartable` from the tagged commit. Container tags: `X.Y.Z`
   (immutable), `X.Y` (minor alias), and `latest` (moving, testing only).
   Pre-release tags do not move `latest`.
 - Standalone archives are named `wartable-<version>-win-x64.zip` and
   `wartable-<version>-linux-x64.tar.gz`, each published with a `.sha256`
-  sidecar checksum (for example `wartable-0.1.0-linux-x64.tar.gz.sha256`).
+  sidecar checksum (for example `wartable-1.0.1-linux-x64.tar.gz.sha256`).
   The image and the standalone archives share the release version.
 - Production Compose pins `WARTABLE_TAG` to `X.Y.Z`. `latest` is opt-in and
   must never be the default in the documented deployment. A local build uses the
@@ -535,11 +505,11 @@ the official `ModelContextProtocol.AspNetCore` SDK and the same tool classes.
   - upgrade and rollback steps
 
 Re-run the image smoke test at any time with the manual workflow. It pulls an
-already-published image, checks health, campaign creation, MCP
-`initialize`/`tools/list`, a container restart, and database persistence:
+already-published image, checks health, campaign creation, the MCP handshake,
+a container restart, and database persistence:
 
 ```bash
-gh workflow run smoke-image.yml -f image=ghcr.io/alex98235/wartable:0.1.0
+gh workflow run smoke-image.yml -f image=ghcr.io/alex98235/wartable:X.Y.Z
 gh run watch
 ```
 
@@ -605,7 +575,7 @@ Examples:
 ```
 
 The target must be an immutable full semantic version, `X.Y.Z`, with an optional
-leading `v`. A pre-release suffix such as `0.1.0-rc.1` is accepted. `latest` is
+leading `v`. A pre-release suffix such as `X.Y.Z-rc.1` is accepted. `latest` is
 rejected unless `--allow-latest` is passed; that option is for testing only and
 must not be used for production. An equal target and current tag is a no-op and
 exits nonzero without changing anything.

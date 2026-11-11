@@ -5,8 +5,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 
-    <!-- Release metadata. CI overrides Version from the git tag. -->
-    <Version>0.1.0</Version>
+    <!-- Local placeholder. CI overrides Version from the git tag. -->
+    <Version>0.0.0-local</Version>
     <Product>WarTable</Product>
     <Description>Human-AI planning workspace</Description>
   </PropertyGroup>

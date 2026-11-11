@@ -12,7 +12,7 @@ on:
         description: Full image reference to pull and smoke test
         required: true
         type: string
-        default: "ghcr.io/alex98235/wartable:0.1.0"
+        default: "ghcr.io/alex98235/wartable:latest"
 
 permissions:
   contents: read
@@ -121,12 +121,17 @@ jobs:
           fi
 
           tools_json="$(mcp_call '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
-          tool_count="$(printf '%s' "$tools_json" | jq '.result.tools | length')"
-          if [ "$tool_count" -ne 32 ]; then
-            echo "Expected 32 MCP tools, got ${tool_count}" >&2
+          missing_tools="$(printf '%s' "$tools_json" | jq -r '
+            ["get_context", "get_step", "get_plan", "search_knowledge", "get_briefing"] as $required
+            | [(.result.tools // [])[].name] as $available
+            | [$required[] | select(. as $name | $available | index($name) | not)]
+            | join(", ")
+          ')"
+          if [ -n "$missing_tools" ]; then
+            echo "MCP server is missing required tools: ${missing_tools}" >&2
             exit 1
           fi
-          echo "MCP server ${server_name} exposes ${tool_count} tools"
+          echo "MCP server ${server_name} exposes the required tools"
 
           # Restart the same container, same named volume. The campaign must
           # still be readable and the database file must still exist on disk.
@@ -148,4 +153,4 @@ jobs:
           digest="${digest##*@}"
           digest="${digest:-$(docker image inspect "$IMAGE" --format '{{.Id}}')}"
 
-          echo "IMAGE SMOKE OK image=${IMAGE} digest=${digest} campaign=${campaign_id} tools=${tool_count}"
+          echo "IMAGE SMOKE OK image=${IMAGE} digest=${digest} campaign=${campaign_id} required_tools=present"

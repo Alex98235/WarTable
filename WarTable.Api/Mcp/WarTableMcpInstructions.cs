@@ -26,5 +26,6 @@ public static class WarTableMcpInstructions
 		- Record durable decisions, gotchas, references, and open questions as Bunker notes. Before adding a note, or when asked whether something was discussed, use search_knowledge and cite the note alias and snippet.
 		- Directives are hard campaign rules. Preferences are advisory and human-global. If a directive conflicts with a preference, surface the conflict.
 		- WarTable does not enforce approval gates. Verify before implementation only if your own instructions require it.
+		- Subagents do not inherit the parent prompt or conversation. Call get_briefing or get_plan yourself. Read freely; for steps, update status, add updates and evidence, and flag review items. Do not create or delete campaigns, objectives, notes, steps, or preferences, or edit their fields; report durable findings to the parent. This is advisory, not enforced.
 		""";
 }
