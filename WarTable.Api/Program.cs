@@ -273,6 +273,7 @@ public class Program
 		});
 		services.AddScoped<KnowledgeIndexService>();
 		services.AddScoped<KnowledgeSearchService>();
+		services.AddScoped<KnowledgeContextService>();
 		services.AddHostedService<KnowledgeIndexWorker>();
 	}
 

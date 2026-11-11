@@ -2,6 +2,7 @@ using System.ComponentModel;
 using ModelContextProtocol.Server;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
+using WarTable.Api.Services.Embeddings;
 
 namespace WarTable.Api.Mcp.Tools;
 
@@ -91,9 +92,15 @@ public static class PlanTools
 	}
 
 	[McpServerTool(Name = "get_plan")]
-	[Description("Get a campaign's full plan: objectives in order, each with its steps, updates and evidence.")]
+	[Description(
+		"Get a campaign's full plan: objectives in order, each with its steps, updates and " +
+		"evidence, plus a `knowledge` summary of explicit note-link counts by kind " +
+		"(decisions, gotchas, references, context, questions). Zero counts mean no explicit " +
+		"links; use `get_context` or `search_knowledge` for semantic discovery and `get_note` " +
+		"for full bodies.")]
 	public static async Task<object> GetPlanAsync(
 		WarTableService service,
+		KnowledgeContextService context,
 		string campaign_id,
 		bool? include_drafts = null)
 	{
@@ -103,7 +110,22 @@ public static class PlanTools
 			if (id is null)
 				return McpResults.Error("campaign_id is required");
 
-			return await service.GetPlanAsync(id.Value, include_drafts ?? true);
+			var objectives = await service.GetPlanAsync(id.Value, include_drafts ?? true);
+			try
+			{
+				var counts = await context.GetCountsForObjectivesAsync(id.Value, objectives);
+				foreach (var objective in objectives)
+				{
+					if (counts.TryGetValue(objective.Id, out var knowledge))
+						objective.Knowledge = knowledge;
+				}
+			}
+			catch
+			{
+				// Counts are an enhancement; a failure must not hide the plan.
+			}
+
+			return objectives;
 		}
 		catch (Exception ex)
 		{

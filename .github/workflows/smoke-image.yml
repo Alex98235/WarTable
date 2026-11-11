@@ -105,7 +105,7 @@ jobs:
           campaign_json="$(curl -fsS -X POST "${BASE_URL}/api/campaigns" \
             -H 'Content-Type: application/json' \
             -d "$(jq -n --arg title "$CAMPAIGN_TITLE" \
-              '{title: $title, intent: "Created by the image smoke test", tags: "smoke"}')")"
+              '{title: $title, charter: "Created by the image smoke test", tags: "smoke"}')")"
           campaign_id="$(printf '%s' "$campaign_json" | jq -r '.id // empty')"
           if [ -z "$campaign_id" ]; then
             echo "Campaign creation returned no id: ${campaign_json}" >&2
@@ -122,8 +122,8 @@ jobs:
 
           tools_json="$(mcp_call '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')"
           tool_count="$(printf '%s' "$tools_json" | jq '.result.tools | length')"
-          if [ "$tool_count" -ne 30 ]; then
-            echo "Expected 30 MCP tools, got ${tool_count}" >&2
+          if [ "$tool_count" -ne 32 ]; then
+            echo "Expected 32 MCP tools, got ${tool_count}" >&2
             exit 1
           fi
           echo "MCP server ${server_name} exposes ${tool_count} tools"

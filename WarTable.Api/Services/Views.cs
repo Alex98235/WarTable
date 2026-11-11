@@ -1,6 +1,39 @@
 using WarTable.Api.Models;
+using WarTable.Api.Services.Embeddings;
 
 namespace WarTable.Api.Services;
+
+/// <summary>Compact objective identity for alias lookups; never the full plan.</summary>
+public record ObjectiveSummary(
+	Guid Id,
+	Guid CampaignId,
+	int Alias,
+	string Title,
+	string Description,
+	PlanState PlanState,
+	string Status,
+	DateTime UpdatedAt);
+
+/// <summary>
+/// Alias resolution plus a compact objective summary and its bounded knowledge context.
+/// Notes keep the original top-level fields and leave objective/knowledge null.
+/// </summary>
+public record AliasResolutionDetail(
+	string Kind,
+	Guid Id,
+	string Title,
+	bool Deleted,
+	Guid CampaignId,
+	int Alias,
+	ObjectiveSummary? Objective,
+	KnowledgeContext? Knowledge,
+	string? KnowledgeError = null);
+
+/// <summary>A resolved step with its bounded knowledge context.</summary>
+public record StepLookupDetail(
+	Step Step,
+	KnowledgeContext? Knowledge,
+	string? KnowledgeError = null);
 
 /// <summary>Outcome of a step delete, including any dependency edges removed.</summary>
 public record DeleteStepResult(bool Deleted, int RemovedDependencies);
