@@ -192,9 +192,16 @@ Agents use the `search_knowledge` MCP tool. In the Bunker, turn on
 evidence (note, alias, snippet, heading context, match source), not generated
 answers.
 
+The same index powers work-surface context. `get_step` and `get_object` attach
+bounded excerpts of linked, tagged, and semantically related notes;
+`get_plan` adds explicit-link counts; `get_context` supports pre-planning for a
+new integration. Context degrades to links, tags, directives, the charter, and
+keyword matches when embeddings are unavailable. Full note bodies remain a deliberate
+`get_note` call.
+
 ## Connect an agent (OpenCode)
 
-WarTable exposes 31 MCP tools over stdio and Streamable HTTP. The recommended
+WarTable exposes 32 MCP tools over stdio and Streamable HTTP. The recommended
 OpenCode V2 configuration for an agent on the same machine as the source
 checkout is:
 
@@ -283,6 +290,11 @@ planning and execution record:
 >   GUIDs, not `#N.M` references.
 > - `get_plan` returns a JSON array of objectives, not an object with an
 >   `objectives` property.
+> - When you open a step with `get_step`, read its `knowledge` block before
+>   starting. It holds linked, tagged, and semantically related directives,
+>   decisions, gotchas, and references as excerpts; `get_note` is the only
+>   full-body read. Before shaping a new objective that touches existing code,
+>   call `get_context` with the component or feature you are integrating with.
 > - Deleting a step removes dependency edges. If another step depends on it, the
 >   tool refuses unless `force=true`; review the affected refs before forcing.
 > - Before starting, call `get_briefing` for the campaign or `get_attention` across

@@ -30,7 +30,7 @@ public static class KnowledgeEndpoints
 			}
 
 			var response = await service.SearchAsync(
-				campaignId, q, searchMode, limit, cancellationToken);
+				campaignId, q, searchMode, limit, cancellationToken: cancellationToken);
 			return Results.Ok(response);
 		});
 

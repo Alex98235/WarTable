@@ -63,11 +63,18 @@ public sealed class KnowledgeSearchService
 		_logger = logger;
 	}
 
+	/// <param name="query">The retrieval query used for embeddings and result snippets.</param>
+	/// <param name="keywordQuery">
+	/// Optional short substring used for the keyword pass. Keyword retrieval is a
+	/// single case-insensitive <c>Contains</c> over title/body/tags, so a long
+	/// work-surface query would never match. Defaults to <paramref name="query"/>.
+	/// </param>
 	public async Task<KnowledgeSearchResponse> SearchAsync(
 		Guid? campaignId,
 		string query,
 		KnowledgeSearchMode mode = KnowledgeSearchMode.Hybrid,
 		int? limit = null,
+		string? keywordQuery = null,
 		CancellationToken cancellationToken = default)
 	{
 		query = (query ?? "").Trim();
@@ -78,7 +85,10 @@ public sealed class KnowledgeSearchService
 				query, mode, false, null, Array.Empty<KnowledgeSearchResult>());
 		}
 
-		var keywordNotes = await _service.GetNotesAsync(campaignId, query, null, null);
+		var keywordNeedle = string.IsNullOrWhiteSpace(keywordQuery)
+			? query
+			: keywordQuery.Trim();
+		var keywordNotes = await _service.GetNotesAsync(campaignId, keywordNeedle, null, null);
 		var semanticHits = new List<SemanticHit>();
 		string? degraded = null;
 
@@ -124,7 +134,7 @@ public sealed class KnowledgeSearchService
 		{
 			var results = keywordNotes
 				.Select((note, index) => ToResult(
-					note, note.Body, null, 1.0 / (index + 1), "keyword", query))
+					note, note.Body, null, 1.0 / (index + 1), "keyword", keywordNeedle))
 				.Take(take)
 				.ToList();
 			return new KnowledgeSearchResponse(query, mode, degraded is not null, degraded, results);
@@ -159,7 +169,8 @@ public sealed class KnowledgeSearchService
 					? "both"
 					: candidate.SemanticRank.HasValue ? "semantic" : "keyword";
 				var snippet = candidate.SemanticSnippet ?? candidate.Note.Body;
-				return ToResult(candidate.Note, snippet, candidate.SemanticHeading, score, matchedBy, query);
+				return ToResult(
+					candidate.Note, snippet, candidate.SemanticHeading, score, matchedBy, keywordNeedle);
 			})
 			.OrderByDescending(result => result.Score)
 			.Take(take)

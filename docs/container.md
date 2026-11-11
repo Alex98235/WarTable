@@ -185,7 +185,7 @@ It tags the result `wartable:${WARTABLE_TAG}`. The base file never builds.
 [`smoke-image.yml`](../.github/workflows/smoke-image.yml) pulls an
 already-published image and exercises it without building or pushing anything.
 It starts the image with a fresh named volume, waits for `/api/health`, creates a
-campaign, checks the MCP `initialize` response and `tools/list` (31 tools),
+campaign, checks the MCP `initialize` response and `tools/list` (32 tools),
 restarts the container, and verifies that the campaign and `/data/wartable.db`
 survived.
 
@@ -200,7 +200,7 @@ The `image` input defaults to `ghcr.io/alex98235/wartable:0.1.0` when the
 workflow is started from the UI. The job logs in to GHCR with `GITHUB_TOKEN` and
 `packages: read`; that login is kept for private forks and to avoid anonymous
 pull rate limits. A successful run ends with
-`IMAGE SMOKE OK image=... digest=... campaign=... tools=31`; a failure dumps
+`IMAGE SMOKE OK image=... digest=... campaign=... tools=32`; a failure dumps
 the container logs before the job exits.
 
 ## Version-to-version update test

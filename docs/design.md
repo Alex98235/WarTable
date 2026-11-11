@@ -261,7 +261,7 @@ Campaign knowledge and campaign directives. The Bunker replaces Intel.
 | `Id` | GUID |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, shared counter with objectives, never reused. |
-| `Kind` | `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`, `Question`. |
+| `Kind` | `Charter`, `DesignDoc`, `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`, `Question`. |
 | `Title` | |
 | `Body` | Markdown. |
 | `Status` | `Active`, `Superseded`, or `Resolved` (questions). |
@@ -273,7 +273,8 @@ Campaign knowledge and campaign directives. The Bunker replaces Intel.
 Links to objectives and steps are optional and many-to-many.
 
 **Directives are always-on.** They are hard, campaign-scoped rules: "public API
-must stay backward compatible." Other kinds are searched on demand.
+must stay backward compatible." Other kinds are surfaced through work-surface
+context or searched on demand.
 
 ### Semantic knowledge search
 
@@ -295,6 +296,27 @@ comparable, so the match chip and ordering carry the signal.
 Model prompt differences live in profiles (`QueryTemplate`, `DocumentTemplate`,
 dimensions, max input), not in provider-specific branches. A vector database is
 deliberately out of scope until the corpus outgrows brute force.
+
+### Work-surface knowledge context
+
+The index is also the discovery layer behind work surfaces, not only a search
+box. `get_step` and `get_object` attach a bounded `KnowledgeContext` built from
+explicit step/objective links, requested area tags, campaign directives, and
+semantic nearest neighbours. `get_context` exposes the same retrieval before an
+objective exists, so a new integration can ask what is already known about a
+component. `get_plan` adds only explicit-link counts and never runs semantic
+retrieval per objective.
+
+Context is grouped by kind with per-kind quotas (directives 10, decisions 5,
+gotchas 5, references 3, context 3, questions 3, charter 1, design docs 3), so a
+long reference cannot bury the gotchas. Each entry carries alias, title, a
+240-character excerpt, heading path, match reasons (`linked-step`,
+`linked-objective`, `tag`, `directive`, `charter`, `semantic`, `keyword`), and a count of
+omitted entries. Ranking puts pinned/directive and explicit links above tags,
+then semantic score. Only active notes are considered; superseded notes stay
+resolvable through `get_note` but do not enter context. Full bodies are never
+included. If embeddings are disabled or unavailable, the same call returns
+linked, tagged, directive, charter, and keyword candidates with `degraded: true`.
 
 ### Preference
 
@@ -425,7 +447,7 @@ enums.
 | Tool | Parameters | Notes |
 |---|---|---|
 | `import_plan` | `campaign_id?`, `campaign?`, `objectives[]` | Atomic bulk import. Per-objective `plan_state` defaults to `Draft`. Returns aliases and step refs. |
-| `get_plan` | `campaign_id`, `include_drafts?` | Returns a JSON array of objectives with steps. |
+| `get_plan` | `campaign_id`, `include_drafts?` | Returns a JSON array of objectives with steps and explicit note-link `knowledge` counts. |
 | `get_briefing` | `campaign_id`, `since?` | Bounded context for starting work. |
 | `get_attention` | `campaign_id?` | Cross-campaign or scoped inbox. |
 | `get_activity` | `campaign_id`, `since?`, `limit?` | Internal activity log query. |
@@ -495,8 +517,9 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `get_object` | `campaign_id`, `alias` | Resolves an objective or Bunker note, including soft-deleted. |
-| `get_step` | `campaign_id`, `objective_alias`, `step_number` | Resolves `#N.M`. |
+| `get_object` | `campaign_id`, `alias`, `include_knowledge?` | Resolves an objective or Bunker note, including soft-deleted. Objectives include a compact summary and bounded knowledge context. |
+| `get_step` | `campaign_id`, `objective_alias`, `step_number`, `include_knowledge?` | Resolves `#N.M` with its bounded knowledge context. |
+| `get_context` | `campaign_id`, `objective_id?`, `step_id?`, `query?`, `tags?` | Bounded linked/tagged/semantic knowledge for pre-planning or integration work. |
 
 ### Removed
 
@@ -508,6 +531,11 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 - Read `get_briefing` before starting work. Do not read the whole campaign.
   Use `get_plan` when the complete objective and step graph is needed.
+- When opening a step, read its `knowledge` block before starting: linked,
+  tagged, and semantically related directives, decisions, gotchas, and
+  references are returned as excerpts. Use `get_context` before shaping an
+  objective that integrates with existing code. `get_note` is the only
+  full-body read.
 - Resolve the campaign before planning or recording work. Prefer an explicit
   campaign ID or title; otherwise use `list_campaigns` and match on title, tags,
   Charter text, repository/project name, and recent notes. A title similar in
@@ -655,7 +683,7 @@ history; the implementation is authoritative.
 | `SitRep`, `SitRepObjective` | Removed. Replaced by `StepUpdate` and `ActivityEvent`. |
 | `Intel` | Replaced by `BunkerNote` with status, supersession, and links. |
 | — | Add `Preference`, `Evidence`, `ActivityEvent`. |
-| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 31 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
+| MCP | Done: uses the official `ModelContextProtocol.AspNetCore` 2.4.0 SDK. The 32 tools, `snake_case` payloads, stdio, and stateless Streamable HTTP at `/mcp` are implemented. |
 | Networking | Add `/api/events` (SSE) driven by `ActivityBroadcaster`: a `FileSystemWatcher` on the SQLite DB/WAL signals new activity, so idle clients cause no database polling. Clients resync with a `since` cursor. |
 | UI | Remove SitReps/Intel tabs and campaign status controls; add plan tree, Bunker, Preferences, Attention. Subscribe to live events. |
 | README | Done: rewritten for the v0.1.0 product. |

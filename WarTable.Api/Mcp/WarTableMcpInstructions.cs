@@ -18,6 +18,7 @@ public static class WarTableMcpInstructions
 		- Refer to objectives and Bunker notes as #N and steps as #N.M. Never refer to work by title or count.
 		- Objective aliases and step numbers are permanent: assigned once, never reused or renumbered; gaps are normal. reorder_steps changes display order (sort_order) only, never step numbers. Reorder payload keys are step GUIDs, not #N.M references.
 		- get_plan returns a JSON array of objectives, not an object with an objectives property.
+		- Opening a step with get_step returns a bounded knowledge context: linked, tagged, and semantically related directives, decisions, gotchas, and references as excerpts. Read it before starting. Use get_context before shaping a new objective that touches existing code. get_note is the only full-body read.
 		- Deleting a step removes dependency edges. If another step depends on it, the tool refuses unless force=true; review the affected refs before forcing.
 		- Seeds are unfinished human thoughts. When no ready work is queued, discuss a seed with the human and promote it with update_objective; do not execute it as-is.
 		- Move steps Open -> InProgress -> Done. Add step updates for blockers, results, and handoffs, and attach evidence when a step is done. Flag work that needs human review.

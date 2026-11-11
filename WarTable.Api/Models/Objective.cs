@@ -1,5 +1,6 @@
 namespace WarTable.Api.Models;
 
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 /// <summary>A durable outcome and the unit of planning within a campaign.</summary>
@@ -37,6 +38,14 @@ public class Objective
 	public Campaign? Campaign { get; set; }
 
 	public List<Step> Steps { get; set; } = new();
+
+	/// <summary>
+	/// Explicit note-link counts populated for plan overviews. Null elsewhere, so
+	/// existing objective payloads keep their shape.
+	/// </summary>
+	[NotMapped]
+	[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+	public KnowledgeCounts? Knowledge { get; set; }
 }
 
 /// <summary>
