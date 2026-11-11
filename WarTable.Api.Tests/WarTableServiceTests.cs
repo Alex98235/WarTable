@@ -370,7 +370,9 @@ public class WarTableServiceTests
 		Assert.Equal(1, (await ctx.Service.GetStepAsync(a.Id))!.StepNumber);
 		Assert.Equal(2, (await ctx.Service.GetStepAsync(b.Id))!.StepNumber);
 
-		await ctx.Service.DeleteStepAsync(b.Id, Human);
+		var deleted = await ctx.Service.DeleteStepAsync(b.Id, false, Human);
+		Assert.True(deleted.Deleted);
+		Assert.Equal(0, deleted.RemovedDependencies);
 
 		var d = await ctx.Service.CreateStepAsync(
 			objective.Id, "D", "", "", "orchestrator", Array.Empty<Guid>(), Human);
@@ -379,6 +381,35 @@ public class WarTableServiceTests
 		var byRef = await ctx.Service.GetStepByRefAsync(campaign.Id, objective.Alias, 1);
 		Assert.NotNull(byRef);
 		Assert.Equal(a.Id, byRef!.Id);
+	}
+
+	[Fact]
+	public async Task DeleteStep_RefusesToBreakDependentsUnlessForced()
+	{
+		var (ctx, _, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var b = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepAsync(b.Id, new StepPatch(), new[] { a.Id }, Human);
+
+		var error = await Assert.ThrowsAsync<InvalidOperationException>(
+			() => ctx.Service.DeleteStepAsync(a.Id, false, Human));
+		Assert.Contains($"#{objective.Alias}.{a.StepNumber}", error.Message);
+		Assert.Contains($"#{objective.Alias}.{b.StepNumber}", error.Message);
+		Assert.Contains("force", error.Message, StringComparison.OrdinalIgnoreCase);
+		Assert.NotNull(await ctx.Service.GetStepAsync(a.Id));
+
+		var result = await ctx.Service.DeleteStepAsync(a.Id, true, Human);
+		Assert.True(result.Deleted);
+		Assert.Equal(1, result.RemovedDependencies);
+		Assert.Null(await ctx.Service.GetStepAsync(a.Id));
+
+		var remaining = await ctx.Service.GetStepAsync(b.Id);
+		Assert.NotNull(remaining);
+		Assert.Empty(remaining!.DependsOn);
 	}
 
 	[Fact]

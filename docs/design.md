@@ -425,7 +425,7 @@ enums.
 | Tool | Parameters | Notes |
 |---|---|---|
 | `import_plan` | `campaign_id?`, `campaign?`, `objectives[]` | Atomic bulk import. Per-objective `plan_state` defaults to `Draft`. Returns aliases and step refs. |
-| `get_plan` | `campaign_id`, `include_drafts?` | Structured objectives and steps. |
+| `get_plan` | `campaign_id`, `include_drafts?` | Returns a JSON array of objectives with steps. |
 | `get_briefing` | `campaign_id`, `since?` | Bounded context for starting work. |
 | `get_attention` | `campaign_id?` | Cross-campaign or scoped inbox. |
 | `get_activity` | `campaign_id`, `since?`, `limit?` | Internal activity log query. |
@@ -456,20 +456,20 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_objective` | `campaign_id`, `title`, `description`, `plan_state` | |
+| `create_objective` | `campaign_id`, `title`, `description`, `plan_state` | Aliases are permanent; deletion does not reuse them. |
 | `update_objective` | `objective_id`, `title`, `description`, `plan_state` | |
-| `reorder_objectives` | `campaign_id`, `orders` | |
-| `delete_objective` | `objective_id` | Soft delete. |
+| `reorder_objectives` | `campaign_id`, `orders` | Changes `SortOrder` only; keys are objective GUIDs, not `#N` aliases. |
+| `delete_objective` | `objective_id` | Soft delete; old aliases remain resolvable and are never reused. |
 
 ### Steps
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_step` | `objective_id`, `title`, `context`, `assignee`, `assigner`, `depends_on[]` | |
+| `create_step` | `objective_id`, `title`, `context`, `assignee`, `assigner`, `depends_on[]` | `StepNumber` is permanent; deletion does not renumber. |
 | `update_step` | `step_id`, `title`, `context`, `assignee`, `assigner`, `status`, `depends_on[]` | |
 | `update_step_status` | `step_id`, `status` | Recalculates objective status. |
-| `reorder_steps` | `objective_id`, `orders` | Does not change `StepNumber`. |
-| `delete_step` | `step_id` | Soft delete. |
+| `reorder_steps` | `objective_id`, `orders` | Changes `SortOrder` only; keys are step GUIDs, not `#N.M`; `StepNumber` never changes. |
+| `delete_step` | `step_id`, `force` | Soft delete. Refuses when other steps depend on it unless `force=true`; force removes edges and reports `removed_dependencies`. |
 | `add_step_update` | `step_id`, `body`, `kind`, `actor` | Append-only. |
 | `add_evidence` | `step_id`, `label`, `kind`, `value`, `actor` | |
 
@@ -535,6 +535,12 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 - Post step updates as work progresses, especially blockers and results. Attach
   evidence when marking a step done.
 - Refer to work by alias and `#N.M`, never by title or count.
+- Objective aliases and step numbers are permanent: assigned once, never reused
+  or renumbered; gaps are normal. `reorder_steps` changes display order
+  (`sort_order`) only, never step numbers, and its keys are step GUIDs, not
+  `#N.M` references. `get_plan` returns a JSON array of objectives, not an object
+  with an `objectives` property. Deleting a step removes dependency edges; if
+  another step depends on it, the tool refuses unless `force=true`.
 - Flag a step when human input is needed.
 - If a campaign directive conflicts with a human preference, follow the
   directive and say so.

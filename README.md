@@ -277,6 +277,14 @@ planning and execution record:
 >   then promote it to `Draft` or `Active` with `update_objective`.
 > - Refer to objectives and Bunker notes by their campaign-scoped alias (`#N`) and
 >   steps by `#N.M`. Never refer to work by title or count.
+> - Objective aliases and step numbers are permanent. They are assigned once and
+>   never reused or renumbered; gaps are normal. `reorder_steps` changes display
+>   order (`sort_order`) only, never step numbers. Reorder payload keys are step
+>   GUIDs, not `#N.M` references.
+> - `get_plan` returns a JSON array of objectives, not an object with an
+>   `objectives` property.
+> - Deleting a step removes dependency edges. If another step depends on it, the
+>   tool refuses unless `force=true`; review the affected refs before forcing.
 > - Before starting, call `get_briefing` for the campaign or `get_attention` across
 >   campaigns. Use `get_plan` when you need the complete objective and step graph.
 >   Read active directives, the charter, and preferences first.

@@ -187,15 +187,30 @@
 	}
 
 	function deleteStep() {
-		showConfirm(`Delete ${ref} "${step.title}"? This cannot be undone.`, async () => {
-			try {
-				await apiDelete(`/api/steps/${step.id}`, { actor: ACTOR });
-				addToast('Step deleted.', 'success');
-				onchanged();
-			} catch (err) {
-				addToast(err.message || 'Could not delete the step.', 'error');
+		showConfirm(`Delete ${ref} "${step.title}"? This cannot be undone.`, () =>
+			removeStep(false)
+		);
+	}
+
+	async function removeStep(force) {
+		try {
+			await apiDelete(
+				`/api/steps/${step.id}`,
+				force ? { actor: ACTOR, force: true } : { actor: ACTOR }
+			);
+			addToast('Step deleted.', 'success');
+			onchanged();
+		} catch (err) {
+			const message = err.message || '';
+			if (!force && /depend|force=true|required by/i.test(message)) {
+				showConfirm(
+					`${ref} is required by other steps. Delete it and remove those dependency edges?`,
+					() => removeStep(true)
+				);
+				return;
 			}
-		});
+			addToast(err.message || 'Could not delete the step.', 'error');
+		}
 	}
 
 	function looksLikeUrl(value) {

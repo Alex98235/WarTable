@@ -879,14 +879,34 @@ public partial class WarTableService
 		return true;
 	}
 
-	/// <summary>Soft delete. Dependency edges touching the step are removed.</summary>
-	public async Task<bool> DeleteStepAsync(Guid id, string actor)
+	/// <summary>
+	/// Soft delete. Refuses to break inbound dependencies unless <paramref name="force"/>
+	/// is true; force removes every edge touching the step and counts them.
+	/// Outbound edges are always removed and counted. Step numbers are never reused.
+	/// </summary>
+	public async Task<DeleteStepResult> DeleteStepAsync(Guid id, bool force, string actor)
 	{
 		var step = await _db.Steps
 			.Include(s => s.Objective)
 			.FirstOrDefaultAsync(s => s.Id == id);
 		if (step is null || step.Objective is null)
-			return false;
+			return new(false, 0);
+
+		var dependents = await (from d in _db.StepDependencies.AsNoTracking()
+								join s in _db.Steps.AsNoTracking() on d.StepId equals s.Id
+								join o in _db.Objectives.AsNoTracking() on s.ObjectiveId equals o.Id
+								where d.DependsOnStepId == step.Id && s.DeletedAt == null
+								orderby o.Alias, s.StepNumber
+								select new { o.Alias, s.StepNumber })
+								.ToListAsync();
+
+		if (dependents.Count > 0 && !force)
+		{
+			var refs = string.Join(", ", dependents.Select(d => $"#{d.Alias}.{d.StepNumber}"));
+			throw new InvalidOperationException(
+				$"Step #{step.Objective.Alias}.{step.StepNumber} is a dependency of {refs}. " +
+				"Remove those dependencies first or pass force=true.");
+		}
 
 		var now = DateTime.UtcNow;
 		step.DeletedAt = now;
@@ -903,9 +923,14 @@ public partial class WarTableService
 		await RecordEventAsync(
 			step.Objective.CampaignId, actor, ActivityEntityType.Step, step.Id,
 			"Deleted", $"Deleted step #{step.Objective.Alias}.{step.StepNumber}: {step.Title}",
-			new { objective_id = step.ObjectiveId, step_number = step.StepNumber });
+			new
+			{
+				objective_id = step.ObjectiveId,
+				step_number = step.StepNumber,
+				removed_dependencies = dependencies.Count,
+			});
 
-		return true;
+		return new(true, dependencies.Count);
 	}
 
 	public async Task<StepUpdate?> AddStepUpdateAsync(Guid stepId, string body, StepUpdateKind kind, string actor)
