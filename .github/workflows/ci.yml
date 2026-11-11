@@ -1,8 +1,6 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -36,4 +34,28 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Build backend
-        run: dotnet build WarTable.Api/WarTable.Api.csproj -c Release --nologo
+        run: dotnet build WarTable.slnx -c Release --nologo
+
+      - name: Check backend formatting
+        run: npm run format-check:backend
+
+      - name: Validate frontend (format, lint, html)
+        run: npm run validate
+
+      - name: Test backend
+        run: dotnet test WarTable.slnx -c Release --nologo --no-build
+
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Conventional Commit title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9-]+\))?!?: [a-z].+$'
+          if [[ ! "$PR_TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must be a Conventional Commit, e.g. 'feat(api): add context endpoint'."
+            exit 1
+          fi
+          echo "PR title is valid: $PR_TITLE"

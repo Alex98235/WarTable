@@ -160,7 +160,7 @@ jobs:
           campaign_json="$(curl -fsS -X POST "${BASE_URL}/api/campaigns" \
             -H 'Content-Type: application/json' \
             -d "$(jq -n --arg title "$CAMPAIGN_TITLE" \
-              '{title: $title, intent: "Created by the update-image workflow", tags: "upgrade-test"}')")"
+              '{title: $title, charter: "Created by the update-image workflow", tags: "upgrade-test"}')")"
           campaign_id="$(printf '%s' "$campaign_json" | jq -r '.id // empty')"
           if [ -z "$campaign_id" ]; then
             echo "Campaign creation returned no id: ${campaign_json}" >&2
