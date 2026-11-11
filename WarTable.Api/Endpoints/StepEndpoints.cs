@@ -145,12 +145,12 @@ public static class StepEndpoints
 			}
 		});
 
-		group.MapDelete("/{id:guid}", async (Guid id, string? actor, WarTableService service) =>
+		group.MapDelete("/{id:guid}", async (Guid id, bool? force, string? actor, WarTableService service) =>
 		{
 			try
 			{
-				var deleted = await service.DeleteStepAsync(id, Actor(actor));
-				return deleted ? Results.NoContent() : Results.NotFound();
+				var result = await service.DeleteStepAsync(id, force ?? false, Actor(actor));
+				return result.Deleted ? Results.NoContent() : Results.NotFound();
 			}
 			catch (InvalidOperationException ex)
 			{

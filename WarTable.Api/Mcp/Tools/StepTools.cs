@@ -10,7 +10,7 @@ namespace WarTable.Api.Mcp.Tools;
 public static class StepTools
 {
 	[McpServerTool(Name = "create_step")]
-	[Description("Add a step under an objective. Steps are the atomic unit of work.")]
+	[Description("Add a step under an objective. Steps are the atomic unit of work. Step numbers are permanent: never reused or renumbered, so gaps are normal.")]
 	public static async Task<object> CreateStepAsync(
 		WarTableService service,
 		string objective_id,
@@ -118,7 +118,7 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "reorder_steps")]
-	[Description("Reorder steps within an objective by providing a mapping of step_id → sort_order.")]
+	[Description("Reorder steps within an objective by providing a mapping of step ID (GUID) → sort_order. This changes display order only; StepNumber does not change. orders keys must be step IDs (GUIDs), not #N.M numbers.")]
 	public static async Task<object> ReorderStepsAsync(
 		WarTableService service,
 		string objective_id,
@@ -130,6 +130,11 @@ public static class StepTools
 			var objectiveId = McpArgs.Guid(objective_id);
 			if (objectiveId is null)
 				return McpResults.Error("objective_id is required");
+
+			var invalidKeys = McpArgs.InvalidOrderKeys(orders);
+			if (invalidKeys.Length > 0)
+				return McpResults.Error(
+					$"orders keys must be step IDs (GUIDs), not step numbers. Invalid key(s): {string.Join(", ", invalidKeys)}");
 
 			var parsedOrders = McpArgs.Orders(orders);
 			if (parsedOrders.Count == 0)
@@ -150,10 +155,11 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "delete_step")]
-	[Description("Soft-delete a step and remove dependency edges that touch it.")]
+	[Description("Soft-delete a step. Fails if other steps depend on it unless force=true; force also removes dependency edges. Returns removed_dependencies.")]
 	public static async Task<object> DeleteStepAsync(
 		WarTableService service,
 		string step_id,
+		bool force = false,
 		string? actor = null)
 	{
 		try
@@ -162,9 +168,9 @@ public static class StepTools
 			if (id is null)
 				return McpResults.Error("step_id is required");
 
-			var deleted = await service.DeleteStepAsync(id.Value, McpArgs.Actor(actor));
-			return deleted
-				? new { ok = true }
+			var result = await service.DeleteStepAsync(id.Value, force, McpArgs.Actor(actor));
+			return result.Deleted
+				? new { ok = true, removed_dependencies = result.RemovedDependencies }
 				: McpResults.Error($"Step not found: {id}");
 		}
 		catch (Exception ex)

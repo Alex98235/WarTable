@@ -2,6 +2,9 @@ using WarTable.Api.Models;
 
 namespace WarTable.Api.Services;
 
+/// <summary>Outcome of a step delete, including any dependency edges removed.</summary>
+public record DeleteStepResult(bool Deleted, int RemovedDependencies);
+
 /// <summary>One actionable step in a briefing, flattened with its objective context.</summary>
 public record BriefingStep(
 	Guid Id,

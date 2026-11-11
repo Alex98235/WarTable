@@ -10,7 +10,7 @@ namespace WarTable.Api.Mcp.Tools;
 public static class ObjectiveTools
 {
 	[McpServerTool(Name = "create_objective")]
-	[Description("Create a new objective under a campaign. plan_state is Seed (unfinished thought), Draft (default), or Active.")]
+	[Description("Create a new objective under a campaign. plan_state is Seed (unfinished thought), Draft (default), or Active. Objective aliases (#N) are permanent and never reused.")]
 	public static async Task<object> CreateObjectiveAsync(
 		WarTableService service,
 		string campaign_id,
@@ -92,7 +92,7 @@ public static class ObjectiveTools
 	}
 
 	[McpServerTool(Name = "reorder_objectives")]
-	[Description("Reorder objectives within a campaign by providing a mapping of objective_id → sort_order.")]
+	[Description("Reorder objectives within a campaign by providing a mapping of objective ID (GUID) → sort_order. orders keys are IDs, not #N aliases.")]
 	public static async Task<object> ReorderObjectivesAsync(
 		WarTableService service,
 		string campaign_id,
@@ -104,6 +104,11 @@ public static class ObjectiveTools
 			var campaignId = McpArgs.Guid(campaign_id);
 			if (campaignId is null)
 				return McpResults.Error("campaign_id is required");
+
+			var invalidKeys = McpArgs.InvalidOrderKeys(orders);
+			if (invalidKeys.Length > 0)
+				return McpResults.Error(
+					$"orders keys must be objective IDs (GUIDs), not aliases. Invalid key(s): {string.Join(", ", invalidKeys)}");
 
 			var parsedOrders = McpArgs.Orders(orders);
 			if (parsedOrders.Count == 0)
@@ -124,7 +129,7 @@ public static class ObjectiveTools
 	}
 
 	[McpServerTool(Name = "delete_objective")]
-	[Description("Soft-delete an objective and its steps. Old #N aliases remain resolvable.")]
+	[Description("Soft-delete an objective and its steps. Old #N aliases remain resolvable and are never reused.")]
 	public static async Task<object> DeleteObjectiveAsync(
 		WarTableService service,
 		string objective_id,

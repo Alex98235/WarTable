@@ -45,6 +45,12 @@ internal static class McpArgs
 		return values.ToArray();
 	}
 
+	/// <summary>Returns reorder keys that are not GUIDs; callers reject these first.</summary>
+	public static string[] InvalidOrderKeys(Dictionary<string, int>? raw)
+		=> raw is null
+			? Array.Empty<string>()
+			: raw.Keys.Where(key => !System.Guid.TryParse(key, out _)).ToArray();
+
 	/// <summary>Parses reorder payload keys; non-GUID keys are skipped.</summary>
 	public static Dictionary<Guid, int> Orders(Dictionary<string, int>? raw)
 	{
