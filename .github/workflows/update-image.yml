@@ -1,0 +1,196 @@
+name: Image update test
+
+# Manual version-to-version upgrade test against published public GHCR images.
+# It does not build, push, or change a release workflow. The job starts from
+# `from_version`, seeds a campaign and a Bunker note, backs up the volume the way
+# docs/updates.md tells an operator to, upgrades to `to_version`, verifies the new
+# image serves the seeded data, then restores the archive under the old tag and
+# checks the data again. That last step is why the test matters: rolling the image
+# back alone is not a rollback once a migration has run.
+on:
+  workflow_dispatch:
+    inputs:
+      from_version:
+        description: First published version tag to start from
+        required: true
+        type: string
+      to_version:
+        description: Second published version tag to upgrade to
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+# The compose file names its volume `wartable-data`, so two runs on one daemon
+# would fight over it. Runners are disposable, this is belt and braces.
+concurrency:
+  group: image-update-test
+  cancel-in-progress: false
+
+jobs:
+  upgrade:
+    name: Upgrade ${{ github.event.inputs.from_version }} -> ${{ github.event.inputs.to_version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      IMAGE_REPOSITORY: ghcr.io/alex98235/wartable
+      BASE_URL: http://127.0.0.1:5110
+      HEALTH_URL: http://127.0.0.1:5110/api/health
+      FROM_VERSION: ${{ github.event.inputs.from_version }}
+      TO_VERSION: ${{ github.event.inputs.to_version }}
+      VOLUME: wartable-data
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        # The published package is public, so this is only needed for a private
+        # fork or private package, and it avoids anonymous pull rate limits.
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test version-to-version update and rollback
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          FROM_TAG="${FROM_VERSION#v}"
+          TO_TAG="${TO_VERSION#v}"
+          if [ -z "$FROM_TAG" ] || [ -z "$TO_TAG" ]; then
+            echo "from_version and to_version must not be empty" >&2
+            exit 1
+          fi
+
+          WORKSPACE="$(mktemp -d "${RUNNER_TEMP:-/tmp}/wartable-update.XXXXXX")"
+          BACKUP_DIR="$WORKSPACE/backups"
+
+          cleanup() {
+            local status=$?
+            trap - EXIT
+            if [ -n "$WORKSPACE" ] && [ -d "$WORKSPACE" ]; then
+              if [ "$status" -ne 0 ]; then
+                echo "::group::Upgrade test failed; diagnostics"
+                ( cd "$WORKSPACE" && docker compose ps ) || true
+                ( cd "$WORKSPACE" && docker compose logs --tail=200 ) || true
+                echo "::endgroup::"
+              fi
+              ( cd "$WORKSPACE" && docker compose down --volumes --remove-orphans ) >/dev/null 2>&1 || true
+              sudo rm -rf "$WORKSPACE"
+            fi
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          wait_for_health() {
+            local attempt body
+            for attempt in $(seq 1 60); do
+              body="$(curl -fsS "$HEALTH_URL" 2>/dev/null || true)"
+              if [ -n "$body" ] && grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"' <<< "$body"; then
+                echo "health ok after ${attempt} attempt(s)"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "timed out waiting for ${HEALTH_URL}" >&2
+            return 1
+          }
+
+          assert_image() {
+            local expected="$1" running
+            running="$(docker inspect --format '{{.Config.Image}}' wartable)"
+            if [ "$running" != "${IMAGE_REPOSITORY}:${expected}" ]; then
+              echo "wrong image running: got '${running}', expected ${IMAGE_REPOSITORY}:${expected}" >&2
+              return 1
+            fi
+          }
+
+          assert_seeded_data() {
+            local campaign_title note_title
+            campaign_title="$(curl -fsS "${BASE_URL}/api/campaigns/${campaign_id}" | jq -r '.title // empty')"
+            if [ "$campaign_title" != "$CAMPAIGN_TITLE" ]; then
+              echo "campaign ${campaign_id} did not read back: '${campaign_title}'" >&2
+              return 1
+            fi
+            note_title="$(curl -fsS "${BASE_URL}/api/notes/${note_id}" | jq -r '.title // empty')"
+            if [ "$note_title" != "$NOTE_TITLE" ]; then
+              echo "note ${note_id} did not read back: '${note_title}'" >&2
+              return 1
+            fi
+            echo "seeded campaign ${campaign_id} and note ${note_id} still read back"
+          }
+
+          # The deployment is the repository's compose file and nothing else,
+          # which is exactly what an operator downloads.
+          cp docker-compose.yml "$WORKSPACE/docker-compose.yml"
+          mkdir -p "$BACKUP_DIR"
+          printf 'WARTABLE_TAG=%s\n' "$FROM_TAG" > "$WORKSPACE/.env"
+          cd "$WORKSPACE"
+
+          echo "Starting ${IMAGE_REPOSITORY}:${FROM_TAG}"
+          docker compose pull
+          docker compose up -d --remove-orphans
+          wait_for_health
+          assert_image "$FROM_TAG"
+
+          CAMPAIGN_TITLE="CI upgrade ${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+          NOTE_TITLE="Upgrade seed ${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
+          campaign_json="$(curl -fsS -X POST "${BASE_URL}/api/campaigns" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg title "$CAMPAIGN_TITLE" \
+              '{title: $title, charter: "Created by the image update test", tags: "upgrade-test"}')")"
+          campaign_id="$(printf '%s' "$campaign_json" | jq -r '.id // empty')"
+          if [ -z "$campaign_id" ]; then
+            echo "Campaign creation returned no id: ${campaign_json}" >&2
+            exit 1
+          fi
+
+          note_json="$(curl -fsS -X POST "${BASE_URL}/api/notes" \
+            -H 'Content-Type: application/json' \
+            -d "$(jq -n --arg campaign "$campaign_id" --arg title "$NOTE_TITLE" \
+              '{campaignId: $campaign, kind: "Context", title: $title, body: "Seeded before the upgrade test", tags: "upgrade-test"}')")"
+          note_id="$(printf '%s' "$note_json" | jq -r '.id // empty')"
+          if [ -z "$note_id" ]; then
+            echo "Bunker note creation returned no id: ${note_json}" >&2
+            exit 1
+          fi
+          echo "seeded campaign ${campaign_id} and note ${note_id}"
+
+          # Step 1 of docs/updates.md: cold-copy the volume with a throwaway
+          # container, then prove the archive actually holds the database.
+          BACKUP_NAME="wartable-$(date -u +%Y%m%dT%H%M%SZ).tgz"
+          docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" alpine \
+            tar czf "/backup/${BACKUP_NAME}" -C /data .
+          if ! tar -tzf "${BACKUP_DIR}/${BACKUP_NAME}" | grep -Eq '(^|/)wartable\.db$'; then
+            echo "backup does not contain wartable.db: ${BACKUP_NAME}" >&2
+            exit 1
+          fi
+          echo "backup written and verified: ${BACKUP_NAME}"
+
+          # Steps 2 and 3: change the tag, pull before starting.
+          echo "Upgrading to ${TO_TAG}"
+          printf 'WARTABLE_TAG=%s\n' "$TO_TAG" > .env
+          docker compose pull
+          docker compose up -d --remove-orphans
+          wait_for_health
+          assert_image "$TO_TAG"
+          assert_seeded_data
+
+          # Rollback is the documented pair: old tag plus the archive, because a
+          # successful migration is not undone by changing an image tag.
+          echo "Rolling back to ${FROM_TAG} and restoring ${BACKUP_NAME}"
+          printf 'WARTABLE_TAG=%s\n' "$FROM_TAG" > .env
+          docker compose down
+          docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" alpine \
+            sh -c "rm -rf /data/* && tar xzf /backup/${BACKUP_NAME} -C /data"
+          docker compose up -d --remove-orphans
+          wait_for_health
+          assert_image "$FROM_TAG"
+          assert_seeded_data
+
+          echo "UPGRADE OK from=${FROM_TAG} to=${TO_TAG} rollback=${FROM_TAG} campaign=${campaign_id} backup=${BACKUP_NAME}"
