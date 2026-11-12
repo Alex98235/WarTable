@@ -574,7 +574,7 @@
 						class="form-input"
 						type="text"
 						bind:value={evidenceValue}
-						placeholder="URL, path, commit hash, or result text"
+						placeholder="https://… or a commit sha"
 					/>
 				</div>
 				<div class="form-actions inline-actions">
