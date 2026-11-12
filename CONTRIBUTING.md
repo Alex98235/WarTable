@@ -75,7 +75,7 @@ The grammar:
 
 ### Suggested scopes
 
-`api`, `client`, `mcp`, `knowledge`, `docs`, `release`, `deploy`, `db`.
+`api`, `client`, `mcp`, `knowledge`, `docs`, `release`, `deploy`, `db`, `site`.
 
 Prefer an existing scope over inventing a new one. A missing scope is better
 than a misleading one.
@@ -137,8 +137,7 @@ Automated checks are the review checklist:
 - Branch protection should require both checks before merge, require a pull
   request, and keep history linear. These are repository rules, not files.
 
-PRs do not (currently) require a reviewer's approval. You are the judge of your
-own work. If anything about your implementation feels uncertain: do not merge it.
+PRs require approval from the code owner.
 
 ## Gates
 
