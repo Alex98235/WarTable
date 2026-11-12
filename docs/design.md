@@ -271,7 +271,7 @@ Campaign knowledge and campaign directives.
 | `Kind` | `Directive`, `Decision`, `Gotcha`, `Context`. |
 | `Title` | |
 | `Body` | Markdown. |
-| `Status` | `Active` or `Superseded`. `Resolved` still reads but is no longer produced. |
+| `Status` | `Active` or `Superseded`. |
 | `Basis` | Nullable. Where the claim can be checked: `#12`, `#12.3`, a commit sha, or a URL. |
 | `ApprovedAt` | Nullable. Human confirmation of this exact body; any body edit clears it. |
 | `Pinned` | Directives are pinned and always injected. |
@@ -433,7 +433,7 @@ timestamps are caches.
 ### Storage lifecycle
 
 SQLite is the only persistent store. Startup applies EF migrations and stamps
-`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 3) as a
+`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 5) as a
 generation marker. Pending migrations run after the WAL is checkpointed and the
 database copied to `wartable.db.bak-<timestamp>`; a failed migration restores that
 copy and aborts startup. A database written before migrations existed is adopted

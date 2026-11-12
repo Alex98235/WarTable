@@ -40,8 +40,7 @@ Bunker notes; it does not execute work.
   its charter, tags, or title instead.
 - Read the campaign Charter before proposing work. The Charter is the durable
   why, scope, and architecture. Update it with update_campaign; campaigns have no
-  separate intent field. Component-level design detail belongs in the relevant
-  objective description and its steps.
+  separate intent field.
 - When you propose a multi-step plan, offer to import it with import_plan. Draft
   objectives are visible but not actionable until activated.
 - Seeds are unfinished human thoughts captured before planning. When the
@@ -69,11 +68,14 @@ Bunker notes; it does not execute work.
   human review.
 - Objective status is derived from steps; never set it directly.
 - Each note kind has its own MCP tool: add_decision, add_gotcha, add_context,
-  add_directive. There is no generic add_note or add_reference because each
-  kind has a required shape — reference material belongs in the step or
-  objective it serves (its context, or evidence for an artifact). The one rule:
-  a decision is only recorded when you can name a rejected alternative and say
-  why — if there was no alternative, there is no decision to record.
+  add_directive. There is no generic add_note. Before writing one, stop at the
+  first rejection that applies: if the repository already records it, it is not a
+  note; if it is a preference or a matter of taste, use add_preference; if it is
+  current state or the next thing to do, it is a seed objective; if it is true
+  only of one objective's implementation, it belongs in that objective's
+  description or the step's context. Then ask whether an agent six months from now
+  would decide differently without it — if not, write nothing. A decision is only
+  recorded when you can name the alternative you rejected and say why.
 - Before adding a note, or when the human asks whether something was already
   discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
   alias and snippet rather than assuming. Search results can include dormant

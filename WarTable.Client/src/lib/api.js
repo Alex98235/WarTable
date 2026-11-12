@@ -209,6 +209,6 @@ export const NOTE_KINDS = ['Directive', 'Decision', 'Gotcha', 'Context'];
 /** Kinds the generic Bunker capture dialog may create. */
 export const NOTE_CREATE_KINDS = NOTE_KINDS;
 
-export const NOTE_STATUSES = ['Active', 'Superseded', 'Resolved'];
+export const NOTE_STATUSES = ['Active', 'Superseded'];
 export const EVIDENCE_KINDS = ['Link', 'Commit'];
 export const UPDATE_KINDS = ['Note', 'Blocker', 'Result', 'Handoff'];

@@ -122,7 +122,7 @@
 
 	// The edit modal cannot clear a supersession (the backend treats null as
 	// "unchanged"), so the current target must stay selectable even if it has
-	// since been marked Superseded or Resolved.
+	// since been marked Superseded.
 	let editSupersedesOptions = $derived.by(() => {
 		if (!editing) return [];
 		return allNotes.filter(

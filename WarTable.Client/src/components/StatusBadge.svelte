@@ -23,7 +23,6 @@
 		seed: 'seed',
 		active: 'active',
 		superseded: 'muted',
-		resolved: 'done',
 		// Bunker note kinds
 		directive: 'directive',
 		decision: 'decision',

@@ -58,12 +58,10 @@ public class NoteDormancyTests
 		Assert.False(NoteDormancy.IsDormant(note, Now, LiveObjectives, LiveSteps));
 	}
 
-	[Theory]
-	[InlineData(BunkerNoteStatus.Superseded)]
-	[InlineData(BunkerNoteStatus.Resolved)]
-	public void NonActiveStatus_IsExempt(BunkerNoteStatus status)
+	[Fact]
+	public void SupersededNote_IsExempt()
 	{
-		var note = Note(status: status);
+		var note = Note(status: BunkerNoteStatus.Superseded);
 		Assert.False(NoteDormancy.IsDormant(note, Now, LiveObjectives, LiveSteps));
 	}
 

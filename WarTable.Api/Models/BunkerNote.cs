@@ -91,5 +91,4 @@ public enum BunkerNoteStatus
 {
 	Active,
 	Superseded,
-	Resolved,
 }
