@@ -462,4 +462,80 @@ public class WarTableServiceTests
 		Assert.Equal(seed.Id, draftItem.EntityId);
 		Assert.Empty(attention.SeedObjectives);
 	}
+
+	[Fact]
+	public async Task RemoveEvidence_RemovesRowAndRecordsActivityEvent()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			step.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(step.Id, evidence!.Id, "tester");
+
+		Assert.NotNull(removed);
+		Assert.Equal(evidence.Id, removed!.Id);
+		Assert.Empty(await ctx.Service.GetEvidenceAsync(step.Id));
+
+		var activity = await ctx.Service.GetActivityAsync(campaign.Id, null);
+		var deleted = Assert.Single(activity, e => e.Action == "Deleted");
+		Assert.Equal($"Removed evidence from step #{objective.Alias}.{step.StepNumber}: CI run", deleted.Summary);
+		Assert.Equal("tester", deleted.Actor);
+	}
+
+	[Fact]
+	public async Task RemoveEvidence_UnknownId_FailsWithoutEvent()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			step.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var before = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(step.Id, Guid.NewGuid(), Human);
+
+		Assert.Null(removed);
+		Assert.Single(await ctx.Service.GetEvidenceAsync(step.Id));
+		var after = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+		Assert.Equal(before, after);
+	}
+
+	[Fact]
+	public async Task RemoveEvidence_FromDifferentStep_DoesNotSucceed()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var stepA = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var stepB = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			stepA.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var before = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(stepB.Id, evidence!.Id, Human);
+
+		Assert.Null(removed);
+		var onA = Assert.Single(await ctx.Service.GetEvidenceAsync(stepA.Id));
+		Assert.Equal(evidence.Id, onA.Id);
+		Assert.Empty(await ctx.Service.GetEvidenceAsync(stepB.Id));
+		var after = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+		Assert.Equal(before, after);
+	}
 }

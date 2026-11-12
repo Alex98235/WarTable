@@ -86,7 +86,8 @@ Bunker notes; it does not execute work.
 - Evidence is proof that lives outside the repository — use add_evidence with
   a URL (Link) or commit sha (Commit). WarTable stores no files, so never point
   at a path; if the work is in the repository, cite the commit or write a step
-  update instead.
+  update instead. Evidence can be removed with delete_evidence: retract a
+  citation that is wrong or no longer true rather than leaving it in place.
 - WarTable does not enforce approval gates. Verify before implementation only if
   your own instructions require it.
 

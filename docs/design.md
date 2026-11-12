@@ -248,6 +248,8 @@ granularity where it is actually read.
 
 Optional proof attached to a step. Makes "done" inspectable.
 
+Evidence can be removed with `delete_evidence` (or `DELETE /api/steps/{id}/evidence/{evidenceId}`). Removal is a hard delete: evidence is a pointer to an external artifact, not a record, so once the citation is withdrawn there is nothing to retain. A citation nobody can retract is a claim, not proof.
+
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
@@ -537,6 +539,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `delete_step` | `step_id`, `force`, `actor` | Soft delete. Refuses when other steps depend on it unless `force=true`; force removes edges and reports `removed_dependencies`. |
 | `add_step_update` | `step_id`, `body`, `kind`, `actor` | Append-only. |
 | `add_evidence` | `step_id`, `label`, `value`, `kind`, `actor` | |
+| `delete_evidence` | `step_id`, `evidence_id`, `actor` | Hard delete; removes a citation that is wrong or no longer true. |
 
 ### Bunker
 
@@ -639,6 +642,7 @@ are JSON with camelCase properties and string enum values.
 | `/api/steps/{id}/status` | `PATCH` | Quick status change. |
 | `/api/steps/{id}/updates` | `GET`, `POST` | List or append step updates. |
 | `/api/steps/{id}/evidence` | `GET`, `POST` | List or attach evidence. |
+| `/api/steps/{id}/evidence/{evidenceId}` | `DELETE` | Hard-delete a piece of evidence. |
 | `/api/notes` | `GET`, `POST` | List (`campaignId`, `search`, `kind`, `status`, `includeDeleted`) or create a Bunker note. |
 | `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch, or soft-delete a note. |
 | `/api/notes/by-alias` | `GET` | Resolve a note by `campaignId` and `alias`. |

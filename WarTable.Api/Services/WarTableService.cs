@@ -959,6 +959,32 @@ public partial class WarTableService
 		return evidence;
 	}
 
+	/// <summary>
+	/// Removes evidence scoped to a step. A hard delete: evidence is a pointer to
+	/// an external artifact, not a record, so once the citation is withdrawn there
+	/// is nothing to retain. Records a <c>Deleted</c> activity event on the step's
+	/// campaign naming the step and the withdrawn label.
+	/// </summary>
+	public async Task<Evidence?> RemoveEvidenceAsync(Guid stepId, Guid evidenceId, string actor)
+	{
+		var info = await GetStepContextAsync(stepId);
+		if (info is null)
+			return null;
+
+		var evidence = await _db.Evidence.FirstOrDefaultAsync(e => e.Id == evidenceId && e.StepId == stepId);
+		if (evidence is null)
+			return null;
+
+		_db.Evidence.Remove(evidence);
+
+		await RecordEventAsync(
+			info.Value.CampaignId, actor, ActivityEntityType.Step, stepId,
+			"Deleted", $"Removed evidence from step #{info.Value.ObjectiveAlias}.{info.Value.StepNumber}: {evidence.Label}",
+			new { objective_id = info.Value.ObjectiveId, step_number = info.Value.StepNumber, kind = evidence.Kind.ToString() });
+
+		return evidence;
+	}
+
 	public async Task<List<StepUpdate>> GetStepUpdatesAsync(Guid stepId)
 	{
 		return await _db.StepUpdates.AsNoTracking()

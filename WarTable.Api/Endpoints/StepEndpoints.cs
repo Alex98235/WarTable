@@ -212,5 +212,11 @@ public static class StepEndpoints
 				return Results.BadRequest(new { error = ex.Message });
 			}
 		});
+
+		group.MapDelete("/{id:guid}/evidence/{evidenceId:guid}", async (Guid id, Guid evidenceId, string? actor, WarTableService service) =>
+		{
+			var removed = await service.RemoveEvidenceAsync(id, evidenceId, Actor(actor));
+			return removed is null ? Results.NotFound() : Results.NoContent();
+		});
 	}
 }
