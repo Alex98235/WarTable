@@ -12,21 +12,23 @@ variable catalogue ([`configuration.md`](configuration.md)), or local
 development ([`development.md`](development.md)). Start at
 [`index.md`](index.md) for the documentation map.
 
-## Quickstart versus production
+## First run
 
-These are two different shapes, and only one of them is the production contract:
+Download only the root [`docker-compose.yml`](../docker-compose.yml) — no checkout,
+no `.env`, no `chown`:
 
-| | Quickstart | Production |
-| --- | --- | --- |
-| Guide | [`quickstart/README.md`](../quickstart/README.md) | This document |
-| Image tag | `latest` (moving) | Immutable `X.Y.Z` |
-| Data | Named volume `wartable-data` | Bind mount `./data:/data` |
-| Configuration | No required `.env`, no checkout required | `.env` with `WARTABLE_TAG` |
-| Updates | Pull and recreate by hand | [`scripts/update.sh`](../scripts/update.sh) with backup and rollback |
-| Intended use | First run, evaluation, trusted-LAN convenience | Always-on server whose data matters |
+```bash
+curl -sSLO https://raw.githubusercontent.com/Alex98235/WarTable/main/docker-compose.yml
+docker compose up -d
+curl -fsS http://localhost:5110/api/health
+```
 
-The quickstart is a convenience path. Switch to the pinned, bind-mounted
-production setup before relying on backups, controlled updates, or rollback.
+Open <http://localhost:5110>. The container uses the named volume `wartable-data`
+by default, so recreating it keeps the database. `WARTABLE_TAG` defaults to `2`,
+which tracks non-breaking releases in the major. Production deployments pin an
+immutable `X.Y.Z` tag via `.env`; see [section 5.2](#52-compose).
+
+For upgrade instructions, see [`updates.md`](updates.md).
 
 ---
 
@@ -215,10 +217,11 @@ testing only. Never document or deploy `latest` in production. Compose reads
 [`configuration.md`](configuration.md) is the catalogue of every variable and
 its defaults.
 
-For the no-checkout first run that uses `latest` and a named volume, see the
-[quickstart](../quickstart/README.md). The quickstart is deliberately not the
-production shape; switch to this pinned, bind-mounted setup before relying on
-backups or [`scripts/update.sh`](../scripts/update.sh).
+For the no-checkout first run, download the root
+[`docker-compose.yml`](../docker-compose.yml); it defaults to the `2` tag and a
+named volume. Production deployments switch to a bind mount and an immutable
+`X.Y.Z` tag as described above. For upgrades, see [`updates.md`](updates.md); for
+backups, see [section 8.2](#82-backups).
 
 For a local build from the checkout, compose the build override with the base
 file. It adds the local `build` context and tags the image
@@ -529,190 +532,28 @@ The version-to-version update test is described in
 
 ---
 
-## 11. Manual updates and rollback
+## 11. Schema changes and rollback
+
+The full upgrade routine - cold backup, image pull, tag pin, health check, and
+rollback - is documented in [`updates.md`](updates.md). This section covers only
+what a deployer needs to know about the schema lifecycle, which is part of the
+deployment contract.
+
+- WarTable applies EF Core migrations at startup. Before applying any pending
+  migration it checkpoints the WAL and copies the database to
+  `wartable.db.bak-<timestamp>`. If a migration throws, that copy is restored and
+  startup aborts, so a failed upgrade leaves the previous database in place (see
+  [section 8.4](#84-schema-changes)).
+- Migrations never run backwards. Rolling back across a schema change means
+  stopping the service, restoring the cold backup (section 8.2), and starting the
+  older image.
+- An archive taken before a migration is the only rollback path for data. A
+  successful migration does not invalidate that archive; it is safe to restore.
+- Restore the cold backup before starting the older build when the schema changed.
 
 Automatic updates are explicitly out of scope. Do not add Watchtower, a
 self-update endpoint, GitHub polling, or a timer that pulls and restarts the
 service. Updates are manual and deliberate.
-
-### 11.1 Prerequisites
-
-- Linux host with Bash 4 or newer.
-- Docker Engine with Compose v2, plus `curl`, `tar`, and `gzip` on `PATH`.
-- The production [`docker-compose.yml`](../docker-compose.yml), which pulls the
-  `linux/amd64` image from the public GHCR package. Do not use the local-build
-  override for a production update.
-- `.env` in the repository root with an immutable `WARTABLE_TAG=X.Y.Z`.
-- `data/wartable.db` in the bind-mounted data directory (default `./data`).
-- GHCR access. The published package is public, so an anonymous pull works. For
-  a private fork or package, authenticate with a token that has `read:packages`;
-  see
-  [`container.md#private-fork-or-private-package`](container.md#private-fork-or-private-package).
-- A data directory owned by the container's runtime user, `10001:10001`:
-
-  ```bash
-  sudo chown -R 10001:10001 data
-  ```
-
-Run the script as root or as a user that can talk to the Docker daemon and read
-the data directory. When run as root, a rollback restores the data ownership to
-`10001:10001`. An unprivileged run stops with a sudo/ownership hint if the data
-is unreadable; it never changes permissions on a live deployment.
-
-### 11.2 Container update with the script
-
-[`scripts/update.sh`](../scripts/update.sh) is the supported manual update path.
-
-```bash
-./scripts/update.sh <X.Y.Z> [--yes] [--dry-run] [--allow-latest]
-```
-
-Examples:
-
-```bash
-# Show the exact plan without pulling, stopping, or writing anything.
-./scripts/update.sh <X.Y.Z> --dry-run
-
-# Prompt for "yes" after showing current -> target.
-./scripts/update.sh <X.Y.Z>
-
-# Skip the prompt for a planned maintenance window.
-./scripts/update.sh <X.Y.Z> --yes
-```
-
-The target must be an immutable full semantic version, `X.Y.Z`, with an optional
-leading `v`. A pre-release suffix such as `X.Y.Z-rc.1` is accepted. `latest` is
-rejected unless `--allow-latest` is passed; that option is for testing only and
-must not be used for production. An equal target and current tag is a no-op and
-exits nonzero without changing anything.
-
-Unless `--yes` is given, the script prints the plan and requires typing `yes`.
-`--dry-run` prints the plan and exits before any pull or mutation. The script:
-
-1. Preflights the commands, `.env`, Compose file, and `data/wartable.db`.
-2. Pulls `ghcr.io/alex98235/wartable:<target>` **before** stopping the service.
-   A pull failure leaves the running service and `.env` untouched.
-3. Stops the service and writes a cold backup to
-   `backups/wartable-<UTC>-from-<current>-to-<target>.tar.gz`. It verifies that
-   `wartable.db` is inside the archive before continuing. `backups/` is
-   git-ignored.
-4. Atomically replaces `WARTABLE_TAG` in `.env`.
-5. Recreates with `docker compose up -d --remove-orphans` and polls `HEALTH_URL`
-   (default `http://127.0.0.1:5110/api/health`) for `"status":"ok"`.
-6. Prints the old tag, new tag, backup path, image digest, and a reminder to keep
-   the previous image locally for rollback.
-
-If the backup cannot be written or verified, the script restarts the current
-service and exits without changing `.env`.
-
-### 11.3 Failure behavior and rollback
-
-Exit status:
-
-- `0` — the update succeeded and the new version is healthy.
-- `1` — the update failed without leaving the new version running. A failure
-  before the backup leaves the service and `.env` untouched; a failure after the
-  backup runs automatic rollback, which restores the previous tag, image, and
-  data and waits for health.
-- `3` — the update and automatic rollback both failed. The script prints manual
-  recovery instructions; use them rather than guessing.
-
-On failure after the backup, the script:
-
-1. Dumps recent container logs.
-2. Stops the new container.
-3. Restores the cold backup into `data/`.
-4. Preserves the failed data directory as `data.failed-<UTC>` for inspection.
-5. Restores the previous `WARTABLE_TAG` in `.env`.
-6. Starts the previous image, pulling it first if it is no longer local.
-7. Waits for health again.
-
-This is a manual, foreground operation: there is no watchdog, timer, or
-automatic update process. If the rollback also fails, the script exits `3` and
-prints the backup path, failed data path, previous tag, and a recovery outline.
-Use the exact paths printed by the script; the shape is:
-
-```bash
-cd /path/to/WarTable
-docker compose stop wartable
-mv data "data.failed-$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p data
-tar -xzf backups/wartable-<timestamp>-from-<old>-to-<new>.tar.gz -C data
-sudo chown -R 10001:10001 data
-# Set WARTABLE_TAG=<old> in .env, then:
-WARTABLE_TAG=<old> docker compose --env-file .env -f docker-compose.yml \
-  up -d --remove-orphans wartable
-curl -fsS http://127.0.0.1:5110/api/health
-```
-
-### 11.4 Schema changes
-
-Before any update:
-
-1. Read the release notes.
-2. Confirm whether the release changed the schema generation.
-3. Take the cold backup even if the release claims compatibility. The script
-   does this automatically; the manual fallback below does not.
-
-Startup applies migrations after copying the database to
-`wartable.db.bak-<timestamp>`; a failed migration restores that copy and exits
-(see section 8.4). Migrations move rows forward, but they are not a backup: if a
-migration succeeds and damages data, only the cold backup restores the previous
-state. Rolling back to an older build after a schema change also requires the cold
-backup, because WarTable does not migrate down.
-
-### 11.5 Manual Compose fallback
-
-Use this only if the script cannot run or you need to intervene by hand. It does
-not provide automatic rollback; the script is the primary path.
-
-1. Read the release notes and confirm whether the schema changed.
-2. Take a cold backup (section 8.2).
-3. Record the current `WARTABLE_TAG` and image ID.
-4. Set `WARTABLE_TAG` in `.env` to the new immutable version.
-5. Pull and recreate:
-
-   ```bash
-   docker compose pull
-   docker compose up -d --remove-orphans
-   ```
-
-6. Wait for health:
-
-   ```bash
-   curl -fsS http://localhost:5110/api/health
-   ```
-
-7. Verify the UI, a campaign read, `/mcp` `tools/list`, and an SSE reconnect.
-8. If anything fails, set `WARTABLE_TAG` back to the previous version and
-   recreate. If the schema changed, restore the cold backup (section 8.3) before
-   starting the old image. Keep the container logs.
-9. Keep the previous image until the new version has survived normal use. Do not
-   prune it during the update.
-
-### 11.6 Standalone binary update
-
-1. Take a cold backup.
-2. Download the new archive and checksum; verify the checksum.
-3. Stop the process or systemd unit.
-4. Replace the binary; keep the previous binary until validation.
-5. Start the process.
-6. Check `/api/health` if serve mode is running, or run a stdio MCP smoke test.
-7. Roll back by restoring the previous binary and the database backup if the
-   schema changed.
-
-### 11.7 Rollback limits
-
-- The update script can roll back automatically only after it has taken the cold
-  backup. Failures during the preflight or image pull happen before the service
-  or `.env` is touched.
-- Rolling back the image/binary is safe without a restore only if the schema did
-  not change. A schema change is not reversed by starting the older build;
-  restore the cold backup first.
-- The cold backup is the rollback path for data. The image tag is the rollback
-  path for code.
-- Manual Compose updates have no automatic rollback watchdog. The supported
-  update script is the path that provides one.
 
 ---
 
@@ -753,8 +594,7 @@ See section 8.2. Cold backup is the default.
 
 ### Upgrade
 
-See section 11.2 for the supported update script, or section 11.5 for the
-manual Compose fallback.
+See [`updates.md`](updates.md).
 
 ### Uninstall
 

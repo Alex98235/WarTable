@@ -5,8 +5,8 @@ your role, then use the authority table when two pages seem to disagree.
 
 ## Start here
 
-- **First run:** [`quickstart/README.md`](../quickstart/README.md) — Docker or
-  Compose on a trusted LAN.
+- **First run:** [`docker-compose.yml`](../docker-compose.yml) plus
+  [`deployment.md`](deployment.md) — Docker Compose on a trusted LAN.
 - **Connect an agent:** the MCP section in [`README.md`](../README.md), then
   [`agent-instructions.md`](agent-instructions.md).
 - **Configure it:** [`configuration.md`](configuration.md) — flags, `.env`, and
@@ -19,7 +19,8 @@ your role, then use the authority table when two pages seem to disagree.
 | Topic | Canonical owner |
 | --- | --- |
 | What WarTable is, core concepts, MCP connect summary | [`README.md`](../README.md) |
-| First run, Compose option, everyday commands, updates, port conflicts, troubleshooting | [`quickstart/README.md`](../quickstart/README.md) |
+| Container upgrades | [`updates.md`](updates.md) |
+| First run, Compose option, everyday commands | [`docker-compose.yml`](../docker-compose.yml) + [`deployment.md`](deployment.md) |
 | CLI flags, configuration precedence, `.env`, `Embeddings__*`, `Logging__*`, Compose substitution | [`configuration.md`](configuration.md) |
 | Fallback agent system instruction and MCP usage behavior | [`agent-instructions.md`](agent-instructions.md) |
 | Product intent, domain model, scenarios, screen and MCP surface design | [`design.md`](design.md) |
