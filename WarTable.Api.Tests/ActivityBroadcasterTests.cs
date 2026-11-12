@@ -132,12 +132,24 @@ public sealed class ActivityBroadcasterTests : IAsyncLifetime
 	public async Task SignalBeforeCommitIsDeliveredAfterDebounce()
 	{
 		// Point the watcher at a directory that does not exist so it is disabled.
-		// Signal() is then the only trigger, making the pre-commit race deterministic.
+		// Signal() is then the only trigger, making the pre-commit race the one
+		// thing under test.
+		//
+		// The signal has to arrive before the activity row is committed, and the
+		// drain has to run after it, so the commit must finish inside the debounce
+		// window. That is the whole timing assumption, and it used to be only
+		// 450ms wide with a cold EF model, which a loaded CI runner can miss — and
+		// when it misses, nothing ever arrives because the disabled watcher cannot
+		// signal again. Warm the model first, shorten the pre-write pause, and keep
+		// the window generous so the test measures the debounce, not the runner.
+		await WithServiceAsync(
+			service => service.CreateCampaignAsync("Warm Up Campaign", "", "", Human));
+
 		var unwatchedDatabase = Path.Combine(_directory, "no-watch", "wartable.db");
 		var debounced = new ActivityBroadcaster(
 			_provider.GetRequiredService<IServiceScopeFactory>(),
 			unwatchedDatabase,
-			signalDebounce: TimeSpan.FromMilliseconds(750));
+			signalDebounce: TimeSpan.FromSeconds(2));
 
 		await debounced.StartAsync(CancellationToken.None);
 		try
@@ -147,12 +159,12 @@ public sealed class ActivityBroadcasterTests : IAsyncLifetime
 			// Signal before the activity row exists. Without the debounce the drain
 			// runs immediately, finds nothing, and no second signal arrives.
 			debounced.Signal();
-			await Task.Delay(300);
+			await Task.Delay(100);
 
 			var campaign = await WithServiceAsync(
 				service => service.CreateCampaignAsync("Debounced Campaign", "", "", Human));
 
-			var delivered = await ReadAsync(subscription.Reader, TimeSpan.FromSeconds(5));
+			var delivered = await ReadAsync(subscription.Reader, TimeSpan.FromSeconds(10));
 
 			Assert.NotNull(delivered);
 			Assert.Equal("Created", delivered!.Action);
