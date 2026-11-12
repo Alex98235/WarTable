@@ -25,10 +25,11 @@ public record UpdateStepRequest(
 	string? Assigner = null,
 	string? Status = null,
 	List<Guid>? DependsOn = null,
+	Guid? RowVersion = null,
 	string? Actor = null);
 
 /// <summary>Body for a quick step status update.</summary>
-public record StepStatusRequest(string Status, string? Actor = null);
+public record StepStatusRequest(string Status, Guid? RowVersion = null, string? Actor = null);
 
 /// <summary>Body for reordering steps within an objective.</summary>
 public record StepReorderRequest(
@@ -110,6 +111,10 @@ public static class StepEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var patch = new StepPatch(
 					request.Title,
 					request.Context,
@@ -120,12 +125,18 @@ public static class StepEndpoints
 					id,
 					patch,
 					request.DependsOn,
-					Actor(request.Actor));
+					Actor(request.Actor),
+					request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 
@@ -133,28 +144,47 @@ public static class StepEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var updated = await service.UpdateStepStatusAsync(
 					id,
 					request.Status,
-					Actor(request.Actor));
+					Actor(request.Actor),
+					request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 
-		group.MapDelete("/{id:guid}", async (Guid id, bool? force, string? actor, WarTableService service) =>
+		group.MapDelete("/{id:guid}", async (Guid id, bool? force, Guid? rowVersion, string? actor, WarTableService service) =>
 		{
 			try
 			{
-				var result = await service.DeleteStepAsync(id, force ?? false, Actor(actor));
+				var missing = ConcurrencyHelper.RequireRowVersion(rowVersion);
+				if (missing is not null)
+					return missing;
+
+				var result = await service.DeleteStepAsync(id, force ?? false, Actor(actor), rowVersion);
 				return result.Deleted ? Results.NoContent() : Results.NotFound();
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 

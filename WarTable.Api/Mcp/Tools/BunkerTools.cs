@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
@@ -266,10 +267,13 @@ public static class BunkerTools
 	}
 
 	[McpServerTool(Name = "update_note")]
-	[Description("Update Bunker note fields. Only the fields you include are changed.")]
+	[Description(
+		"Update Bunker note fields. Only the fields you include are changed. " +
+		"Requires row_version (read with get_note) for optimistic concurrency.")]
 	public static async Task<object> UpdateNoteAsync(
 		WarTableService service,
 		string note_id,
+		string row_version,
 		string? title = null,
 		string? body = null,
 		bool? pinned = null,
@@ -283,6 +287,10 @@ public static class BunkerTools
 			if (id is null)
 				return McpResults.Error("note_id is required");
 
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
 			var patch = new BunkerNotePatch(
 				Title: title,
 				Body: body,
@@ -290,15 +298,61 @@ public static class BunkerTools
 				Tags: tags,
 				SupersedesId: McpArgs.Guid(supersedes_id));
 
-			var updated = await service.UpdateNoteAsync(id.Value, patch, McpArgs.Actor(actor));
+			var updated = await service.UpdateNoteAsync(id.Value, patch, McpArgs.Actor(actor), rv);
 			return updated is null
 				? McpResults.Error($"Note not found: {id}")
 				: updated;
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
 			return McpResults.Error(ex.Message);
 		}
+	}
+
+	[McpServerTool(Name = "delete_note")]
+	[Description(
+		"Soft-delete a Bunker note. Requires row_version (read with get_note) for optimistic concurrency.")]
+	public static async Task<object> DeleteNoteAsync(
+		WarTableService service,
+		string note_id,
+		string row_version,
+		string? actor = null)
+	{
+		try
+		{
+			var id = McpArgs.Guid(note_id);
+			if (id is null)
+				return McpResults.Error("note_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var deleted = await service.DeleteNoteAsync(id.Value, McpArgs.Actor(actor), rv);
+			return deleted
+				? new { ok = true }
+				: McpResults.Error($"Note not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	/// <summary>Builds the stale-rowVersion error envelope for MCP tools.</summary>
+	private static CallToolResult McpConflictResult(ConcurrencyConflictException ex)
+	{
+		var currentJson = System.Text.Json.JsonSerializer.Serialize(ex.Current, McpJson.Options);
+		return McpResults.Error(
+			$$"""{"error":"conflict","message":"{{ex.Message.Replace("\"", "\\\"")}}","current":{{currentJson}}}""");
 	}
 }
 

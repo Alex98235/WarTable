@@ -14,7 +14,8 @@ public record UpdatePreferenceRequest(
 	string? Text = null,
 	string? Rationale = null,
 	bool? Active = null,
-	string? Tags = null);
+	string? Tags = null,
+	Guid? RowVersion = null);
 
 /// <summary>
 /// Maps HTTP endpoints for operator preferences under /api/preferences.
@@ -52,17 +53,26 @@ public static class PreferenceEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var patch = new PreferencePatch(
 					request.Text,
 					request.Rationale,
 					request.Active,
 					request.Tags);
-				var updated = await service.UpdatePreferenceAsync(id, patch);
+				var updated = await service.UpdatePreferenceAsync(id, patch, request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 	}

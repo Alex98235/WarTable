@@ -4,6 +4,34 @@
 /** The UI writes as `human`. This instance has no accounts. */
 export const ACTOR = 'human';
 
+/**
+ * Error carrying HTTP status and parsed body (if any) alongside a message.
+ */
+export class ApiError extends Error {
+	/**
+	 * @param {number} status
+	 * @param {string} message
+	 * @param {object|null} body
+	 */
+	constructor(status, message, body = null) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+		this.body = body;
+	}
+}
+
+/** True when the error indicates a stale row. */
+export function isConflict(error) {
+	return error instanceof ApiError && error.status === 409;
+}
+
+/** Extract the `current` row from a 409, or null. */
+export function getConflictCurrent(error) {
+	if (!isConflict(error) || !error.body) return null;
+	return error.body.current ?? null;
+}
+
 function buildQuery(params = {}) {
 	const query = new URLSearchParams();
 	Object.entries(params).forEach(([key, val]) => {
@@ -14,13 +42,21 @@ function buildQuery(params = {}) {
 	return query.toString();
 }
 
+async function parseErrorBody(res) {
+	try {
+		return await res.json();
+	} catch {
+		return null;
+	}
+}
+
 export async function apiGet(path, params = {}) {
 	const qs = buildQuery(params);
 	const url = qs ? `${path}?${qs}` : path;
 	const res = await fetch(url);
 	if (!res.ok) {
-		const err = await res.text();
-		throw new Error(`GET ${url} ${res.status}: ${err}`);
+		const body = await parseErrorBody(res);
+		throw new ApiError(res.status, `GET ${url} ${res.status}`, body);
 	}
 	return res.json();
 }
@@ -32,8 +68,8 @@ async function send(method, path, body) {
 		body: JSON.stringify(body ?? {})
 	});
 	if (!res.ok) {
-		const err = await res.text();
-		throw new Error(`${method} ${path} ${res.status}: ${err}`);
+		const errBody = await parseErrorBody(res);
+		throw new ApiError(res.status, `${method} ${path} ${res.status}`, errBody);
 	}
 	if (res.status === 204) return null;
 	const text = await res.text();
@@ -62,8 +98,8 @@ export async function apiDelete(path, params = {}) {
 	const url = qs ? `${path}?${qs}` : path;
 	const res = await fetch(url, { method: 'DELETE' });
 	if (!res.ok) {
-		const err = await res.text();
-		throw new Error(`DELETE ${url} ${res.status}: ${err}`);
+		const body = await parseErrorBody(res);
+		throw new ApiError(res.status, `DELETE ${url} ${res.status}`, body);
 	}
 	if (res.status === 204) return null;
 	const text = await res.text();

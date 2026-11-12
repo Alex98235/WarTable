@@ -7,9 +7,14 @@ using System.Text.Json.Serialization;
 /// One atomic, verifiable unit of work within an objective. Steps are ordered and
 /// dependencies form a DAG; parallelism is derived from the graph.
 /// </summary>
-public class Step
+public class Step : IConcurrencyGuarded
 {
 	public Guid Id { get; set; } = Guid.NewGuid();
+
+	/// <summary>Optimistic concurrency token. Exposed as <c>rowVersion</c> in JSON.</summary>
+	[JsonPropertyName("rowVersion")]
+	public Guid RowVersion { get; set; } = Guid.NewGuid();
+
 	public Guid ObjectiveId { get; set; }
 
 	/// <summary>Per-objective monotonic number. Displayed as <c>#N.M</c>. Never reused.</summary>

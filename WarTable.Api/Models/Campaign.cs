@@ -7,9 +7,14 @@ using System.Text.Json.Serialization;
 /// A namespace and folder for a body of work. A campaign is not a work item and
 /// has no status; its objectives carry the state that matters.
 /// </summary>
-public class Campaign
+public class Campaign : IConcurrencyGuarded
 {
 	public Guid Id { get; set; } = Guid.NewGuid();
+
+	/// <summary>Optimistic concurrency token. Exposed as <c>rowVersion</c> in JSON.</summary>
+	[JsonPropertyName("rowVersion")]
+	public Guid RowVersion { get; set; } = Guid.NewGuid();
+
 	public string Title { get; set; } = "";
 
 	/// <summary>
@@ -20,6 +25,7 @@ public class Campaign
 	public string Intent { get; set; } = "";
 
 	/// <summary>Campaign charter in markdown. Promoted from a Bunker note.</summary>
+
 	public string? Charter { get; set; }
 
 	public string Tags { get; set; } = "";

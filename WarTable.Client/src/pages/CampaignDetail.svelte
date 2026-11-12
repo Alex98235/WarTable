@@ -6,6 +6,7 @@
 		apiPatch,
 		apiPost,
 		apiPut,
+		isConflict,
 		parseTags,
 		plainText,
 		stepProgress,
@@ -226,12 +227,23 @@
 			await apiPut(`/api/campaigns/${campaignId}`, {
 				title: campaignForm.title.trim(),
 				tags: parseTags(campaignForm.tags).join(', '),
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: campaign?.rowVersion
 			});
 			addToast('Campaign updated.', 'success');
 			editingCampaign = false;
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This campaign was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						editingCampaign = false;
+						await load();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not update the campaign.', 'error');
 		} finally {
 			campaignSaving = false;
@@ -249,12 +261,23 @@
 		try {
 			await apiPut(`/api/campaigns/${campaignId}`, {
 				charter: charterForm.body,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: campaign?.rowVersion
 			});
 			addToast('Charter saved.', 'success');
 			editingCharter = false;
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'The charter was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						editingCharter = false;
+						await load();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not save the charter.', 'error');
 		} finally {
 			charterSaving = false;
@@ -267,11 +290,19 @@
 			async () => {
 				try {
 					await apiDelete(`/api/campaigns/${campaignId}`, {
-						actor: ACTOR
+						actor: ACTOR,
+						rowVersion: campaign?.rowVersion
 					});
 					addToast('Campaign deleted.', 'success');
 					go('/campaigns');
 				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This campaign was changed elsewhere. Reload to see the current state.',
+							'error'
+						);
+						return;
+					}
 					addToast(err.message || 'Could not delete the campaign.', 'error');
 				}
 			}
@@ -312,7 +343,8 @@
 				title: objectiveEditForm.title.trim(),
 				description: objectiveEditForm.description,
 				planState: objectiveEditForm.planState,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: editingObjective.rowVersion
 			});
 			addToast(shapingSeed ? 'Seed shaped into the plan.' : 'Objective updated.', 'success');
 			editingObjective = null;
@@ -320,6 +352,17 @@
 			expansionInitialized = false;
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This objective was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						editingObjective = null;
+						shapingSeed = false;
+						await load();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not update the objective.', 'error');
 		} finally {
 			objectiveEditSaving = false;
@@ -357,10 +400,20 @@
 			`Delete seed #${seed.alias} "${seed.title}"? This cannot be undone.`,
 			async () => {
 				try {
-					await apiDelete(`/api/objectives/${seed.id}`, { actor: ACTOR });
+					await apiDelete(`/api/objectives/${seed.id}`, {
+						actor: ACTOR,
+						rowVersion: seed.rowVersion
+					});
 					addToast('Seed deleted.', 'success');
 					await load({ silent: true });
 				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This seed was changed elsewhere. Reload to see the current state.',
+							'error'
+						);
+						return;
+					}
 					addToast(err.message || 'Could not delete the seed.', 'error');
 				}
 			}
@@ -397,7 +450,8 @@
 		try {
 			await apiPut(`/api/objectives/${objective.id}`, {
 				planState,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: objective.rowVersion
 			});
 			addToast(
 				planState === 'Active' ? 'Objective activated.' : 'Objective parked as draft.',
@@ -405,6 +459,13 @@
 			);
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This objective was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
 			addToast(err.message || 'Could not change the plan state.', 'error');
 		}
 	}
@@ -445,7 +506,8 @@
 		try {
 			await apiPatch(`/api/steps/${step.id}/status`, {
 				status,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: step.rowVersion
 			});
 			addToast(
 				status === 'flagged' ? 'Step flagged for human attention.' : 'Flag cleared.',
@@ -453,6 +515,13 @@
 			);
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This step was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
 			addToast(err.message || 'Could not update the step.', 'error');
 		}
 	}

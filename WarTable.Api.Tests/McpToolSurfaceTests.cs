@@ -71,6 +71,39 @@ public class McpToolSurfaceTests
 		AssertRequired("add_directive", "body");
 	}
 
+	/// <summary>
+	/// Every tool that takes a <c>row_version</c> declares it required, so a client
+	/// planning a write sees the dependency in the schema instead of learning it
+	/// from an error after the call.
+	/// </summary>
+	[Fact]
+	public void RowVersion_IsRequiredOnEveryWriteTool()
+	{
+		var toolsWithToken = ToolTypes()
+			.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+			.Select(method => (Method: method, Attribute: method.GetCustomAttribute<McpServerToolAttribute>()))
+			.Where(x => x.Attribute is not null)
+			.Select(x => (
+				Name: x.Attribute!.Name ?? x.Method.Name,
+				Parameter: x.Method.GetParameters().SingleOrDefault(p => p.Name == "row_version")))
+			.Where(x => x.Parameter is not null)
+			.ToList();
+
+		Assert.Equal(10, toolsWithToken.Count);
+
+		foreach (var (name, parameter) in toolsWithToken)
+		{
+			Assert.False(parameter!.HasDefaultValue, $"{name} must require row_version");
+			var nullability = new NullabilityInfoContext().Create(parameter);
+			Assert.Equal(NullabilityState.NotNull, nullability.WriteState);
+		}
+	}
+
+	/// <summary>Every type in the MCP tools namespace, so a new tool cannot escape the scan.</summary>
+	private static IEnumerable<Type> ToolTypes() =>
+		typeof(BunkerTools).Assembly.GetTypes()
+			.Where(type => type.Namespace == typeof(BunkerTools).Namespace);
+
 	/// <summary>Asserts a named MCP tool has exactly the named non-nullable parameters.</summary>
 	private static void AssertRequired(string toolName, params string[] expectedRequired)
 	{

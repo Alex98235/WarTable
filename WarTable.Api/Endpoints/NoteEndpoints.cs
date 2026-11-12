@@ -25,6 +25,7 @@ public record UpdateNoteRequest(
 	Guid? SupersedesId = null,
 	string? Basis = null,
 	DateTime? ApprovedAt = null,
+	Guid? RowVersion = null,
 	string? Actor = null);
 
 /// <summary>
@@ -101,6 +102,10 @@ public static class NoteEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var patch = new BunkerNotePatch(
 					Title: request.Title,
 					Body: request.Body,
@@ -109,25 +114,39 @@ public static class NoteEndpoints
 					SupersedesId: request.SupersedesId,
 					Basis: request.Basis,
 					ApprovedAt: request.ApprovedAt);
-				var updated = await service.UpdateNoteAsync(id, patch, Actor(request.Actor));
+				var updated = await service.UpdateNoteAsync(id, patch, Actor(request.Actor), request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 
-		group.MapDelete("/{id:guid}", async (Guid id, string? actor, WarTableService service) =>
+		group.MapDelete("/{id:guid}", async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
 		{
 			try
 			{
-				var deleted = await service.DeleteNoteAsync(id, Actor(actor));
+				var missing = ConcurrencyHelper.RequireRowVersion(rowVersion);
+				if (missing is not null)
+					return missing;
+
+				var deleted = await service.DeleteNoteAsync(id, Actor(actor), rowVersion);
 				return deleted ? Results.NoContent() : Results.NotFound();
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 	}

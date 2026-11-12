@@ -77,19 +77,20 @@ Bunker notes; it does not execute work.
   context. If an agent six months from now would not decide differently without
   it, write nothing. A decision is only recorded when you can name the
   alternative you rejected and say why.
-- Before adding a note, or when the human asks whether something was already
-  discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
-  alias and snippet rather than assuming. Search results can include dormant
-  notes (no live work links to them) marked with their age; supersede such a
-  note with supersedes_id rather than duplicating it.
+- Before adding a note, or when the human asks what was already discussed, use
+  search_knowledge (hybrid semantic + keyword) and cite the alias rather than
+  assuming. Search results may include dormant notes with their age; supersede
+  one with supersedes_id rather than duplicating it.
 - Directives are hard, always-on campaign rules. Preferences are advisory and
   human-global. If a campaign directive conflicts with a preference, surface the
   conflict.
 - Evidence is proof that lives outside the repository — use add_evidence with
   a URL (Link) or commit sha (Commit). WarTable stores no files, so never point
   at a path; if the work is in the repository, cite the commit or write a step
-  update instead. Evidence can be removed with delete_evidence: retract a
-  citation that is wrong or no longer true rather than leaving it in place.
+  update instead. Retract a wrong citation with delete_evidence.
+- Every write takes the row_version you read with the object; without it the
+  call is rejected. A conflict means another client changed the row since you
+  read it — re-read, then reapply.
 - WarTable does not enforce approval gates. Verify before implementation only if
   your own instructions require it.
 

@@ -99,6 +99,61 @@ public partial class WarTableService
 		_db = db;
 	}
 
+	/// <summary>
+	/// Optimistic concurrency helper for entities that implement <see cref="IConcurrencyGuarded"/>.
+	/// When <paramref name="rowVersion"/> is supplied, validates it matches the current
+	/// entity and sets the EF <c>OriginalValue</c> so the generated
+	/// <c>UPDATE ... WHERE Id = @id AND RowVersion = @original</c> enforces the check
+	/// in the race window between the comparison and the write.
+	/// </summary>
+	private void ApplyConcurrencyToken<T>(T entity, Guid? rowVersion)
+		where T : class, IConcurrencyGuarded
+	{
+		if (!rowVersion.HasValue)
+			return;
+
+		if (entity.RowVersion != rowVersion.Value)
+			throw new ConcurrencyConflictException(
+				$"Stale rowVersion on {typeof(T).Name}: " +
+				$"supplied {rowVersion.Value}, current {entity.RowVersion}. " +
+				"Re-read the current state and reapply your changes with the new rowVersion.",
+				entity);
+
+		// EF tracks RowVersion as a normal property; the concurrency token match
+		// is enforced by setting the OriginalValue so the WHERE clause has something
+		// to compare against. Without this, SQLite would always match the row.
+		_db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion.Value;
+	}
+
+	/// <summary>
+	/// Wraps a save operation so a <see cref="DbUpdateConcurrencyException"/> surfacing
+	/// from the database is translated into a <see cref="ConcurrencyConflictException"/>.
+	/// </summary>
+	private async Task SaveChangesWithConcurrencyAsync()
+	{
+		try
+		{
+			await _db.SaveChangesAsync();
+		}
+		catch (DbUpdateConcurrencyException dbEx)
+		{
+			throw ConcurrencyConflictException.FromDbException(dbEx);
+		}
+	}
+
+	/// <inheritdoc cref="SaveChangesWithConcurrencyAsync"/>
+	private void SaveChangesWithConcurrency()
+	{
+		try
+		{
+			_db.SaveChanges();
+		}
+		catch (DbUpdateConcurrencyException dbEx)
+		{
+			throw ConcurrencyConflictException.FromDbException(dbEx);
+		}
+	}
+
 	private const int BriefingStepLimit = 20;
 	private const int BriefingNoteLimit = 10;
 	private const int BriefingSeedLimit = 10;
@@ -143,7 +198,7 @@ public partial class WarTableService
 			Sequence = nextSequence,
 		});
 
-		await _db.SaveChangesAsync();
+		await SaveChangesWithConcurrencyAsync();
 	}
 
 	// ── Derived status helpers ──
@@ -357,11 +412,13 @@ public partial class WarTableService
 		return campaign;
 	}
 
-	public async Task<Campaign?> UpdateCampaignAsync(Guid id, CampaignPatch patch, string actor)
+	public async Task<Campaign?> UpdateCampaignAsync(Guid id, CampaignPatch patch, string actor, Guid? rowVersion = null)
 	{
 		var campaign = await _db.Campaigns.FirstOrDefaultAsync(c => c.Id == id);
 		if (campaign is null)
 			return null;
+
+		ApplyConcurrencyToken(campaign, rowVersion);
 
 		if (patch.Title is not null) campaign.Title = patch.Title;
 		if (patch.Tags is not null) campaign.Tags = patch.Tags;
@@ -381,11 +438,13 @@ public partial class WarTableService
 	}
 
 	/// <summary>Hard delete for now. Dependencies are removed explicitly; the rest cascade.</summary>
-	public async Task<bool> DeleteCampaignAsync(Guid id, string actor)
+	public async Task<bool> DeleteCampaignAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
 		var campaign = await _db.Campaigns.FirstOrDefaultAsync(c => c.Id == id);
 		if (campaign is null)
 			return false;
+
+		ApplyConcurrencyToken(campaign, rowVersion);
 
 		var title = campaign.Title;
 
@@ -497,11 +556,13 @@ public partial class WarTableService
 		return objective;
 	}
 
-	public async Task<Objective?> UpdateObjectiveAsync(Guid id, ObjectivePatch patch, string actor)
+	public async Task<Objective?> UpdateObjectiveAsync(Guid id, ObjectivePatch patch, string actor, Guid? rowVersion = null)
 	{
 		var objective = await _db.Objectives.FirstOrDefaultAsync(o => o.Id == id);
 		if (objective is null)
 			return null;
+
+		ApplyConcurrencyToken(objective, rowVersion);
 
 		var oldPlanState = objective.PlanState;
 		var planStateChanged = patch.PlanState.HasValue && patch.PlanState.Value != objective.PlanState;
@@ -565,11 +626,13 @@ public partial class WarTableService
 	/// Soft delete. The row is retained so old <c>#N</c> references stay resolvable.
 	/// Child steps are soft-deleted as well.
 	/// </summary>
-	public async Task<bool> DeleteObjectiveAsync(Guid id, string actor)
+	public async Task<bool> DeleteObjectiveAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
 		var objective = await _db.Objectives.FirstOrDefaultAsync(o => o.Id == id);
 		if (objective is null)
 			return false;
+
+		ApplyConcurrencyToken(objective, rowVersion);
 
 		var now = DateTime.UtcNow;
 		objective.DeletedAt = now;
@@ -709,13 +772,16 @@ public partial class WarTableService
 		Guid id,
 		StepPatch patch,
 		IEnumerable<Guid>? dependsOn,
-		string actor)
+		string actor,
+		Guid? rowVersion = null)
 	{
 		var step = await _db.Steps
 			.Include(s => s.Objective)
 			.FirstOrDefaultAsync(s => s.Id == id);
 		if (step is null || step.Objective is null)
 			return null;
+
+		ApplyConcurrencyToken(step, rowVersion);
 
 		var oldStatus = step.Status;
 
@@ -778,7 +844,7 @@ public partial class WarTableService
 		return step;
 	}
 
-	public async Task<Step?> UpdateStepStatusAsync(Guid id, string status, string actor)
+	public async Task<Step?> UpdateStepStatusAsync(Guid id, string status, string actor, Guid? rowVersion = null)
 	{
 		if (!StepStatuses.IsValid(status))
 			throw new InvalidOperationException(
@@ -789,6 +855,8 @@ public partial class WarTableService
 			.FirstOrDefaultAsync(s => s.Id == id);
 		if (step is null || step.Objective is null)
 			return null;
+
+		ApplyConcurrencyToken(step, rowVersion);
 
 		var oldStatus = step.Status;
 		var now = DateTime.UtcNow;
@@ -853,13 +921,15 @@ public partial class WarTableService
 	/// is true; force removes every edge touching the step and counts them.
 	/// Outbound edges are always removed and counted. Step numbers are never reused.
 	/// </summary>
-	public async Task<DeleteStepResult> DeleteStepAsync(Guid id, bool force, string actor)
+	public async Task<DeleteStepResult> DeleteStepAsync(Guid id, bool force, string actor, Guid? rowVersion = null)
 	{
 		var step = await _db.Steps
 			.Include(s => s.Objective)
 			.FirstOrDefaultAsync(s => s.Id == id);
 		if (step is null || step.Objective is null)
 			return new(false, 0);
+
+		ApplyConcurrencyToken(step, rowVersion);
 
 		var dependents = await (from d in _db.StepDependencies.AsNoTracking()
 								join s in _db.Steps.AsNoTracking() on d.StepId equals s.Id
@@ -1325,13 +1395,15 @@ public partial class WarTableService
 		return note;
 	}
 
-	public async Task<BunkerNote?> UpdateNoteAsync(Guid id, BunkerNotePatch patch, string actor)
+	public async Task<BunkerNote?> UpdateNoteAsync(Guid id, BunkerNotePatch patch, string actor, Guid? rowVersion = null)
 	{
 		var note = await _db.BunkerNotes
 			.Include(n => n.Links)
 			.FirstOrDefaultAsync(n => n.Id == id);
 		if (note is null)
 			return null;
+
+		ApplyConcurrencyToken(note, rowVersion);
 
 		if (patch.Title is not null) note.Title = patch.Title;
 		if (patch.Body is not null)
@@ -1378,11 +1450,13 @@ public partial class WarTableService
 		return note;
 	}
 
-	public async Task<bool> DeleteNoteAsync(Guid id, string actor)
+	public async Task<bool> DeleteNoteAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
 		var note = await _db.BunkerNotes.FirstOrDefaultAsync(n => n.Id == id);
 		if (note is null)
 			return false;
+
+		ApplyConcurrencyToken(note, rowVersion);
 
 		var now = DateTime.UtcNow;
 		note.DeletedAt = now;
@@ -1453,11 +1527,13 @@ public partial class WarTableService
 		return preference;
 	}
 
-	public async Task<Preference?> UpdatePreferenceAsync(Guid id, PreferencePatch patch)
+	public async Task<Preference?> UpdatePreferenceAsync(Guid id, PreferencePatch patch, Guid? rowVersion = null)
 	{
 		var preference = await _db.Preferences.FirstOrDefaultAsync(p => p.Id == id);
 		if (preference is null)
 			return null;
+
+		ApplyConcurrencyToken(preference, rowVersion);
 
 		var wasActive = preference.Active;
 

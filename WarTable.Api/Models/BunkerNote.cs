@@ -7,9 +7,14 @@ using System.Text.Json.Serialization;
 /// Campaign knowledge and campaign directives. The Bunker replaces Intel.
 /// Directives are always applied; other kinds are searched on demand.
 /// </summary>
-public class BunkerNote
+public class BunkerNote : IConcurrencyGuarded
 {
 	public Guid Id { get; set; } = Guid.NewGuid();
+
+	/// <summary>Optimistic concurrency token. Exposed as <c>rowVersion</c> in JSON.</summary>
+	[JsonPropertyName("rowVersion")]
+	public Guid RowVersion { get; set; } = Guid.NewGuid();
+
 	public Guid CampaignId { get; set; }
 
 	/// <summary>Campaign-scoped identifier shown as <c>#N</c>. Shared counter with objectives.</summary>

@@ -167,6 +167,7 @@ A namespace and folder. It is not a work item and has no status.
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
+| `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `Title` | |
 | `Charter` | Markdown. The durable why, scope, and architecture. Nullable. |
 | `Tags` | Comma-separated labels. |
@@ -192,6 +193,7 @@ A durable outcome. The unit of planning.
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
+| `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
@@ -211,6 +213,7 @@ One atomic, verifiable unit of work.
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
+| `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `ObjectiveId` | |
 | `StepNumber` | Per-objective monotonic number, never reused. Displayed as `#N.M`. |
 | `Title` | |
@@ -266,6 +269,7 @@ Campaign knowledge and campaign directives.
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
+| `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, shared counter with objectives, never reused. |
 | `Kind` | `Directive`, `Decision`, `Gotcha`, `Context`. |
@@ -358,6 +362,7 @@ Human-scoped soft rules. The "friendship record" for the one human.
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
+| `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `Text` | The preference, e.g. "Dislikes green." |
 | `Rationale` | Why, or where it came from. |
 | `Source` | `human` or `agent`. |
@@ -448,6 +453,17 @@ specified in [`deployment.md`](deployment.md).
 
 When a campaign directive and a human preference disagree, the directive wins.
 The agent states the conflict in its response rather than silently choosing.
+
+### Optimistic concurrency
+
+Entities in scope (`Campaign`, `Objective`, `Step`, `BunkerNote`, `Preference`)
+carry a `RowVersion` GUID — a concurrency token regenerated on every write.
+All mutating HTTP endpoints and MCP tools require the caller to supply the
+`rowVersion` they read. A missing token returns `428 Precondition Required`;
+a stale token returns `409 Conflict` with the current server-side entity so the
+caller can re-read and reapply. Deletes are treated as writes and carry the
+same contract. Append-only entities (`ActivityEvent`, `StepUpdate`, `Evidence`,
+`StepDependency`, `BunkerNoteLink`) and reorder operations are exempt.
 
 ## 5. Human and agent surfaces
 
@@ -633,22 +649,22 @@ are JSON with camelCase properties and string enum values.
 |---|---|---|
 | `/api/health` | `GET` | Liveness check. |
 | `/api/campaigns` | `GET`, `POST` | List (`search`, `includeArchived`) or create a campaign. |
-| `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (title, tags, `archivedAt`), or hard-delete a campaign. |
+| `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or hard-delete a campaign (`rowVersion` required). |
 | `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeDrafts`) or create an objective. |
-| `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch, or soft-delete an objective. |
+| `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete an objective (`rowVersion` required). |
 | `/api/objectives/reorder` | `PUT` | Reorder objectives; keys are objective GUIDs. |
 | `/api/steps` | `GET`, `POST` | List by `objectiveId` or create a step. |
-| `/api/steps/{id}` | `GET`, `PUT`, `DELETE` | Read, patch, or soft-delete a step (`force` on delete). |
+| `/api/steps/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete a step (`rowVersion` required, `force` optional). |
 | `/api/steps/reorder` | `PUT` | Reorder steps; keys are step GUIDs. |
-| `/api/steps/{id}/status` | `PATCH` | Quick status change. |
+| `/api/steps/{id}/status` | `PATCH` | Quick status change (+ `rowVersion`). |
 | `/api/steps/{id}/updates` | `GET`, `POST` | List or append step updates. |
 | `/api/steps/{id}/evidence` | `GET`, `POST` | List or attach evidence. |
 | `/api/steps/{id}/evidence/{evidenceId}` | `DELETE` | Hard-delete a piece of evidence. |
 | `/api/notes` | `GET`, `POST` | List (`campaignId`, `search`, `kind`, `status`, `includeDeleted`) or create a Bunker note. |
-| `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch, or soft-delete a note. |
+| `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete a note (`rowVersion` required). |
 | `/api/notes/by-alias` | `GET` | Resolve a note by `campaignId` and `alias`. |
 | `/api/preferences` | `GET`, `POST` | List (`includeInactive`) or capture a preference. |
-| `/api/preferences/{id}` | `PUT` | Edit or retire a preference. |
+| `/api/preferences/{id}` | `PUT` | Edit or retire a preference (+ `rowVersion`). |
 | `/api/knowledge/search` | `GET` | Hybrid knowledge search (`campaignId`, `q`, `mode`, `limit`). |
 | `/api/knowledge/status` | `GET` | Embedding availability and index state. |
 | `/api/knowledge/reindex` | `POST` | Reconcile the index. |

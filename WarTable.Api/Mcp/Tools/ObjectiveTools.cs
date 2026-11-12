@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
@@ -51,10 +52,13 @@ public static class ObjectiveTools
 	}
 
 	[McpServerTool(Name = "update_objective")]
-	[Description("Update objective fields. Only the fields you include are changed. plan_state is Seed (unfinished thought), Draft, or Active.")]
+	[Description(
+		"Update objective fields. Only the fields you include are changed. plan_state is Seed (unfinished thought), Draft, or Active. " +
+		"Requires row_version (read with get_object or get_plan) for optimistic concurrency.")]
 	public static async Task<object> UpdateObjectiveAsync(
 		WarTableService service,
 		string objective_id,
+		string row_version,
 		string? title = null,
 		string? description = null,
 		string? plan_state = null,
@@ -65,6 +69,10 @@ public static class ObjectiveTools
 			var id = McpArgs.Guid(objective_id);
 			if (id is null)
 				return McpResults.Error("objective_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
 
 			PlanState? planState = null;
 			if (!string.IsNullOrWhiteSpace(plan_state))
@@ -80,10 +88,49 @@ public static class ObjectiveTools
 				Description: description,
 				PlanState: planState);
 
-			var updated = await service.UpdateObjectiveAsync(id.Value, patch, McpArgs.Actor(actor));
+			var updated = await service.UpdateObjectiveAsync(id.Value, patch, McpArgs.Actor(actor), rv);
 			return updated is null
 				? McpResults.Error($"Objective not found: {id}")
 				: updated;
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "delete_objective")]
+	[Description(
+		"Soft-delete an objective and its steps. Old #N aliases remain resolvable and are never reused. " +
+		"Requires row_version (read with get_object or get_plan) for optimistic concurrency.")]
+	public static async Task<object> DeleteObjectiveAsync(
+		WarTableService service,
+		string objective_id,
+		string row_version,
+		string? actor = null)
+	{
+		try
+		{
+			var id = McpArgs.Guid(objective_id);
+			if (id is null)
+				return McpResults.Error("objective_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var deleted = await service.DeleteObjectiveAsync(id.Value, McpArgs.Actor(actor), rv);
+			return deleted
+				? new { ok = true }
+				: McpResults.Error($"Objective not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
@@ -128,27 +175,11 @@ public static class ObjectiveTools
 		}
 	}
 
-	[McpServerTool(Name = "delete_objective")]
-	[Description("Soft-delete an objective and its steps. Old #N aliases remain resolvable and are never reused.")]
-	public static async Task<object> DeleteObjectiveAsync(
-		WarTableService service,
-		string objective_id,
-		string? actor = null)
+	/// <summary>Builds the stale-rowVersion error envelope for MCP tools.</summary>
+	private static CallToolResult McpConflictResult(ConcurrencyConflictException ex)
 	{
-		try
-		{
-			var id = McpArgs.Guid(objective_id);
-			if (id is null)
-				return McpResults.Error("objective_id is required");
-
-			var deleted = await service.DeleteObjectiveAsync(id.Value, McpArgs.Actor(actor));
-			return deleted
-				? new { ok = true }
-				: McpResults.Error($"Objective not found: {id}");
-		}
-		catch (Exception ex)
-		{
-			return McpResults.Error(ex.Message);
-		}
+		var currentJson = System.Text.Json.JsonSerializer.Serialize(ex.Current, McpJson.Options);
+		return McpResults.Error(
+			$$"""{"error":"conflict","message":"{{ex.Message.Replace("\"", "\\\"")}}","current":{{currentJson}}}""");
 	}
 }

@@ -1,6 +1,6 @@
 <script>
-	import { apiGet, apiPost, apiPut, parseTags, timeAgo } from '../lib/api.js';
-	import { addToast } from '../lib/stores.js';
+	import { apiGet, apiPost, apiPut, isConflict, parseTags, timeAgo } from '../lib/api.js';
+	import { addToast, showConfirm } from '../lib/stores.js';
 	import { onActivity } from '../lib/events.svelte.js';
 
 	let preferences = $state([]);
@@ -87,12 +87,23 @@
 			await apiPut(`/api/preferences/${editing.id}`, {
 				text: editForm.text.trim(),
 				rationale: editForm.rationale.trim(),
-				tags: parseTags(editForm.tags).join(', ')
+				tags: parseTags(editForm.tags).join(', '),
+				rowVersion: editing.rowVersion
 			});
 			addToast('Preference updated.', 'success');
 			editing = null;
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This preference was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						editing = null;
+						await load();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not update the preference.', 'error');
 		} finally {
 			editSaving = false;
@@ -101,13 +112,23 @@
 
 	async function setActive(pref, nextActive) {
 		try {
-			await apiPut(`/api/preferences/${pref.id}`, { active: nextActive });
+			await apiPut(`/api/preferences/${pref.id}`, {
+				active: nextActive,
+				rowVersion: pref.rowVersion
+			});
 			addToast(
 				nextActive ? 'Preference reactivated.' : 'Preference retired. Its history is kept.',
 				'success'
 			);
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This preference was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
 			addToast(err.message || 'Could not change the preference.', 'error');
 		}
 	}

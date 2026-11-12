@@ -8,6 +8,7 @@
 		apiGet,
 		apiPost,
 		apiPut,
+		isConflict,
 		parseTags,
 		plainText,
 		stepRef,
@@ -469,12 +470,23 @@
 				tags: parseTags(editForm.tags).join(', '),
 				pinned: editForm.pinned,
 				supersedesId: editForm.supersedesId || null,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: editing.rowVersion
 			});
 			addToast('Note updated.', 'success');
 			editing = null;
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This note was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						editing = null;
+						await load();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not save the note.', 'error');
 		} finally {
 			editSaving = false;
@@ -483,10 +495,21 @@
 
 	async function togglePin(note) {
 		try {
-			await apiPut(`/api/notes/${note.id}`, { pinned: !note.pinned, actor: ACTOR });
+			await apiPut(`/api/notes/${note.id}`, {
+				pinned: !note.pinned,
+				actor: ACTOR,
+				rowVersion: note.rowVersion
+			});
 			addToast(note.pinned ? 'Note unpinned.' : 'Note pinned.', 'success');
 			await load({ silent: true });
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This note was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => await load()
+				);
+				return;
+			}
 			addToast(err.message || 'Could not change the pin.', 'error');
 		}
 	}
@@ -496,11 +519,24 @@
 			`Delete note #${note.alias} "${note.title}"? The alias will still resolve for history.`,
 			async () => {
 				try {
-					await apiDelete(`/api/notes/${note.id}`, { actor: ACTOR });
+					await apiDelete(`/api/notes/${note.id}`, {
+						actor: ACTOR,
+						rowVersion: note.rowVersion
+					});
 					addToast('Note deleted.', 'success');
 					go(`/campaign/${campaignId}/bunker`);
 					await load({ silent: true });
 				} catch (err) {
+					if (isConflict(err)) {
+						showConfirm(
+							'This note was changed elsewhere. Reload to see the current version?',
+							async () => {
+								go(`/campaign/${campaignId}/bunker`);
+								await load();
+							}
+						);
+						return;
+					}
 					addToast(err.message || 'Could not delete the note.', 'error');
 				}
 			}

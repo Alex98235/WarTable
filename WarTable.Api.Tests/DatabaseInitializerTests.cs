@@ -72,6 +72,17 @@ public sealed class DatabaseInitializerTests
 					"ALTER TABLE \"BunkerNotes\" DROP COLUMN \"Basis\";");
 				await legacy.Database.ExecuteSqlRawAsync(
 					"ALTER TABLE \"Campaigns\" DROP COLUMN \"Charter\";");
+				// The current model includes RowVersion; drop it for the legacy simulation.
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"Campaigns\" DROP COLUMN \"RowVersion\";");
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"Objectives\" DROP COLUMN \"RowVersion\";");
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"Steps\" DROP COLUMN \"RowVersion\";");
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"Preferences\" DROP COLUMN \"RowVersion\";");
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"BunkerNotes\" DROP COLUMN \"RowVersion\";");
 				// Use raw SQL because the Campaign entity expects the Charter column.
 				await legacy.Database.ExecuteSqlRawAsync(
 					"INSERT INTO \"Campaigns\" (\"Id\", \"Title\", \"Intent\", \"Tags\", \"CreatedAt\", \"UpdatedAt\", \"NextAliasNumber\") " +

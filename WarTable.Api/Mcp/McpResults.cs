@@ -26,6 +26,21 @@ internal static class McpArgs
 	public static string Actor(string? actor)
 		=> string.IsNullOrWhiteSpace(actor) ? "agent:unknown" : actor;
 
+	/// <summary>
+	/// Parses a row_version string. Returns (guid, null) on success,
+	/// (null, errorMessage) for missing or malformed values.
+	/// </summary>
+	public static (Guid? Value, string? Error) RowVersion(string? raw)
+	{
+		if (string.IsNullOrWhiteSpace(raw))
+			return (null, "row_version is required. Read the current row first and resend with its row_version.");
+
+		if (System.Guid.TryParse(raw, out var value))
+			return (value, null);
+
+		return (null, $"Invalid row_version '{raw}': must be a GUID.");
+	}
+
 	public static Guid? Guid(string? raw)
 		=> raw is not null && System.Guid.TryParse(raw, out var value) ? value : null;
 

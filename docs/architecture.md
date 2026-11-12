@@ -74,7 +74,11 @@ ahead of the data.
 
 `Data/WarTableDbContext.cs` maps ten sets: `Campaigns`, `Objectives`, `Steps`,
 `StepDependencies`, `StepUpdates`, `Evidence`, `BunkerNotes`, `BunkerNoteLinks`,
-`Preferences`, `ActivityEvents`. Models live in `Models/`.
+`Preferences`, `ActivityEvents`. Models live in `Models/`. Five of these entities
+(`Campaign`, `Objective`, `Step`, `BunkerNote`, `Preference`) implement
+`IConcurrencyGuarded` and carry a `RowVersion` GUID configured as
+`IsConcurrencyToken()`. The `SaveChanges` override regenerates the token for
+every `Added` or `Modified` entry that implements the interface.
 
 `Data/DatabaseInitializer.cs` owns the schema lifecycle through EF migrations:
 
@@ -164,18 +168,26 @@ backend build in a clean tree.
 
 An HTTP write, for example a status change:
 
-1. The UI calls `PATCH /api/steps/{id}/status`; `StepEndpoints` binds the request
-   and calls `WarTableService`.
-2. The service validates, updates the step, recomputes the parent objective's
-   derived status, saves, then appends an `ActivityEvent`.
+1. The UI calls `PATCH /api/steps/{id}/status` with a `rowVersion`; `StepEndpoints`
+   checks the token is present (returns `428 Precondition Required` if missing),
+   then binds the request and calls `WarTableService`.
+2. The service validates, applies the concurrency check (`ApplyConcurrencyToken`),
+   updates the step, recomputes the parent objective's derived status, saves, then
+   appends an `ActivityEvent`. A `DbUpdateConcurrencyException` at save time is
+   translated to a `ConcurrencyConflictException` and returned as `409 Conflict`
+   with the current server-side entity.
 3. SQLite commits to WAL; the watcher signals the broadcaster, which drains the
    new events after its debounce and pushes them to open SSE connections, so the
    UI applies the change without a full refresh.
 
 An agent tool call: the client sends `tools/call` to `/mcp` (stateless HTTP) or
-over stdio; `WithToolsFromAssembly` dispatches to the tool method; the tool calls
-the same `WarTableService` method the HTTP endpoint calls; `McpResults`/`McpJson`
-shape the reply, and the same `ActivityEvents` row drives any open UI.
+over stdio; `WithToolsFromAssembly` dispatches to the tool method; the tool
+parses the optional `row_version` (required, returned as error if missing or
+malformed), calls the same `WarTableService` method the HTTP endpoint calls;
+`McpResults`/`McpJson` shape the reply, and the same `ActivityEvents` row drives
+any open UI. A stale `row_version` returns a single-block JSON error object with
+`"error":"conflict"` and `"current"` containing the entity, so the agent can
+re-read and retry deliberately.
 
 ## Testing
 

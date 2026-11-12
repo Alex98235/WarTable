@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
@@ -47,10 +48,13 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "update_step")]
-	[Description("Update step fields and/or its dependency set. Omit a field to leave it unchanged.")]
+	[Description(
+		"Update step fields and/or its dependency set. Omit a field to leave it unchanged. " +
+		"Requires row_version (read with get_step) for optimistic concurrency.")]
 	public static async Task<object> UpdateStepAsync(
 		WarTableService service,
 		string step_id,
+		string row_version,
 		string? title = null,
 		string? context = null,
 		string? assignee = null,
@@ -65,6 +69,10 @@ public static class StepTools
 			if (id is null)
 				return McpResults.Error("step_id is required");
 
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
 			var patch = new StepPatch(
 				Title: title,
 				Context: context,
@@ -78,11 +86,16 @@ public static class StepTools
 				id.Value,
 				patch,
 				dependsOn,
-				McpArgs.Actor(actor));
+				McpArgs.Actor(actor),
+				rv);
 
 			return updated is null
 				? McpResults.Error($"Step not found: {id}")
 				: updated;
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
@@ -91,11 +104,14 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "update_step_status")]
-	[Description("Quickly update a step's status. The parent objective's derived status is recalculated.")]
+	[Description(
+		"Quickly update a step's status. The parent objective's derived status is recalculated. " +
+		"Requires row_version (read with get_step) for optimistic concurrency.")]
 	public static async Task<object> UpdateStepStatusAsync(
 		WarTableService service,
 		string step_id,
 		string status,
+		string row_version,
 		string? actor = null)
 	{
 		try
@@ -106,10 +122,18 @@ public static class StepTools
 			if (string.IsNullOrWhiteSpace(status))
 				return McpResults.Error("status is required");
 
-			var updated = await service.UpdateStepStatusAsync(id.Value, status, McpArgs.Actor(actor));
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var updated = await service.UpdateStepStatusAsync(id.Value, status, McpArgs.Actor(actor), rv);
 			return updated is null
 				? McpResults.Error($"Step not found: {id}")
 				: updated;
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
@@ -155,10 +179,13 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "delete_step")]
-	[Description("Soft-delete a step. Fails if other steps depend on it unless force=true; force also removes dependency edges. Returns removed_dependencies.")]
+	[Description(
+		"Soft-delete a step. Fails if other steps depend on it unless force=true; force also removes dependency edges. Returns removed_dependencies. " +
+		"Requires row_version (read with get_step) for optimistic concurrency.")]
 	public static async Task<object> DeleteStepAsync(
 		WarTableService service,
 		string step_id,
+		string row_version,
 		bool force = false,
 		string? actor = null)
 	{
@@ -168,15 +195,31 @@ public static class StepTools
 			if (id is null)
 				return McpResults.Error("step_id is required");
 
-			var result = await service.DeleteStepAsync(id.Value, force, McpArgs.Actor(actor));
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var result = await service.DeleteStepAsync(id.Value, force, McpArgs.Actor(actor), rv);
 			return result.Deleted
 				? new { ok = true, removed_dependencies = result.RemovedDependencies }
 				: McpResults.Error($"Step not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
 			return McpResults.Error(ex.Message);
 		}
+	}
+
+	/// <summary>Builds the stale-rowVersion error envelope for MCP tools.</summary>
+	private static CallToolResult McpConflictResult(ConcurrencyConflictException ex)
+	{
+		var currentJson = System.Text.Json.JsonSerializer.Serialize(ex.Current, McpJson.Options);
+		return McpResults.Error(
+			$$"""{"error":"conflict","message":"{{ex.Message.Replace("\"", "\\\"")}}","current":{{currentJson}}}""");
 	}
 
 	[McpServerTool(Name = "add_step_update")]
