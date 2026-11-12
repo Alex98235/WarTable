@@ -111,7 +111,7 @@ jobs:
               fi
             fi
 
-            echo "- Upgrade and rollback: ${SERVER_URL}/${REPO}/blob/${docs_ref}/docs/updates.md"
+            echo "- Upgrade and rollback: https://alex98235.github.io/WarTable/updating"
           } >> RELEASE_NOTES.md
 
           cat RELEASE_NOTES.md
@@ -190,7 +190,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p staging
-          binary="out/${{ matrix.rid }}/WarTable.Api${{ matrix.ext }}"
+          binary="out/${{ matrix.rid }}/wartable${{ matrix.ext }}"
           test -f "$binary"
           cp "$binary" "staging/wartable${{ matrix.ext }}"
 
@@ -302,11 +302,50 @@ jobs:
             image-ref.txt
           if-no-files-found: error
 
+  # The documentation site publishes from the release itself, so the pages a
+  # release points at always describe that release. A failed docs build blocks
+  # the release rather than shipping notes that link at a stale site.
+  site:
+    needs: changelog
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Build the site
+        working-directory: site
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/build
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
   # Creating the release from both matrix legs at once races (the second one
   # can hit a 422 while the first is still creating it), so it happens here
   # once, after both binaries and the image exist.
   release:
-    needs: [publish, container]
+    needs: [publish, container, site]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
