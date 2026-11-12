@@ -10,90 +10,28 @@ namespace WarTable.Api.Mcp.Tools;
 [McpServerToolType]
 public static class BunkerTools
 {
-	[McpServerTool(Name = "add_note")]
-	[Description(
-		"Add a Bunker note (directive, decision, gotcha, reference, or context) " +
-		"to a campaign, optionally linking objectives and steps.")]
-	public static async Task<object> AddNoteAsync(
+	// ── Shared create helper ──
+
+	private static async Task<object> CreateNoteAsync(
 		WarTableService service,
 		string campaign_id,
-		string kind,
+		BunkerNoteKind kind,
 		string title,
-		string? body = null,
-		string? tags = null,
-		bool? pinned = null,
-		NoteLinksInput? links = null,
-		string? supersedes_id = null,
-		string? chosen = null,
-		string? rejected = null,
-		string? reason = null,
-		string? basis = null,
-		string? trap = null,
-		string? escape = null,
-		string? actor = null)
+		string body,
+		string? tags,
+		bool? pinned,
+		NoteLinksInput? links,
+		string? supersedes_id,
+		string? actor,
+		string? basis)
 	{
 		try
 		{
 			var campaignId = McpArgs.Guid(campaign_id);
 			if (campaignId is null)
 				return McpResults.Error("campaign_id is required");
-			if (string.IsNullOrWhiteSpace(kind))
-				return McpResults.Error(
-					"kind is required. Valid values: Directive, Decision, Gotcha, Reference, Context");
 			if (string.IsNullOrWhiteSpace(title))
 				return McpResults.Error("title is required");
-
-			if (!Enum.TryParse<BunkerNoteKind>(kind, ignoreCase: true, out var noteKind))
-			{
-				return McpResults.Error(
-					$"Invalid kind: {kind}. Valid values: {string.Join(", ", Enum.GetNames<BunkerNoteKind>())}");
-			}
-
-			// Per-kind shape enforcement (MCP boundary only; HTTP endpoints stay free-form).
-			if (noteKind == BunkerNoteKind.Decision)
-			{
-				if (string.IsNullOrWhiteSpace(chosen))
-					return McpResults.Error(
-						"A Decision needs `chosen`: the option that was selected, so a later reader knows what direction was taken.");
-				if (string.IsNullOrWhiteSpace(rejected))
-					return McpResults.Error(
-						"A Decision needs `rejected`: what the alternative was, so a later reader can tell whether the rejection still holds.");
-				if (string.IsNullOrWhiteSpace(reason))
-					return McpResults.Error(
-						"A Decision needs `reason`: why the chosen option won out over the alternative.");
-				if (string.IsNullOrWhiteSpace(basis))
-					return McpResults.Error(
-						"A Decision needs `basis`: a pointer to where the claim can be checked — a #note, #objective.step, commit sha, or URL.");
-				body = $"**Chosen.** {chosen}\n\n**Rejected.** {rejected}\n\n**Reason.** {reason}\n\n**Basis.** {basis}";
-			}
-			else if (noteKind == BunkerNoteKind.Gotcha)
-			{
-				if (string.IsNullOrWhiteSpace(trap))
-					return McpResults.Error(
-						"A Gotcha needs `trap`: the thing that can go wrong, so the reader can watch for it.");
-				if (string.IsNullOrWhiteSpace(escape))
-					return McpResults.Error(
-						"A Gotcha needs `escape`: how to avoid or recover from the trap.");
-				body = $"**Trap.** {trap}\n\n**Escape.** {escape}";
-			}
-			else if (noteKind == BunkerNoteKind.Context)
-			{
-				if (links is null ||
-					(links.ObjectiveIds is null || links.ObjectiveIds.Count == 0) &&
-					(links.StepIds is null || links.StepIds.Count == 0))
-				{
-					return McpResults.Error(
-						"A Context note must link at least one objective or step so the reader knows what it belongs to.");
-				}
-			}
-			else if (noteKind == BunkerNoteKind.Directive || noteKind == BunkerNoteKind.Reference)
-			{
-				if (string.IsNullOrWhiteSpace(body))
-					return McpResults.Error(
-						noteKind == BunkerNoteKind.Directive
-							? "A Directive needs `body`: the hard rule to enforce."
-							: "A Reference needs `body`: the information or pointer to document.");
-			}
 
 			IEnumerable<Guid> linkedObjectiveIds =
 				McpArgs.Guids(links?.ObjectiveIds) ?? Array.Empty<Guid>();
@@ -102,9 +40,9 @@ public static class BunkerTools
 
 			var note = await service.CreateNoteAsync(
 				campaignId.Value,
-				noteKind,
+				kind,
 				title,
-				body ?? "",
+				body,
 				tags ?? "",
 				pinned ?? false,
 				McpArgs.Actor(actor),
@@ -120,6 +58,110 @@ public static class BunkerTools
 			return McpResults.Error(ex.Message);
 		}
 	}
+
+	// ── Per-kind tools ──
+
+	[McpServerTool(Name = "add_decision")]
+	[Description(
+		"Record a decision: a choice between named alternatives. Only call this " +
+		"when you can name the alternative you rejected and say why. If there was " +
+		"no alternative, there is no decision to record. `basis` points at where " +
+		"the claim can be checked (`#12`, `#12.3`, a commit sha, or a URL); it " +
+		"makes the claim cheap to disprove, not true.")]
+	public static async Task<object> AddDecisionAsync(
+		WarTableService service,
+		string campaign_id,
+		string title,
+		string chosen,
+		string rejected,
+		string reason,
+		string basis,
+		string? tags = null,
+		bool? pinned = null,
+		NoteLinksInput? links = null,
+		string? supersedes_id = null,
+		string? actor = null)
+	{
+		var body = $"**Chosen.** {chosen}\n\n**Rejected.** {rejected}\n\n**Reason.** {reason}\n\n**Basis.** {basis}";
+		return await CreateNoteAsync(
+			service, campaign_id, BunkerNoteKind.Decision, title, body,
+			tags, pinned, links, supersedes_id, actor, basis);
+	}
+
+	[McpServerTool(Name = "add_gotcha")]
+	[Description(
+		"Record a trap: something that can go wrong, and how to avoid or recover " +
+		"from it. Only if someone could reasonably do the wrong thing. If the code " +
+		"already makes it obvious, it is not a note.")]
+	public static async Task<object> AddGotchaAsync(
+		WarTableService service,
+		string campaign_id,
+		string title,
+		string trap,
+		string escape,
+		string? basis = null,
+		string? tags = null,
+		bool? pinned = null,
+		NoteLinksInput? links = null,
+		string? supersedes_id = null,
+		string? actor = null)
+	{
+		var body = $"**Trap.** {trap}\n\n**Escape.** {escape}";
+		return await CreateNoteAsync(
+			service, campaign_id, BunkerNoteKind.Gotcha, title, body,
+			tags, pinned, links, supersedes_id, actor, basis);
+	}
+
+	[McpServerTool(Name = "add_context")]
+	[Description(
+		"Record background that only means something for specific work. It must " +
+		"link at least one objective or step, and it goes dormant 30 days after " +
+		"nothing live links to it.")]
+	public static async Task<object> AddContextAsync(
+		WarTableService service,
+		string campaign_id,
+		string title,
+		NoteLinksInput links,
+		string? body = null,
+		string? tags = null,
+		bool? pinned = null,
+		string? basis = null,
+		string? supersedes_id = null,
+		string? actor = null)
+	{
+		if ((links.ObjectiveIds is null || links.ObjectiveIds.Count == 0) &&
+			(links.StepIds is null || links.StepIds.Count == 0))
+		{
+			return McpResults.Error(
+				"A Context note must link at least one objective or step so the reader knows what it belongs to.");
+		}
+
+		return await CreateNoteAsync(
+			service, campaign_id, BunkerNoteKind.Context, title, body ?? "",
+			tags, pinned, links, supersedes_id, actor, basis);
+	}
+
+	[McpServerTool(Name = "add_directive")]
+	[Description(
+		"Record a hard campaign rule that applies to all work. Rare: only when " +
+		"violating it is a defect, not a preference.")]
+	public static async Task<object> AddDirectiveAsync(
+		WarTableService service,
+		string campaign_id,
+		string title,
+		string body,
+		string? tags = null,
+		bool? pinned = null,
+		NoteLinksInput? links = null,
+		string? supersedes_id = null,
+		string? actor = null)
+	{
+		return await CreateNoteAsync(
+			service, campaign_id, BunkerNoteKind.Directive, title, body,
+			tags, pinned, links, supersedes_id, actor, basis: null);
+	}
+
+	// ── Other note tools (unchanged) ──
 
 	[McpServerTool(Name = "get_note")]
 	[Description("Get a Bunker note by its campaign-scoped alias (#N). Soft-deleted notes still resolve.")]
@@ -271,7 +313,7 @@ public static class BunkerTools
 	}
 }
 
-/// <summary>Optional links from a Bunker note to campaign objects.</summary>
+/// <summary>Links from a Bunker note to campaign objects.</summary>
 public sealed class NoteLinksInput
 {
 	public List<string>? ObjectiveIds { get; set; }

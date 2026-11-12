@@ -57,19 +57,23 @@ Bunker notes; it does not execute work.
   property.
 - Opening a step with get_step returns a bounded knowledge context: linked,
   tagged, and semantically related directives, decisions, gotchas, and
-  references as excerpts. Read it before starting. Use get_context before shaping
+  context notes as excerpts. Read it before starting. Use get_context before shaping
   a new objective that touches existing code. get_note is the only full-body
   read.
 - Deleting a step removes dependency edges. If another step depends on it, the
   tool refuses unless force=true; review the affected refs before forcing.
 - Move steps Open -> InProgress -> Done as you work. Use add_step_update for
-  notes, blockers, results, and handoffs; attach evidence when a step is done.
-  Flag work that needs human review.
+  notes, blockers, results, and handoffs. When a step is finished, prefer a step
+  update saying what changed and how it was checked; add evidence only for proof
+  the repository cannot show, as a URL or a commit sha. Flag work that needs
+  human review.
 - Objective status is derived from steps; never set it directly.
-- Record durable decisions, gotchas, references, and context notes with add_note.
-  Kinds are Directive, Decision, Gotcha, Reference, and Context. A Decision states
-  what was chosen, what was rejected, why, and a basis (a #note, #objective.step,
-  commit sha, or URL) where the claim can be checked.
+- Each note kind has its own MCP tool: add_decision, add_gotcha, add_context,
+  add_directive. There is no generic add_note or add_reference because each
+  kind has a required shape — reference material belongs in the step or
+  objective it serves (its context, or evidence for an artifact). The one rule:
+  a decision is only recorded when you can name a rejected alternative and say
+  why — if there was no alternative, there is no decision to record.
 - Before adding a note, or when the human asks whether something was already
   discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
   alias and snippet rather than assuming. Search results can include dormant
@@ -79,6 +83,10 @@ Bunker notes; it does not execute work.
 - Directives are hard, always-on campaign rules. Preferences are advisory and
   human-global. If a campaign directive conflicts with a preference, surface the
   conflict.
+- Evidence is proof that lives outside the repository — use add_evidence with
+  a URL (Link) or commit sha (Commit). WarTable stores no files, so never point
+  at a path; if the work is in the repository, cite the commit or write a step
+  update instead.
 - WarTable does not enforce approval gates. Verify before implementation only if
   your own instructions require it.
 

@@ -253,8 +253,8 @@ Optional proof attached to a step. Makes "done" inspectable.
 | `Id` | GUID |
 | `StepId` | |
 | `Label` | Short description. |
-| `Kind` | `Link`, `File`, `Commit`, `Test`, `Screenshot`, `Other`. |
-| `Value` | URL, path, hash, or result text. |
+| `Kind` | `Link`, `Commit`. A kind survives only if a reader can dereference the value — WarTable stores no files. If the proof is already in the repository, the commit is the citation. |
+| `Value` | URL or commit sha. |
 | `CreatedBy`, `CreatedAt` | |
 
 ### BunkerNote
@@ -266,7 +266,7 @@ Campaign knowledge and campaign directives.
 | `Id` | GUID |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, shared counter with objectives, never reused. |
-| `Kind` | `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`. |
+| `Kind` | `Directive`, `Decision`, `Gotcha`, `Context`. |
 | `Title` | |
 | `Body` | Markdown. |
 | `Status` | `Active` or `Superseded`. `Resolved` still reads but is no longer produced. |
@@ -281,7 +281,7 @@ Campaign knowledge and campaign directives.
 Each kind has a shape the agent must supply, enforced at the MCP boundary:
 `Decision` needs the chosen option, the rejected alternative, the reason, and a
 basis; `Gotcha` needs the trap and the escape; `Context` needs at least one
-objective or step link; `Directive` and `Reference` need a body. The shape is a
+objective or step link; `Directive` needs a body. The shape is a
 template written into the body, not a certificate — see principle 10. HTTP note
 writes stay free-form, because the human is not the unreliable narrator.
 
@@ -291,8 +291,8 @@ Links to objectives and steps are optional and many-to-many.
 state is derived on read from the pinned flag, the kind, and whether any link
 still points at unfinished work. It is never stored, never assigned, and never a
 column. A dormant note is not wrong — nothing in the data supports that claim —
-it is simply no longer served to agents. Only `Gotcha`, `Context`, and
-`Reference` decay: they are about work in flight, so a month without a live link
+it is simply no longer served to agents. Only `Gotcha` and `Context` decay:
+they are about work in flight, so a month without a live link
 retires them. A `Decision` dies only when a superseding decision replaces it,
 because "we chose X over Y" stays true until someone chooses differently. A
 `Directive` is pinned and exempt; the human retires it.
@@ -339,7 +339,7 @@ component. `get_plan` adds only explicit-link counts and never runs semantic
 retrieval per objective.
 
 Context is grouped by kind with per-kind quotas (directives 10, decisions 5,
-gotchas 5, references 3, context 3), so a long reference cannot bury the gotchas.
+gotchas 5, context 3), so many context notes cannot bury the gotchas.
 Each entry carries alias, title, a 240-character excerpt, heading path, match
 reasons (`linked-step`, `linked-objective`, `tag`, `directive`, `semantic`,
 `keyword`), and a count of omitted entries. Ranking puts pinned/directive and
@@ -542,7 +542,10 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `add_note` | `campaign_id`, `kind`, `title`, `body`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | |
+| `add_decision` | `campaign_id`, `title`, `chosen`, `rejected`, `reason`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `chosen`/`rejected`/`reason`; sets `Basis` column to `basis`. |
+| `add_gotcha` | `campaign_id`, `title`, `trap`, `escape`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `trap`/`escape`. |
+| `add_context` | `campaign_id`, `title`, `links`, `body`, `basis`, `tags`, `pinned`, `supersedes_id`, `actor` | Must link at least one objective or step. |
+| `add_directive` | `campaign_id`, `title`, `body`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | |
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
 | `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
@@ -570,7 +573,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   Use `get_plan` when the complete objective and step graph is needed.
 - When opening a step, read its `knowledge` block before starting: linked,
   tagged, and semantically related directives, decisions, gotchas, and
-  references are returned as excerpts. Use `get_context` before shaping an
+  context notes are returned as excerpts. Use `get_context` before shaping an
   objective that integrates with existing code. `get_note` is the only
   full-body read.
 - Resolve the campaign before planning or recording work. Prefer an explicit
@@ -591,7 +594,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   it will not be executed immediately; activate when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
-- Record durable decisions, gotchas, references, and context notes in the Bunker
+- Record durable decisions, gotchas, and context notes in the Bunker
   as they arise. Each kind has a shape to fill in: a decision states what was
   chosen, what was rejected, why, and where the claim can be checked.
 - Before adding a note, or when asked whether something was already discussed,

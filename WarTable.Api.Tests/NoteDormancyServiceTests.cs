@@ -121,7 +121,7 @@ public class NoteDormancyServiceTests
 			campaign.Id, "O", "", PlanState.Active, Human);
 
 		var note = await ctx.Service.CreateNoteAsync(
-			campaign.Id, BunkerNoteKind.Reference, "Old reference", "Body", "", false, Human,
+			campaign.Id, BunkerNoteKind.Context, "Old context", "Body", "", false, Human,
 			new[] { objective.Id }, Array.Empty<Guid>(), null);
 		await AgeNoteAsync(ctx, note, 40);
 

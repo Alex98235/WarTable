@@ -77,7 +77,6 @@ public class NoteDormancyTests
 	[Theory]
 	[InlineData(BunkerNoteKind.Gotcha)]
 	[InlineData(BunkerNoteKind.Context)]
-	[InlineData(BunkerNoteKind.Reference)]
 	public void NoLiveLink_OldEnough_IsDormant(BunkerNoteKind kind)
 	{
 		var note = Note(kind);

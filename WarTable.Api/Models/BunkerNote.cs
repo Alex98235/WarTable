@@ -84,7 +84,6 @@ public enum BunkerNoteKind
 	Directive,
 	Decision,
 	Gotcha,
-	Reference,
 	Context,
 }
 

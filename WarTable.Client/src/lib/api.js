@@ -204,11 +204,11 @@ export function truncate(text, maxLen = 120) {
 export const STEP_STATUSES = ['open', 'in-progress', 'done', 'flagged', 'blocked'];
 
 /** All note kinds and statuses, matching the backend enums. */
-export const NOTE_KINDS = ['Directive', 'Decision', 'Gotcha', 'Reference', 'Context'];
+export const NOTE_KINDS = ['Directive', 'Decision', 'Gotcha', 'Context'];
 
 /** Kinds the generic Bunker capture dialog may create. */
 export const NOTE_CREATE_KINDS = NOTE_KINDS;
 
 export const NOTE_STATUSES = ['Active', 'Superseded', 'Resolved'];
-export const EVIDENCE_KINDS = ['Link', 'File', 'Commit', 'Test', 'Screenshot', 'Other'];
+export const EVIDENCE_KINDS = ['Link', 'Commit'];
 export const UPDATE_KINDS = ['Note', 'Blocker', 'Result', 'Handoff'];

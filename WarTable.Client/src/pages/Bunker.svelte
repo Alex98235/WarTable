@@ -543,8 +543,8 @@
 		<p class="eyebrow">Campaign knowledge</p>
 		<h1 class="page-title">The Bunker</h1>
 		<p class="lede">
-			Directives are always applied. Decisions, gotchas, references, and context are searched
-			when they matter. The charter frames the campaign. Nothing here is a status report.
+			Directives are always applied. Decisions, gotchas, and context are searched when they
+			matter. The charter frames the campaign. Nothing here is a status report.
 		</p>
 	</div>
 	<div class="page-actions">
@@ -781,7 +781,7 @@
 					<div class="inline-empty">
 						{hasFilters
 							? 'No notes match those filters.'
-							: 'The Bunker is empty. Capture a directive, decision, gotcha, reference, or context note.'}
+							: 'The Bunker is empty. Capture a directive, decision, gotcha, or context note.'}
 					</div>
 				{:else}
 					<ul class="note-list">
@@ -895,8 +895,8 @@
 
 					{#if selectedNote.dormant}
 						<div class="notice">
-							Nothing links this note to live work, so it is not served to agents. Link
-							it to an open step or unfinished objective to bring it back.
+							Nothing links this note to live work, so it is not served to agents.
+							Link it to an open step or unfinished objective to bring it back.
 						</div>
 					{/if}
 

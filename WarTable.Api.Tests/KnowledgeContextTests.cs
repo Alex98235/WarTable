@@ -39,7 +39,7 @@ public class KnowledgeContextTests
 				new[] { objective.Id }, Array.Empty<Guid>(), null);
 
 			var reference = await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "Alpha deployment runbook",
+				campaign.Id, BunkerNoteKind.Context, "Alpha deployment runbook",
 				"The alpha deployment runbook documents the release checklist and rollback.",
 				"", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
@@ -287,7 +287,7 @@ public class KnowledgeContextTests
 				campaign.Id, BunkerNoteKind.Gotcha, "G2 on step", "", "", false, Human,
 				Array.Empty<Guid>(), new[] { linkedStep.Id }, null);
 			await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "R1", "", "", false, Human,
+				campaign.Id, BunkerNoteKind.Context, "R1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
 				campaign.Id, BunkerNoteKind.Context, "C1", "", "", false, Human,
@@ -309,13 +309,12 @@ public class KnowledgeContextTests
 			var linkedCounts = counts[linked.Id];
 			Assert.Equal(1, linkedCounts.Decisions);
 			Assert.Equal(2, linkedCounts.Gotchas);
-			Assert.Equal(1, linkedCounts.References);
-			Assert.Equal(2, linkedCounts.Context);
+			Assert.Equal(3, linkedCounts.Context);
 			Assert.Equal(6, linkedCounts.Total);
 
 			var unlinkedCounts = counts[unlinked.Id];
 			Assert.Equal(0, unlinkedCounts.Total);
-			Assert.Equal(new KnowledgeCounts(0, 0, 0, 0), unlinkedCounts);
+			Assert.Equal(new KnowledgeCounts(0, 0, 0), unlinkedCounts);
 		}
 		finally
 		{
@@ -340,7 +339,7 @@ public class KnowledgeContextTests
 				"Alpha integration details.", "", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
 			var tagged = await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "Release checklist",
+				campaign.Id, BunkerNoteKind.Context, "Release checklist",
 				"Checks for every release.", "release,ops", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
 

@@ -51,7 +51,6 @@ public sealed class KnowledgeContextService
 		BunkerNoteKind.Directive,
 		BunkerNoteKind.Decision,
 		BunkerNoteKind.Gotcha,
-		BunkerNoteKind.Reference,
 		BunkerNoteKind.Context,
 	];
 
@@ -61,7 +60,6 @@ public sealed class KnowledgeContextService
 			[BunkerNoteKind.Directive] = 10,
 			[BunkerNoteKind.Decision] = 5,
 			[BunkerNoteKind.Gotcha] = 5,
-			[BunkerNoteKind.Reference] = 3,
 			[BunkerNoteKind.Context] = 3,
 		};
 
@@ -198,7 +196,7 @@ public sealed class KnowledgeContextService
 	{
 		var counts = objectives.ToDictionary(
 			objective => objective.Id,
-			_ => new KnowledgeCounts(0, 0, 0, 0));
+			_ => new KnowledgeCounts(0, 0, 0));
 
 		if (objectives.Count == 0)
 			return counts;
@@ -215,7 +213,6 @@ public sealed class KnowledgeContextService
 		{
 			var decisions = 0;
 			var gotchas = 0;
-			var references = 0;
 			var context = 0;
 
 			foreach (var note in notes)
@@ -235,9 +232,6 @@ public sealed class KnowledgeContextService
 					case BunkerNoteKind.Gotcha:
 						gotchas++;
 						break;
-					case BunkerNoteKind.Reference:
-						references++;
-						break;
 					case BunkerNoteKind.Context:
 						context++;
 						break;
@@ -245,7 +239,7 @@ public sealed class KnowledgeContextService
 			}
 
 			counts[objective.Id] = new KnowledgeCounts(
-				decisions, gotchas, references, context);
+				decisions, gotchas, context);
 		}
 
 		return counts;

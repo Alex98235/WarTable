@@ -28,7 +28,6 @@
 		directive: 'directive',
 		decision: 'decision',
 		gotcha: 'gotcha',
-		reference: 'reference',
 		context: 'context',
 		// Step update kinds
 		note: 'muted',
@@ -37,11 +36,7 @@
 		handoff: 'review',
 		// Evidence kinds
 		link: 'reference',
-		file: 'context',
-		commit: 'decision',
-		test: 'done',
-		screenshot: 'directive',
-		other: 'muted'
+		commit: 'decision'
 	};
 
 	const labelByKey = {

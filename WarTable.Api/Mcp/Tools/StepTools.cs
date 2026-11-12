@@ -221,7 +221,7 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "add_evidence")]
-	[Description("Attach inspectable proof (URL, path, hash or result text) to a step.")]
+	[Description("Attach proof that lives outside the repository — a CI run, a deployed instance, a third-party result. WarTable stores no files, so never point at a path; if the work is in the repository, cite the commit or write a step update instead. Value is a URL (for Link) or a commit sha (for Commit).")]
 	public static async Task<object> AddEvidenceAsync(
 		WarTableService service,
 		string step_id,
@@ -246,6 +246,27 @@ public static class StepTools
 			{
 				return McpResults.Error(
 					$"Invalid kind: {kind}. Valid values: {string.Join(", ", Enum.GetNames<EvidenceKind>())}");
+			}
+
+			// Validate the value matches the kind.
+			if (evidenceKind == EvidenceKind.Commit)
+			{
+				// 7-40 hex characters, no other shape.
+				if (value.Length < 7 || value.Length > 40 ||
+					!value.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+				{
+					return McpResults.Error(
+						"A Commit needs a sha, not a description: 7-40 hex characters.");
+				}
+			}
+			else // Link
+			{
+				if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+					(uri.Scheme != "http" && uri.Scheme != "https"))
+				{
+					return McpResults.Error(
+						"A Link needs an absolute http or https URL.");
+				}
 			}
 
 			var evidence = await service.AddEvidenceAsync(

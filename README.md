@@ -14,7 +14,7 @@ It also stores the context around the work:
 - **Preferences** — global soft rules about how you like to work, worth
   remembering between sessions.
 - **Bunker notes** — campaign-specific knowledge: directives, decisions,
-  gotchas, references, and context.
+  gotchas, and context.
 
 Built with C# ASP.NET Minimal API, EF Core + SQLite, Svelte 5, and the official
 MCP C# SDK. The product and domain design lives in
