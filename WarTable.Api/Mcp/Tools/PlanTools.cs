@@ -95,7 +95,7 @@ public static class PlanTools
 	[Description(
 		"Get a campaign's full plan: objectives in order, each with its steps, updates and " +
 		"evidence, plus a `knowledge` summary of explicit note-link counts by kind " +
-		"(decisions, gotchas, references, context, questions). Zero counts mean no explicit " +
+		"(decisions, gotchas, context, questions). Zero counts mean no explicit " +
 		"links; use `get_context` or `search_knowledge` for semantic discovery and `get_note` " +
 		"for full bodies.")]
 	public static async Task<object> GetPlanAsync(

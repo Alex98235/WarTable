@@ -21,6 +21,13 @@ public class BunkerNote
 	/// <summary>Markdown.</summary>
 	public string Body { get; set; } = "";
 
+	/// <summary>
+	/// Derived on read: Superseded when another non-deleted note in the same campaign
+	/// has <see cref="SupersedesId"/> == this note's <see cref="Id"/>. Never stored —
+	/// no column, no migration. Populated by the service via an EXISTS query; default
+	/// <c>Active</c> is used everywhere else.
+	/// </summary>
+	[NotMapped]
 	public BunkerNoteStatus Status { get; set; } = BunkerNoteStatus.Active;
 	public bool Pinned { get; set; }
 	public string Tags { get; set; } = "";
@@ -30,6 +37,21 @@ public class BunkerNote
 
 	/// <summary>For decisions that replace earlier decisions.</summary>
 	public Guid? SupersedesId { get; set; }
+
+	/// <summary>
+	/// Human-only confirmation timestamp. Set only by the UI/HTTP path, never by
+	/// an MCP tool, so an agent cannot self-certify its own output. A filled value
+	/// records that a human reviewed the note; it is not evidence the content is true.
+	/// </summary>
+	public DateTime? ApprovedAt { get; set; }
+
+	/// <summary>
+	/// Pointer to the artifact a claim rests on: a WarTable reference such as
+	/// <c>#12</c> or <c>#12.3</c>, a commit sha, or a URL. Nullable. Because this is
+	/// set by the note author (usually an agent), it is a claim, not a guarantee:
+	/// an unresolvable basis self-identifies the note as unfounded.
+	/// </summary>
+	public string? Basis { get; set; }
 
 	public DateTime? DeletedAt { get; set; }
 
@@ -45,6 +67,23 @@ public class BunkerNote
 	/// <summary>Populated by the service for serialization.</summary>
 	[NotMapped]
 	public List<Guid> LinkedStepIds { get; set; } = new();
+
+	/// <summary>
+	/// Derived on read: true when nothing live points at this note any more (see
+	/// <c>NoteDormancy</c>). Never stored — no column, no migration, no soft
+	/// delete. Populated by the service only where dormancy is computed; everywhere
+	/// else it stays false, which is the truth for pushed surfaces because dormant
+	/// notes are filtered out there.
+	/// </summary>
+	[NotMapped]
+	public bool Dormant { get; set; }
+
+	/// <summary>
+	/// Days since <see cref="UpdatedAt"/> for a dormant note; 0 elsewhere. Derived
+	/// on read, never stored. Populated together with <see cref="Dormant"/>.
+	/// </summary>
+	[NotMapped]
+	public int DormantDays { get; set; }
 }
 
 public enum BunkerNoteKind
@@ -52,16 +91,11 @@ public enum BunkerNoteKind
 	Directive,
 	Decision,
 	Gotcha,
-	Reference,
 	Context,
-	Question,
-	Charter,
-	DesignDoc,
 }
 
 public enum BunkerNoteStatus
 {
 	Active,
 	Superseded,
-	Resolved,
 }

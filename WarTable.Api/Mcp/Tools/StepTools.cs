@@ -221,7 +221,7 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "add_evidence")]
-	[Description("Attach inspectable proof (URL, path, hash or result text) to a step.")]
+	[Description("Attach proof that lives outside the repository — a CI run, a deployed instance, a third-party result. WarTable stores no files, so never point at a path; if the work is in the repository, cite the commit or write a step update instead. Value is a URL (for Link) or a commit sha (for Commit).")]
 	public static async Task<object> AddEvidenceAsync(
 		WarTableService service,
 		string step_id,
@@ -248,6 +248,27 @@ public static class StepTools
 					$"Invalid kind: {kind}. Valid values: {string.Join(", ", Enum.GetNames<EvidenceKind>())}");
 			}
 
+			// Validate the value matches the kind.
+			if (evidenceKind == EvidenceKind.Commit)
+			{
+				// 7-40 hex characters, no other shape.
+				if (value.Length < 7 || value.Length > 40 ||
+					!value.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
+				{
+					return McpResults.Error(
+						"A Commit needs a sha, not a description: 7-40 hex characters.");
+				}
+			}
+			else // Link
+			{
+				if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+					(uri.Scheme != "http" && uri.Scheme != "https"))
+				{
+					return McpResults.Error(
+						"A Link needs an absolute http or https URL.");
+				}
+			}
+
 			var evidence = await service.AddEvidenceAsync(
 				stepId.Value,
 				label,
@@ -258,6 +279,36 @@ public static class StepTools
 			return evidence is null
 				? McpResults.Error($"Step not found: {stepId}")
 				: evidence;
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "delete_evidence")]
+	[Description("Remove a citation that is wrong or no longer true; a citation nobody can retract is a claim, not proof. Deletes the evidence row permanently; there is no soft delete.")]
+	public static async Task<object> DeleteEvidenceAsync(
+		WarTableService service,
+		string step_id,
+		string evidence_id,
+		string? actor = null)
+	{
+		try
+		{
+			var stepId = McpArgs.Guid(step_id);
+			if (stepId is null)
+				return McpResults.Error("step_id is required");
+
+			var evidenceId = McpArgs.Guid(evidence_id);
+			if (evidenceId is null)
+				return McpResults.Error("evidence_id is required");
+
+			var removed = await service.RemoveEvidenceAsync(stepId.Value, evidenceId.Value, McpArgs.Actor(actor));
+
+			return removed is null
+				? McpResults.Error($"Evidence not found: {evidenceId}")
+				: new { ok = true, step_id = stepId, evidence_id = evidenceId, label = removed.Label };
 		}
 		catch (Exception ex)
 		{

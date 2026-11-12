@@ -14,7 +14,7 @@ public static class LookupTools
 		"Resolve a campaign-scoped alias (#N) to the objective or Bunker note it identifies. " +
 		"Soft-deleted objects still resolve, with \"deleted\": true. Objectives include a " +
 		"compact summary plus a bounded `knowledge` context (linked notes, tagged notes and " +
-		"semantically related gotchas/decisions/references as short excerpts). Knowledge is " +
+		"semantically related gotchas/decisions/context as short excerpts). Knowledge is " +
 		"null for notes and when `include_knowledge` is false. Full note bodies are only " +
 		"available through `get_note`; a `knowledge_error` means context was skipped.")]
 	public static async Task<object> GetObjectAsync(
@@ -95,7 +95,7 @@ public static class LookupTools
 	[Description(
 		"Resolve a #N.M step reference to the step, including its updates, evidence and " +
 		"dependencies, plus a bounded `knowledge` context of linked, tagged and semantically " +
-		"related gotchas, decisions, references and directives as short excerpts. Set " +
+		"related gotchas, decisions, context and directives as short excerpts. Set " +
 		"`include_knowledge` to false to skip context. Full note bodies are only available " +
 		"through `get_note`; `knowledge_error` reports a skipped context without failing the step.")]
 	public static async Task<object> GetStepAsync(
@@ -148,7 +148,7 @@ public static class LookupTools
 	[Description(
 		"Get bounded campaign knowledge for pre-planning or new integration work. Supply " +
 		"`campaign_id` plus at least one of `objective_id`, `step_id`, `query` or `tags`. " +
-		"Returns directives, decisions, gotchas, references, context and open questions as " +
+		"Returns directives, decisions, gotchas, context and open questions as " +
 		"short excerpts grouped by kind, with linked/tagged/semantic match reasons. Context " +
 		"degrades to explicit links and directives when embeddings are unavailable " +
 		"(`degraded: true` with a reason). Full note bodies are only available through `get_note`.")]

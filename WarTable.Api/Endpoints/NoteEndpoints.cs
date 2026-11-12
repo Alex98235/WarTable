@@ -20,10 +20,11 @@ public record CreateNoteRequest(
 public record UpdateNoteRequest(
 	string? Title = null,
 	string? Body = null,
-	BunkerNoteStatus? Status = null,
 	bool? Pinned = null,
 	string? Tags = null,
 	Guid? SupersedesId = null,
+	string? Basis = null,
+	DateTime? ApprovedAt = null,
 	string? Actor = null);
 
 /// <summary>
@@ -54,6 +55,7 @@ public static class NoteEndpoints
 			BunkerNoteKind? kind,
 			BunkerNoteStatus? status,
 			bool? includeDeleted,
+			bool? includeDormant,
 			WarTableService service) =>
 		{
 			var notes = await service.GetNotesAsync(
@@ -61,7 +63,8 @@ public static class NoteEndpoints
 				search,
 				kind,
 				status,
-				includeDeleted ?? false);
+				includeDeleted ?? false,
+				includeDormant ?? false);
 			return Results.Ok(notes);
 		});
 
@@ -99,12 +102,13 @@ public static class NoteEndpoints
 			try
 			{
 				var patch = new BunkerNotePatch(
-					request.Title,
-					request.Body,
-					request.Status,
-					request.Pinned,
-					request.Tags,
-					request.SupersedesId);
+					Title: request.Title,
+					Body: request.Body,
+					Pinned: request.Pinned,
+					Tags: request.Tags,
+					SupersedesId: request.SupersedesId,
+					Basis: request.Basis,
+					ApprovedAt: request.ApprovedAt);
 				var updated = await service.UpdateNoteAsync(id, patch, Actor(request.Actor));
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}

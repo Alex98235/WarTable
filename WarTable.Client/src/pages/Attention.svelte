@@ -18,7 +18,6 @@
 		{ value: 'all', label: 'Everything' },
 		{ value: 'flagged', label: 'Flagged' },
 		{ value: 'blocked', label: 'Blocked' },
-		{ value: 'questions', label: 'Questions' },
 		{ value: 'stale', label: 'Stale' },
 		{ value: 'drafts', label: 'Drafts' },
 		{ value: 'seeds', label: 'Seeds' }
@@ -43,12 +42,6 @@
 			label: 'Blocked objectives',
 			hint: 'Derived from blocked or waiting work',
 			items: attention?.blockedObjectives ?? []
-		},
-		{
-			key: 'questions',
-			label: 'Open questions',
-			hint: 'Bunker questions still active',
-			items: attention?.openQuestions ?? []
 		},
 		{
 			key: 'stale',
@@ -148,8 +141,8 @@
 		<p class="eyebrow">Cross-campaign inbox</p>
 		<h1 class="page-title">What needs a human</h1>
 		<p class="lede">
-			Flagged steps come first, then blockers, open questions, and work that has gone quiet.
-			Draft plans and seeds are parked separately so they never masquerade as urgent.
+			Flagged steps come first, then blockers, and work that has gone quiet. Draft plans and
+			seeds are parked separately so they never masquerade as urgent.
 		</p>
 	</div>
 	<div class="page-actions">
@@ -219,7 +212,7 @@
 		<p>
 			{hasFilters
 				? 'Widen the filters to see the rest of the inbox.'
-				: 'No flagged steps, blocked objectives, open questions, or stale work across any campaign.'}
+				: 'No flagged steps, blocked objectives, or stale work across any campaign.'}
 		</p>
 		{#if hasFilters}
 			<button type="button" class="btn btn-secondary" onclick={clearFilters}

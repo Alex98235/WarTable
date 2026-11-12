@@ -176,24 +176,20 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task CreateCampaign_WithCharter_CreatesCharterNote()
+	public async Task CreateCampaign_WithCharter_StoresOnCampaign()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 
 		var campaign = await ctx.Service.CreateCampaignAsync(
 			"Chartered", "# Why\n\nBecause.", "tag", Human);
 
-		var charter = Assert.Single(await ctx.Service.GetNotesAsync(
-			campaign.Id, null, BunkerNoteKind.Charter, null));
-		Assert.Equal("Charter", charter.Title);
-		Assert.Equal("# Why\n\nBecause.", charter.Body);
-		Assert.Equal(1, charter.Alias);
-		Assert.Equal(1, campaign.CharterAlias);
+		// Charter is stored on the campaign column, not as a note.
+		Assert.Equal("# Why\n\nBecause.", campaign.Charter);
 		Assert.Equal("# Why\n\nBecause.", campaign.CharterExcerpt);
+		Assert.Empty(await ctx.Service.GetNotesAsync(campaign.Id, null, null, null));
 
 		var listed = Assert.Single(await ctx.Service.GetCampaignsAsync());
 		Assert.Equal("# Why\n\nBecause.", listed.CharterExcerpt);
-		Assert.Equal(1, listed.CharterAlias);
 	}
 
 	[Fact]
@@ -202,51 +198,72 @@ public class WarTableServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "First charter", "", Human);
 
-		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-			ctx.Service.CreateNoteAsync(
-				campaign.Id,
-				BunkerNoteKind.Charter,
-				"Another charter",
-				"Second",
-				"",
-				false,
-				Human,
-				Array.Empty<Guid>(),
-				Array.Empty<Guid>(),
-				null));
-
-		Assert.Contains("already has a charter", exception.Message, StringComparison.OrdinalIgnoreCase);
+		// Charter is no longer a note kind, so trying to create a Charter note
+		// will fail at enum parsing. This test is kept for the shape — the
+		// removed guard is gone.
 	}
 
 	[Fact]
-	public async Task Briefing_IncludesCharterAndDesignDocs()
+	public async Task Briefing_CharterComesFromColumn_AndNoDesignDocsSection()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync(
 			"Framed", "Charter body", "", Human);
 
-		await ctx.Service.CreateNoteAsync(
-			campaign.Id,
-			BunkerNoteKind.DesignDoc,
-			"Index lifecycle",
-			"Design body",
-			"search, index",
-			false,
-			Human,
-			Array.Empty<Guid>(),
-			Array.Empty<Guid>(),
-			null);
-
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 
 		Assert.NotNull(briefing.Charter);
-		Assert.Equal("Charter", briefing.Charter!.Title);
-		Assert.Equal("Charter body", briefing.Charter.Excerpt);
-		Assert.Equal(1, briefing.Campaign.CharterAlias);
+		Assert.Equal("Charter body", briefing.Charter!.Excerpt);
 		Assert.Equal("Charter body", briefing.Campaign.CharterExcerpt);
-		var designDoc = Assert.Single(briefing.DesignDocs);
-		Assert.Equal("Index lifecycle", designDoc.Title);
-		Assert.Equal(BunkerNoteKind.DesignDoc, designDoc.Kind);
+		Assert.Empty(briefing.DesignDocs);
+	}
+
+	[Fact]
+	public async Task UpdateCampaign_Charter_ReplacesColumn()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "Original charter", "", Human);
+
+		await ctx.Service.UpdateCampaignAsync(
+			campaign.Id,
+			new CampaignPatch(Charter: "Replaced charter"),
+			Human);
+
+		var reloaded = await ctx.Service.GetCampaignAsync(campaign.Id);
+		Assert.NotNull(reloaded);
+		Assert.Equal("Replaced charter", reloaded!.Charter);
+		Assert.Equal("Replaced charter", reloaded.CharterExcerpt);
+	}
+
+	[Fact]
+	public async Task NoteBodyEdit_ClearsApprovedAt()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var note = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Approved decision",
+			"Original text.", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		// Set ApprovedAt via the patch (simulates human confirmation).
+		var approvalTime = DateTime.UtcNow;
+		await ctx.Service.UpdateNoteAsync(
+			note.Id,
+			new BunkerNotePatch(ApprovedAt: approvalTime),
+			Human);
+		var withApproval = await ctx.Service.GetNoteAsync(note.Id);
+		Assert.NotNull(withApproval);
+		Assert.NotNull(withApproval!.ApprovedAt);
+
+		// Editing the body must clear ApprovedAt.
+		await ctx.Service.UpdateNoteAsync(
+			note.Id,
+			new BunkerNotePatch(Body: "Revised text."),
+			Human);
+		var afterEdit = await ctx.Service.GetNoteAsync(note.Id);
+		Assert.NotNull(afterEdit);
+		Assert.Equal("Revised text.", afterEdit!.Body);
+		Assert.Null(afterEdit.ApprovedAt);
 	}
 
 	[Fact]
@@ -444,5 +461,212 @@ public class WarTableServiceTests
 		var draftItem = Assert.Single(attention.DraftObjectives);
 		Assert.Equal(seed.Id, draftItem.EntityId);
 		Assert.Empty(attention.SeedObjectives);
+	}
+
+	[Fact]
+	public async Task RemoveEvidence_RemovesRowAndRecordsActivityEvent()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			step.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(step.Id, evidence!.Id, "tester");
+
+		Assert.NotNull(removed);
+		Assert.Equal(evidence.Id, removed!.Id);
+		Assert.Empty(await ctx.Service.GetEvidenceAsync(step.Id));
+
+		var activity = await ctx.Service.GetActivityAsync(campaign.Id, null);
+		var deleted = Assert.Single(activity, e => e.Action == "Deleted");
+		Assert.Equal($"Removed evidence from step #{objective.Alias}.{step.StepNumber}: CI run", deleted.Summary);
+		Assert.Equal("tester", deleted.Actor);
+	}
+
+	[Fact]
+	public async Task RemoveEvidence_UnknownId_FailsWithoutEvent()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			step.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var before = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(step.Id, Guid.NewGuid(), Human);
+
+		Assert.Null(removed);
+		Assert.Single(await ctx.Service.GetEvidenceAsync(step.Id));
+		var after = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+		Assert.Equal(before, after);
+	}
+
+	[Fact]
+	public async Task RemoveEvidence_FromDifferentStep_DoesNotSucceed()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var stepA = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var stepB = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var evidence = await ctx.Service.AddEvidenceAsync(
+			stepA.Id, "CI run", EvidenceKind.Link, "https://ci.example.com/run/42", Human);
+		Assert.NotNull(evidence);
+
+		var before = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+
+		var removed = await ctx.Service.RemoveEvidenceAsync(stepB.Id, evidence!.Id, Human);
+
+		Assert.Null(removed);
+		var onA = Assert.Single(await ctx.Service.GetEvidenceAsync(stepA.Id));
+		Assert.Equal(evidence.Id, onA.Id);
+		Assert.Empty(await ctx.Service.GetEvidenceAsync(stepB.Id));
+		var after = (await ctx.Service.GetActivityAsync(campaign.Id, null))
+			.Count(e => e.Action == "Deleted");
+		Assert.Equal(before, after);
+	}
+
+	// ── Derived note status ──
+
+	[Fact]
+	public async Task SupersedingNote_DerivesSupersededStatus_OnSupersededNote()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var original = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Original", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		// Before supersession: reads as Active.
+		var before = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(before);
+		Assert.Equal(BunkerNoteStatus.Active, before!.Status);
+
+		// Create a successor that supersedes the original.
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), original.Id);
+
+		// After supersession: original reads as Superseded with no explicit Status write.
+		var after = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(after);
+		Assert.Equal(BunkerNoteStatus.Superseded, after!.Status);
+	}
+
+	[Fact]
+	public async Task SupersedingNote_ReadsActive_WhenSuccessorIsSoftDeleted()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var original = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Original", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		var successor = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), original.Id);
+
+		// Soft-delete the successor.
+		await ctx.Service.DeleteNoteAsync(successor.Id, Human);
+
+		// Original reads as Active again because its only superseder was deleted.
+		var after = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(after);
+		Assert.Equal(BunkerNoteStatus.Active, after!.Status);
+	}
+
+	[Fact]
+	public async Task GetNotes_FiltersByDerivedStatus_Active()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var active = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Active", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Gotcha, "Will be superseded", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var activeNotes = await ctx.Service.GetNotesAsync(
+			campaign.Id, null, null, BunkerNoteStatus.Active);
+		Assert.Contains(activeNotes, n => n.Id == active.Id);
+		Assert.DoesNotContain(activeNotes, n => n.Id == superseded.Id);
+	}
+
+	[Fact]
+	public async Task GetNotes_FiltersByDerivedStatus_Superseded()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var active = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Active", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Gotcha, "Will be superseded", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var supersededNotes = await ctx.Service.GetNotesAsync(
+			campaign.Id, null, null, BunkerNoteStatus.Superseded);
+		Assert.DoesNotContain(supersededNotes, n => n.Id == active.Id);
+		Assert.Contains(supersededNotes, n => n.Id == superseded.Id);
+	}
+
+	[Fact]
+	public async Task GetDirectives_ExcludesSuperseded()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var directive = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Active directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var supersededDirective = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Superseded directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Successor directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), supersededDirective.Id);
+
+		var directives = await ctx.Service.GetDirectivesAsync(campaign.Id);
+		Assert.Contains(directives, n => n.Id == directive.Id);
+		Assert.DoesNotContain(directives, n => n.Id == supersededDirective.Id);
+	}
+
+	[Fact]
+	public async Task Briefing_ExcludesSupersededDecisions()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var decision = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Active decision", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Superseded decision", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+		Assert.Contains(briefing.RecentDecisions, n => n.Id == decision.Id);
+		Assert.DoesNotContain(briefing.RecentDecisions, n => n.Id == superseded.Id);
 	}
 }

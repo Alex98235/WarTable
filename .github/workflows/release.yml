@@ -41,9 +41,10 @@ jobs:
           fi
           cat RELEASE_NOTES.md
 
-      # The notes carry the schema version, whether it changed, and the
-      # comparison link. The schema version is the value the database checks at
-      # startup; a bump means the existing database is recreated after a backup.
+      # The notes carry the schema generation, whether it changed, and the
+      # comparison link. Startup applies migrations after backing up the
+      # database; the generation tells an operator which releases crossed a
+      # schema change.
       - name: Append release metadata
         shell: bash
         env:
@@ -89,9 +90,10 @@ jobs:
                 echo "- Schema change: **yes** (previous tag \`${prev_tag}\` used schema \`${prev_schema:-unknown}\`)."
                 echo
                 echo "> **Warning:** this release changes the database schema. On first start the"
-                echo "> existing database is backed up to \`wartable.db.bak-<timestamp>\` and replaced"
-                echo "> with an empty one. Take a cold backup before upgrading; existing data will not"
-                echo "> be carried forward."
+                echo "> existing database is backed up to \`wartable.db.bak-<timestamp>\` and then"
+                echo "> migrated in place. Take a cold backup before upgrading anyway: a migration"
+                echo "> that succeeds can still damage data, and rolling back across a schema"
+                echo "> change requires a restore because WarTable does not migrate down."
               fi
 
               if [ -n "$current_tag" ]; then
@@ -101,8 +103,7 @@ jobs:
               fi
             else
               echo "- Schema change: first release; there is no previous schema to compare."
-              echo "- First release: no earlier tag exists, so this release does not recreate an"
-              echo "  existing database. Later releases will report the schema change here."
+              echo "- First release: no earlier tag exists, so there is nothing to migrate from."
               if [ -n "$current_tag" ]; then
                 echo "- Full changelog: ${SERVER_URL}/${REPO}/commits/${current_tag}"
               else

@@ -8,7 +8,6 @@
 		apiGet,
 		apiPost,
 		apiPut,
-		noteKindLabel,
 		parseTags,
 		plainText,
 		stepRef,
@@ -41,6 +40,7 @@
 	let kindFilter = $state('');
 	let statusFilter = $state('');
 	let includeDeleted = $state(false);
+	let includeDormant = $state(false);
 
 	// Semantic search is additive: browse mode above stays the default.
 	let knowledgeStatus = $state(null);
@@ -76,7 +76,6 @@
 		title: '',
 		body: '',
 		tags: '',
-		status: 'Active',
 		pinned: false,
 		supersedesId: ''
 	});
@@ -95,6 +94,7 @@
 		allNotes.filter(
 			(note) =>
 				!note.deletedAt &&
+				!note.dormant &&
 				note.kind === 'Directive' &&
 				note.status === 'Active' &&
 				note.pinned
@@ -121,7 +121,7 @@
 
 	// The edit modal cannot clear a supersession (the backend treats null as
 	// "unchanged"), so the current target must stay selectable even if it has
-	// since been marked Superseded or Resolved.
+	// since been marked Superseded.
 	let editSupersedesOptions = $derived.by(() => {
 		if (!editing) return [];
 		return allNotes.filter(
@@ -135,7 +135,11 @@
 	let hasFilters = $derived(
 		semanticMode
 			? search !== '' || kindFilter !== '' || statusFilter !== ''
-			: search !== '' || kindFilter !== '' || statusFilter !== '' || includeDeleted
+			: search !== '' ||
+					kindFilter !== '' ||
+					statusFilter !== '' ||
+					includeDeleted ||
+					includeDormant
 	);
 
 	let semanticAvailable = $derived(knowledgeStatus?.enabled === true);
@@ -160,7 +164,7 @@
 			const [campaignData, objectiveData, allNoteData] = await Promise.all([
 				apiGet(`/api/campaigns/${campaignId}`),
 				apiGet('/api/objectives', { campaignId }),
-				apiGet('/api/notes', { campaignId, includeDeleted: 'true' })
+				apiGet('/api/notes', { campaignId, includeDeleted: 'true', includeDormant: 'true' })
 			]);
 			if (token !== loadToken) return;
 			campaign = campaignData;
@@ -193,6 +197,7 @@
 			if (kindFilter) params.kind = kindFilter;
 			if (statusFilter) params.status = statusFilter;
 			if (includeDeleted) params.includeDeleted = 'true';
+			if (includeDormant) params.includeDormant = 'true';
 			const data = await apiGet('/api/notes', params);
 			if (requestToken !== notesToken || token !== loadToken) return;
 			notes = Array.isArray(data) ? data : [];
@@ -227,6 +232,7 @@
 		kindFilter = '';
 		statusFilter = '';
 		includeDeleted = false;
+		includeDormant = false;
 		if (semanticMode) {
 			semanticToken += 1;
 			semanticQuery = '';
@@ -247,6 +253,7 @@
 		semanticError = '';
 		if (next) {
 			includeDeleted = false;
+			includeDormant = false;
 			// Turning the toggle on is never a search. Fresh text just waits.
 			if (search.trim() !== semanticQuery) {
 				semanticToken += 1;
@@ -367,6 +374,12 @@
 		return `#/campaign/${campaignId}/bunker/${note.alias}`;
 	}
 
+	/** Dormant notes show how long they have been dormant where the list shows recency. */
+	function noteAge(note) {
+		if (note?.dormant && note.dormantDays != null) return `Dormant ${note.dormantDays}d`;
+		return timeAgo(note.updatedAt);
+	}
+
 	async function openCapture(prefill = {}) {
 		captureForm = {
 			kind: 'Context',
@@ -440,7 +453,6 @@
 			title: note.title || '',
 			body: note.body || '',
 			tags: note.tags || '',
-			status: note.status || 'Active',
 			pinned: !!note.pinned,
 			supersedesId: note.supersedesId || ''
 		};
@@ -455,7 +467,6 @@
 				title: editForm.title.trim(),
 				body: editForm.body,
 				tags: parseTags(editForm.tags).join(', '),
-				status: editForm.status,
 				pinned: editForm.pinned,
 				supersedesId: editForm.supersedesId || null,
 				actor: ACTOR
@@ -467,16 +478,6 @@
 			addToast(err.message || 'Could not save the note.', 'error');
 		} finally {
 			editSaving = false;
-		}
-	}
-
-	async function setStatus(note, status) {
-		try {
-			await apiPut(`/api/notes/${note.id}`, { status, actor: ACTOR });
-			addToast(`Note marked ${status.toLowerCase()}.`, 'success');
-			await load({ silent: true });
-		} catch (err) {
-			addToast(err.message || 'Could not change the note status.', 'error');
 		}
 	}
 
@@ -529,9 +530,8 @@
 		<p class="eyebrow">Campaign knowledge</p>
 		<h1 class="page-title">The Bunker</h1>
 		<p class="lede">
-			Directives are always applied. Decisions, gotchas, references, context, and questions
-			are searched when they matter. The charter frames the campaign; design docs hold the
-			longer thinking. Nothing here is a status report.
+			Directives are always applied. Decisions, gotchas, and context are searched when they
+			matter. The charter frames the campaign. Nothing here is a status report.
 		</p>
 	</div>
 	<div class="page-actions">
@@ -617,7 +617,7 @@
 			<span class="sr-only">Filter by kind</span>
 			<select class="form-select" bind:value={kindFilter} onchange={applyFilters}>
 				<option value="">All kinds</option>
-				{#each NOTE_KINDS as kind}<option value={kind}>{noteKindLabel(kind)}</option>{/each}
+				{#each NOTE_KINDS as kind}<option value={kind}>{kind}</option>{/each}
 			</select>
 		</label>
 
@@ -633,6 +633,10 @@
 			<label class="check-row compact">
 				<input type="checkbox" bind:checked={includeDeleted} onchange={applyFilters} />
 				<span>Show deleted</span>
+			</label>
+			<label class="check-row compact">
+				<input type="checkbox" bind:checked={includeDormant} onchange={applyFilters} />
+				<span>Show dormant</span>
 			</label>
 		{/if}
 
@@ -764,7 +768,7 @@
 					<div class="inline-empty">
 						{hasFilters
 							? 'No notes match those filters.'
-							: 'The Bunker is empty. Capture a design doc, directive, decision, gotcha, reference, context note, or question.'}
+							: 'The Bunker is empty. Capture a directive, decision, gotcha, or context note.'}
 					</div>
 				{:else}
 					<ul class="note-list">
@@ -779,10 +783,15 @@
 									<span class="note-card-top">
 										<span class="ref-chip">#{note.alias}</span>
 										<StatusBadge status={note.kind} sm />
+										{#if note.dormant}<StatusBadge
+												status="Dormant"
+												tone="muted"
+												sm
+											/>{/if}
 										{#if note.pinned}<span class="pin-mark" title="Pinned"
 												>◆</span
 											>{/if}
-										<span class="note-age">{timeAgo(note.updatedAt)}</span>
+										<span class="note-age">{noteAge(note)}</span>
 									</span>
 									<span class="note-card-title">{note.title}</span>
 									<span class="note-card-excerpt"
@@ -815,6 +824,10 @@
 							<div class="note-detail-ids">
 								<span class="ref-chip large">#{selectedNote.alias}</span>
 								<StatusBadge status={selectedNote.kind} />
+								{#if selectedNote.dormant}<StatusBadge
+										status="Dormant"
+										tone="muted"
+									/>{/if}
 								<StatusBadge status={selectedNote.status} />
 								{#if selectedNote.pinned}<span class="pin-mark" title="Pinned"
 										>◆</span
@@ -837,30 +850,6 @@
 							>
 								{selectedNote.pinned ? 'Unpin' : 'Pin'}
 							</button>
-							{#if selectedNote.status === 'Active'}
-								{#if selectedNote.kind === 'Question'}
-									<button
-										type="button"
-										class="btn btn-ghost btn-sm"
-										onclick={() => setStatus(selectedNote, 'Resolved')}
-										>Resolve</button
-									>
-								{:else}
-									<button
-										type="button"
-										class="btn btn-ghost btn-sm"
-										onclick={() => setStatus(selectedNote, 'Superseded')}
-										>Mark superseded</button
-									>
-								{/if}
-							{:else}
-								<button
-									type="button"
-									class="btn btn-ghost btn-sm"
-									onclick={() => setStatus(selectedNote, 'Active')}
-									>Reactivate</button
-								>
-							{/if}
 							<button
 								type="button"
 								class="btn btn-ghost btn-sm danger-hover"
@@ -873,6 +862,13 @@
 						<div class="notice notice-danger">
 							This note is soft-deleted. The alias still resolves so old references
 							stay meaningful.
+						</div>
+					{/if}
+
+					{#if selectedNote.dormant}
+						<div class="notice">
+							Nothing links this note to live work, so it is not served to agents.
+							Link it to an open step or unfinished objective to bring it back.
 						</div>
 					{/if}
 
@@ -1024,8 +1020,7 @@
 								value={captureForm.kind}
 								onchange={(e) => kindDefaultPinned(e.currentTarget.value)}
 							>
-								{#each NOTE_CREATE_KINDS as kind}<option value={kind}
-										>{noteKindLabel(kind)}</option
+								{#each NOTE_CREATE_KINDS as kind}<option value={kind}>{kind}</option
 									>{/each}
 							</select>
 						</div>
@@ -1208,28 +1203,14 @@
 							rows={6}
 						/>
 					</div>
-					<div class="form-row">
-						<div class="form-group">
-							<label class="form-label" for="edit-note-tags">Tags</label>
-							<input
-								id="edit-note-tags"
-								class="form-input"
-								type="text"
-								bind:value={editForm.tags}
-							/>
-						</div>
-						<div class="form-group">
-							<label class="form-label" for="edit-note-status">Status</label>
-							<select
-								id="edit-note-status"
-								class="form-select"
-								bind:value={editForm.status}
-							>
-								{#each NOTE_STATUSES as status}<option value={status}
-										>{status}</option
-									>{/each}
-							</select>
-						</div>
+					<div class="form-group">
+						<label class="form-label" for="edit-note-tags">Tags</label>
+						<input
+							id="edit-note-tags"
+							class="form-input"
+							type="text"
+							bind:value={editForm.tags}
+						/>
 					</div>
 					<div class="form-group">
 						<label class="form-label" for="edit-note-supersedes">Supersedes</label>

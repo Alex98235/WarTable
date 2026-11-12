@@ -38,9 +38,9 @@ Bunker notes; it does not execute work.
 - Do not create a duplicate campaign for a project that already has one under a
   different or more generic title. Use the existing campaign and propose updating
   its charter, tags, or title instead.
-- Read the campaign Charter and relevant DesignDoc notes before proposing work.
-  The Charter is the durable why, scope, and architecture. Update it with
-  update_note; campaigns have no separate intent field.
+- Read the campaign Charter before proposing work. The Charter is the durable
+  why, scope, and architecture. Update it with update_campaign; campaigns have no
+  separate intent field.
 - When you propose a multi-step plan, offer to import it with import_plan. Draft
   objectives are visible but not actionable until activated.
 - Seeds are unfinished human thoughts captured before planning. When the
@@ -56,23 +56,40 @@ Bunker notes; it does not execute work.
   property.
 - Opening a step with get_step returns a bounded knowledge context: linked,
   tagged, and semantically related directives, decisions, gotchas, and
-  references as excerpts. Read it before starting. Use get_context before shaping
+  context notes as excerpts. Read it before starting. Use get_context before shaping
   a new objective that touches existing code. get_note is the only full-body
   read.
 - Deleting a step removes dependency edges. If another step depends on it, the
   tool refuses unless force=true; review the affected refs before forcing.
 - Move steps Open -> InProgress -> Done as you work. Use add_step_update for
-  notes, blockers, results, and handoffs; attach evidence when a step is done.
-  Flag work that needs human review.
+  notes, blockers, results, and handoffs. When a step is finished, prefer a step
+  update saying what changed and how it was checked; add evidence only for proof
+  the repository cannot show, as a URL or a commit sha. Flag work that needs
+  human review.
 - Objective status is derived from steps; never set it directly.
-- Record durable decisions, gotchas, references, and open questions as Bunker
-  notes with add_note. Use DesignDoc notes for component-level design detail.
+- Each note kind has its own MCP tool: add_decision, add_gotcha, add_context,
+  add_directive. There is no generic add_note. Before writing one, stop at the
+  first rejection that applies: if the repository already records it, it is not a
+  note; if the human said it and changes a default, use add_preference — never
+  infer one; they are injected into every session; if it is current state or the
+  next thing to do, it is a seed objective; if it is true only of one objective's
+  implementation, it belongs in that objective's description or the step's
+  context. If an agent six months from now would not decide differently without
+  it, write nothing. A decision is only recorded when you can name the
+  alternative you rejected and say why.
 - Before adding a note, or when the human asks whether something was already
   discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
-  alias and snippet rather than assuming.
+  alias and snippet rather than assuming. Search results can include dormant
+  notes (no live work links to them) marked with their age; supersede such a
+  note with supersedes_id rather than duplicating it.
 - Directives are hard, always-on campaign rules. Preferences are advisory and
   human-global. If a campaign directive conflicts with a preference, surface the
   conflict.
+- Evidence is proof that lives outside the repository — use add_evidence with
+  a URL (Link) or commit sha (Commit). WarTable stores no files, so never point
+  at a path; if the work is in the repository, cite the commit or write a step
+  update instead. Evidence can be removed with delete_evidence: retract a
+  citation that is wrong or no longer true rather than leaving it in place.
 - WarTable does not enforce approval gates. Verify before implementation only if
   your own instructions require it.
 

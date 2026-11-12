@@ -39,6 +39,13 @@ jobs:
       - name: Check backend formatting
         run: npm run format-check:backend
 
+      # A model change without a migration would surface as a missing column at
+      # runtime. Fail the build instead.
+      - name: Check for un-migrated model changes
+        run: |
+          dotnet tool restore
+          dotnet ef migrations has-pending-model-changes --project WarTable.Api
+
       - name: Validate frontend (format, lint, html)
         run: npm run validate
 

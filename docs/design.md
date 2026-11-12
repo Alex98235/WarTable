@@ -42,6 +42,22 @@ Multiple devices see the same state; there are no accounts and no offline writes
    carry the state that matters.
 9. **One server is the source of truth.** Multiple clients may connect over the
    LAN, but there is one database and no offline write queue.
+10. **The agent is an unreliable narrator.** An agent's output looks identical
+    whether it reasoned or post-hoc justified, so no check that inspects only
+    that output can separate the two. WarTable does not try to detect a
+    fabricated rationale; it refuses to let an agent-authored field become
+    load-bearing on assertion alone.
+    - Shape constrains a write; it never certifies it. A filled field is not
+      evidence the field is true.
+    - A fabricated field must be inert. Standing is derived from use and
+      resolvability, never assigned — the same reason objective status is
+      derived from steps.
+    - What is load-bearing resolves against ground truth the agent did not
+      write: a step that exists, an evidence row, a commit, an external source.
+      A basis that cannot be dereferenced is self-identifying as unfounded.
+    - This binds future surfaces, not just notes. The question for a new feature
+      is not "can the agent be trusted with this?" but "what happens when it is
+      wrong?"
 
 ### Deployment model
 
@@ -70,11 +86,10 @@ laptop agent    --+
 
 ### A. Cold start after a week
 
-The human opens the dashboard and sees an attention inbox: two flagged steps, one
-blocked objective, one open question. The agent starts with a single briefing
-call: campaign and charter excerpt, ready steps, blockers, flagged steps,
-directives, preferences, recent decisions, and design-doc excerpts. It does not
-read forty journal entries.
+The human opens the dashboard and sees an attention inbox: two flagged steps and
+one blocked objective. The agent starts with a single briefing call: campaign and
+charter excerpt, ready steps, blockers, flagged steps, directives, preferences,
+and recent decisions. It does not read forty journal entries.
 
 **Requirements:** computed briefing, attention queue, ready computation from
 dependencies, always-on directives and preferences.
@@ -153,18 +168,20 @@ A namespace and folder. It is not a work item and has no status.
 |---|---|
 | `Id` | GUID |
 | `Title` | |
+| `Charter` | Markdown. The durable why, scope, and architecture. Nullable. |
 | `Tags` | Comma-separated labels. |
 | `NextAliasNumber` | Campaign-scoped monotonic counter for objectives and notes. |
 | `CreatedAt`, `UpdatedAt` | |
 | `ArchivedAt` | Nullable. Set when the campaign is archived. |
 
-The campaign charter is a `Charter` Bunker note, not a campaign column. One
-active charter is allowed; campaign creation can create it automatically. A
-`DesignDoc` note records a component or area. Both are ordinary notes for
-aliases, links, status, search, activity, and MCP note tools. Campaign responses
-add `CharterExcerpt` and `CharterAlias` derived from the active charter. Campaigns
-have no intent field; a legacy `Intent` column remains in SQLite only so existing
-databases stay writable, and the application never reads or exposes it.
+The campaign charter is a campaign column, not a note. It is framing rather than
+knowledge: it has no alias, no status, and nothing supersedes it. Campaign
+creation and `update_campaign` write it; campaign responses add `CharterExcerpt`
+derived from the column. A kind that only shadowed a campaign field (`Charter`)
+or a briefing section (`DesignDoc`) does not belong in the note taxonomy —
+principle 10. Campaigns have no intent field; a legacy `Intent` column remains in
+SQLite only so existing databases stay writable, and the application never reads
+or exposes it.
 
 Relationships: objectives, bunker notes.
 
@@ -231,13 +248,15 @@ granularity where it is actually read.
 
 Optional proof attached to a step. Makes "done" inspectable.
 
+Evidence can be removed with `delete_evidence` (or `DELETE /api/steps/{id}/evidence/{evidenceId}`). Removal is a hard delete: evidence is a pointer to an external artifact, not a record, so once the citation is withdrawn there is nothing to retain. A citation nobody can retract is a claim, not proof.
+
 | Field | Notes |
 |---|---|
 | `Id` | GUID |
 | `StepId` | |
 | `Label` | Short description. |
-| `Kind` | `Link`, `File`, `Commit`, `Test`, `Screenshot`, `Other`. |
-| `Value` | URL, path, hash, or result text. |
+| `Kind` | `Link`, `Commit`. A kind survives only if a reader can dereference the value — WarTable stores no files. If the proof is already in the repository, the commit is the citation. |
+| `Value` | URL or commit sha. |
 | `CreatedBy`, `CreatedAt` | |
 
 ### BunkerNote
@@ -249,17 +268,43 @@ Campaign knowledge and campaign directives.
 | `Id` | GUID |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, shared counter with objectives, never reused. |
-| `Kind` | `Charter`, `DesignDoc`, `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`, `Question`. |
+| `Kind` | `Directive`, `Decision`, `Gotcha`, `Context`. |
 | `Title` | |
 | `Body` | Markdown. |
-| `Status` | `Active`, `Superseded`, or `Resolved` (questions). |
+| `Status` | `Active` or `Superseded`. Derived on read: a note is `Superseded` when another non-deleted note names it in `SupersedesId`. Not stored. |
+| `Basis` | Nullable. Where the claim can be checked: `#12`, `#12.3`, a commit sha, or a URL. |
+| `ApprovedAt` | Nullable. Human confirmation of this exact body; any body edit clears it. |
 | `Pinned` | Directives are pinned and always injected. |
 | `Tags` | |
 | `CreatedBy`, `CreatedAt`, `UpdatedAt` | |
 | `SupersedesId` | Nullable. For decisions that replace earlier decisions. |
 | `DeletedAt` | Soft delete. |
 
+Each kind has a shape the agent must supply, enforced at the MCP boundary:
+`Decision` needs the chosen option, the rejected alternative, the reason, and a
+basis; `Gotcha` needs the trap and the escape; `Context` needs at least one
+objective or step link; `Directive` needs a body. The shape is a
+template written into the body, not a certificate — see principle 10. HTTP note
+writes stay free-form, because the human is not the unreliable narrator.
+
 Links to objectives and steps are optional and many-to-many.
+
+**Notes decay.** A note is *dormant* when nothing points at it any more. The
+state is derived on read from the pinned flag, the kind, and whether any link
+still points at unfinished work. It is never stored, never assigned, and never a
+column. A dormant note is not wrong — nothing in the data supports that claim —
+it is simply no longer served to agents. Only `Gotcha` and `Context` decay:
+they are about work in flight, so a month without a live link
+retires them. A `Decision` dies only when a superseding decision replaces it,
+because "we chose X over Y" stays true until someone chooses differently. A
+`Directive` is pinned and exempt; the human retires it.
+
+Dormancy governs what is pushed, not what can be pulled. Dormant notes never
+enter the briefing or work-surface context, but `search_knowledge` returns them
+marked with their age, and every alias still resolves. That is deliberate: the
+search an agent is already told to run before writing a note is where it meets
+the dormant duplicate, and `supersedes_id` turns that duplicate into a
+supersession instead of a fork.
 
 **Directives are always-on.** They are hard, campaign-scoped rules: "public API
 must stay backward compatible." Other kinds are surfaced through work-surface
@@ -296,15 +341,15 @@ component. `get_plan` adds only explicit-link counts and never runs semantic
 retrieval per objective.
 
 Context is grouped by kind with per-kind quotas (directives 10, decisions 5,
-gotchas 5, references 3, context 3, questions 3, charter 1, design docs 3), so a
-long reference cannot bury the gotchas. Each entry carries alias, title, a
-240-character excerpt, heading path, match reasons (`linked-step`,
-`linked-objective`, `tag`, `directive`, `charter`, `semantic`, `keyword`), and a
-count of omitted entries. Ranking puts pinned/directive and explicit links above
-tags, then semantic score. Only active notes are considered; superseded notes stay
-resolvable through `get_note` but do not enter context. Full bodies are never
+gotchas 5, context 3), so many context notes cannot bury the gotchas.
+Each entry carries alias, title, a 240-character excerpt, heading path, match
+reasons (`linked-step`, `linked-objective`, `tag`, `directive`, `semantic`,
+`keyword`), and a count of omitted entries. Ranking puts pinned/directive and
+explicit links above tags, then semantic score. Superseded and dormant notes stay
+resolvable through `get_note` but do not enter context. Full
+bodies are never
 included. If embeddings are disabled or unavailable, the same call returns
-linked, tagged, directive, charter, and keyword candidates with `degraded: true`.
+linked, tagged, directive, and keyword candidates with `degraded: true`.
 
 ### Preference
 
@@ -350,12 +395,10 @@ Every mutation writes one event.
 These are not tables.
 
 - **Briefing** — campaign and charter excerpt, ready steps, blocked steps,
-  flagged steps, open questions, active directives, active preferences, recent
-  decisions, design-doc excerpts, seeds, and recent activity. Bounded and
-  token-aware.
-- **Attention** — cross-campaign inbox: flagged steps, blocked objectives, open
-  questions, and stale in-progress steps. Draft plans and seeds get a calm
-  separate section.
+  flagged steps, active directives, active preferences, recent decisions, seeds,
+  and recent activity. Bounded and token-aware.
+- **Attention** — cross-campaign inbox: flagged steps, blocked objectives, and
+  stale in-progress steps. Draft plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
 
 ### Aliases and addressing
@@ -383,18 +426,23 @@ timestamps are caches.
   delete or leave it Draft.
 - **Step:** `open` → `in-progress` → `done`. `flagged` and `blocked` can occur at
   any time. A blocked step should carry a `Blocker` update explaining why.
-- **Note:** `Active` → `Superseded` (decisions) or `Resolved` (questions).
+- **Note:** A note is `Superseded` when another non-deleted note names it in
+  `SupersedesId`; nothing sets the status column. A gotcha that no longer applies
+  is superseded by the knowledge that replaced it.
 - **Preference:** `Active` → retired, preserving history.
 
 ### Storage lifecycle
 
-SQLite is the only persistent store. Startup calls `EnsureCreated` and stamps
-`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 2).
-There are no EF migrations: when the stored version differs, the server copies
-the database to `wartable.db.bak-<timestamp>`, recreates an empty database, and
-enables WAL. The embedding index is a separate disposable sidecar. Backups,
-restore, and schema-change consequences are specified in
-[`deployment.md`](deployment.md).
+SQLite is the only persistent store. Startup applies EF migrations and stamps
+`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 6) as a
+generation marker. Pending migrations run after the WAL is checkpointed and the
+database copied to `wartable.db.bak-<timestamp>`; a failed migration restores that
+copy and aborts startup. A database written before migrations existed is adopted
+by recording the initial migration as applied, so live data survives upgrades.
+Only `--reset-db` discards a database, and it backs up first. WAL is enabled for
+file-backed databases, which is the broadcaster's write signal. The embedding
+index is a separate disposable sidecar. Backups, restore, and rollback are
+specified in [`deployment.md`](deployment.md).
 
 ### Conflict rule
 
@@ -434,10 +482,10 @@ negotiated by the SDK.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_campaign` | `title`, `charter`, `tags`, `actor` | Folder, no status. A non-empty charter is stored as a `Charter` note. |
+| `create_campaign` | `title`, `charter`, `tags`, `actor` | Folder, no status. A non-empty charter is stored in the campaign's `Charter` column. |
 | `get_campaign` | `campaign_id` | Campaign with its objectives and Bunker notes; steps are not included. Prefer `get_briefing` for a bounded start. |
 | `list_campaigns` | `search`, `include_archived` | Archived campaigns are hidden by default. |
-| `update_campaign` | `campaign_id`, `title`, `tags`, `archived_at`, `actor` | Edit the charter with `update_note`. |
+| `update_campaign` | `campaign_id`, `title`, `charter`, `tags`, `archived_at`, `actor` | Omitted members are left unchanged. |
 | `delete_campaign` | `campaign_id`, `actor` | Hard delete. |
 
 ### Plans and briefing
@@ -492,16 +540,20 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `delete_step` | `step_id`, `force`, `actor` | Soft delete. Refuses when other steps depend on it unless `force=true`; force removes edges and reports `removed_dependencies`. |
 | `add_step_update` | `step_id`, `body`, `kind`, `actor` | Append-only. |
 | `add_evidence` | `step_id`, `label`, `value`, `kind`, `actor` | |
+| `delete_evidence` | `step_id`, `evidence_id`, `actor` | Hard delete; removes a citation that is wrong or no longer true. |
 
 ### Bunker
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `add_note` | `campaign_id`, `kind`, `title`, `body`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | |
+| `add_decision` | `campaign_id`, `title`, `chosen`, `rejected`, `reason`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `chosen`/`rejected`/`reason`; sets `Basis` column to `basis`. |
+| `add_gotcha` | `campaign_id`, `title`, `trap`, `escape`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `trap`/`escape`. |
+| `add_context` | `campaign_id`, `title`, `links`, `body`, `basis`, `tags`, `pinned`, `supersedes_id`, `actor` | Must link at least one objective or step. |
+| `add_directive` | `campaign_id`, `title`, `body`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | |
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
 | `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
-| `update_note` | `note_id`, `title`, `body`, `status`, `pinned`, `tags`, `supersedes_id`, `actor` | |
+| `update_note` | `note_id`, `title`, `body`, `pinned`, `tags`, `supersedes_id`, `actor` | Status is derived — no longer settable. | |
 
 ### Preferences
 
@@ -525,7 +577,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   Use `get_plan` when the complete objective and step graph is needed.
 - When opening a step, read its `knowledge` block before starting: linked,
   tagged, and semantically related directives, decisions, gotchas, and
-  references are returned as excerpts. Use `get_context` before shaping an
+  context notes are returned as excerpts. Use `get_context` before shaping an
   objective that integrates with existing code. `get_note` is the only
   full-body read.
 - Resolve the campaign before planning or recording work. Prefer an explicit
@@ -539,15 +591,16 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   If the human declines, proceed without WarTable. Do not duplicate an existing
   campaign under a more generic title; use it and propose updating its charter,
   tags, or title instead.
-- Read the campaign Charter and relevant DesignDoc notes before proposing work.
-  The charter is the durable why, scope, and architecture; update it with
-  `update_note`.
+- Read the campaign Charter before proposing work. The charter is the durable why,
+  scope, and architecture; `update_campaign` writes it. Component-level design
+  detail belongs in the relevant objective description and its steps.
 - When a planning phase finishes, offer to import the plan. Import as `Draft` if
   it will not be executed immediately; activate when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
-- Record durable decisions, gotchas, references, and open questions in the Bunker
-  as they arise. Use DesignDoc notes for component-level design detail.
+- Record durable decisions, gotchas, and context notes in the Bunker
+  as they arise. Each kind has a shape to fill in: a decision states what was
+  chosen, what was rejected, why, and where the claim can be checked.
 - Before adding a note, or when asked whether something was already discussed,
   use `search_knowledge` and cite the note alias and snippet.
 - Capture a preference when the human expresses a durable preference. If it is
@@ -590,6 +643,7 @@ are JSON with camelCase properties and string enum values.
 | `/api/steps/{id}/status` | `PATCH` | Quick status change. |
 | `/api/steps/{id}/updates` | `GET`, `POST` | List or append step updates. |
 | `/api/steps/{id}/evidence` | `GET`, `POST` | List or attach evidence. |
+| `/api/steps/{id}/evidence/{evidenceId}` | `DELETE` | Hard-delete a piece of evidence. |
 | `/api/notes` | `GET`, `POST` | List (`campaignId`, `search`, `kind`, `status`, `includeDeleted`) or create a Bunker note. |
 | `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch, or soft-delete a note. |
 | `/api/notes/by-alias` | `GET` | Resolve a note by `campaignId` and `alias`. |
@@ -636,13 +690,13 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 - **Hero:** title, tags, compact stats (`in play`, `finished`, steps done, last
   update), and the primary actions (`Edit campaign`, `Bunker`, `+ Objective`).
-- **Charter:** the active Charter note as a 3-line preview with `Read charter` /
-  `Show less`, an edit action, and a link into the Bunker. No charter and inactive
-  charter states are compact inline invitations, not empty panels.
-- **Bounded brief:** "What matters now" with `Needs you` (flagged and blocked),
-  `Ready`, and `Questions`, capped at two rows per group plus `+N` counts.
-  Directives and recent decisions collapse into one context chip row;
-  preferences appear only here, capped at four.
+- **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
+  / `Show less` and an edit action that writes the campaign. An empty charter is a
+  compact inline invitation, not an empty panel.
+- **Bounded brief:** "What matters now" with `Needs you` (flagged and blocked) and
+  `Ready`, capped at two rows per group plus `+N` counts. Directives and recent
+  decisions collapse into one context chip row; preferences appear only here,
+  capped at four.
 - **Seed capture strip:** one input above the plan to park a thought — title plus
   optional detail, no steps.
 - **Plan tiers:** `In play` (active, unfinished), `Parked` (seeds, then drafts),
@@ -651,8 +705,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   reorder, or state controls; `updatedAt` is shown as last activity, never as a
   completion timestamp. Reorder applies only within `In play`.
 - **Knowledge rail:** sticky on desktop and stacked on narrow screens. Bunker
-  search with recent notes, plus a compact DesignDoc index and create action.
-  Charter and design docs are not repeated in recent notes.
+  search with recent notes. The charter is not repeated in recent notes.
 - The page is organized around the plan, not by object type.
 
 ### Objective detail
@@ -687,7 +740,8 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ## 9. Non-goals
 
 - Team collaboration: multi-user accounts, authentication, membership,
-  permissions, and sharing. WarTable is single-human.
+  permissions, and sharing. WarTable is single-human; see
+  [`designs/single-human-boundary.md`](designs/single-human-boundary.md).
 - Cloud hosting and unauthenticated internet exposure. The server is LAN-first;
   access beyond the LAN requires a VPN or an authenticated reverse proxy.
 - Offline-first sync, CRDTs, and multi-writer conflict resolution. Clients are
@@ -699,8 +753,6 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - Kanban views or columns.
 - Mandatory approval gates.
 - Rich text or file storage. Markdown and evidence links only.
-- Database migrations. The single server's database remains disposable; see
-  [`deployment.md`](deployment.md) for the schema-version and backup contract.
 
 ## 10. Success criteria
 

@@ -49,13 +49,9 @@ public sealed class KnowledgeContextService
 	private static readonly BunkerNoteKind[] GroupOrder =
 	[
 		BunkerNoteKind.Directive,
-		BunkerNoteKind.Charter,
 		BunkerNoteKind.Decision,
 		BunkerNoteKind.Gotcha,
-		BunkerNoteKind.Reference,
 		BunkerNoteKind.Context,
-		BunkerNoteKind.Question,
-		BunkerNoteKind.DesignDoc,
 	];
 
 	private static readonly IReadOnlyDictionary<BunkerNoteKind, int> Quotas =
@@ -64,11 +60,7 @@ public sealed class KnowledgeContextService
 			[BunkerNoteKind.Directive] = 10,
 			[BunkerNoteKind.Decision] = 5,
 			[BunkerNoteKind.Gotcha] = 5,
-			[BunkerNoteKind.Reference] = 3,
 			[BunkerNoteKind.Context] = 3,
-			[BunkerNoteKind.Question] = 3,
-			[BunkerNoteKind.Charter] = 1,
-			[BunkerNoteKind.DesignDoc] = 3,
 		};
 
 	private static readonly string[] MatchedByOrder =
@@ -204,13 +196,13 @@ public sealed class KnowledgeContextService
 	{
 		var counts = objectives.ToDictionary(
 			objective => objective.Id,
-			_ => new KnowledgeCounts(0, 0, 0, 0, 0));
+			_ => new KnowledgeCounts(0, 0, 0));
 
 		if (objectives.Count == 0)
 			return counts;
 
 		var notes = await _service.GetNotesAsync(
-			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false);
+			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false, includeDormant: false);
 
 		var stepToObjective = objectives
 			.SelectMany(objective => objective.Steps.Select(step => (StepId: step.Id, ObjectiveId: objective.Id)))
@@ -221,9 +213,7 @@ public sealed class KnowledgeContextService
 		{
 			var decisions = 0;
 			var gotchas = 0;
-			var references = 0;
 			var context = 0;
-			var questions = 0;
 
 			foreach (var note in notes)
 			{
@@ -242,20 +232,14 @@ public sealed class KnowledgeContextService
 					case BunkerNoteKind.Gotcha:
 						gotchas++;
 						break;
-					case BunkerNoteKind.Reference:
-						references++;
-						break;
 					case BunkerNoteKind.Context:
 						context++;
-						break;
-					case BunkerNoteKind.Question:
-						questions++;
 						break;
 				}
 			}
 
 			counts[objective.Id] = new KnowledgeCounts(
-				decisions, gotchas, references, context, questions);
+				decisions, gotchas, context);
 		}
 
 		return counts;
@@ -276,7 +260,7 @@ public sealed class KnowledgeContextService
 		var keywordQuery = BuildKeywordQuery(objective, step, requestedTags, extraQuery);
 
 		var notes = await _service.GetNotesAsync(
-			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false);
+			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false, includeDormant: true);
 		var byId = notes.ToDictionary(note => note.Id);
 
 		var candidates = new Dictionary<Guid, Candidate>();
@@ -294,9 +278,6 @@ public sealed class KnowledgeContextService
 
 			if (note.Kind == BunkerNoteKind.Directive)
 				Add(candidates, note, "directive");
-
-			if (note.Kind == BunkerNoteKind.Charter)
-				Add(candidates, note, "charter");
 		}
 
 		var semanticUsed = false;
@@ -366,7 +347,10 @@ public sealed class KnowledgeContextService
 			.GroupBy(candidate => candidate.Note.Kind)
 			.Select(group =>
 			{
-				var ordered = Rank(group).ToList();
+				// Dormant notes are excluded from ranking and quota selection but
+				// stay counted in Total/Omitted so the omission is honest.
+				var total = group.Count();
+				var ordered = Rank(group.Where(candidate => !candidate.Note.Dormant)).ToList();
 				var quota = Quotas.TryGetValue(group.Key, out var value) ? value : 3;
 				var selected = ordered
 					.Take(quota)
@@ -375,8 +359,8 @@ public sealed class KnowledgeContextService
 
 				return new KnowledgeContextGroup(
 					group.Key,
-					ordered.Count,
-					ordered.Count - selected.Count,
+					total,
+					total - selected.Count,
 					selected);
 			})
 			.OrderBy(group => Array.IndexOf(GroupOrder, group.Kind))
@@ -397,7 +381,6 @@ public sealed class KnowledgeContextService
 		=> candidates
 			.OrderByDescending(candidate => candidate.Note.Pinned)
 			.ThenByDescending(candidate => candidate.Note.Kind == BunkerNoteKind.Directive)
-			.ThenByDescending(candidate => candidate.Note.Kind == BunkerNoteKind.Charter)
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("linked-step"))
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("linked-objective"))
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("tag"))

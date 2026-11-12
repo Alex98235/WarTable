@@ -39,7 +39,7 @@ public class KnowledgeContextTests
 				new[] { objective.Id }, Array.Empty<Guid>(), null);
 
 			var reference = await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "Alpha deployment runbook",
+				campaign.Id, BunkerNoteKind.Context, "Alpha deployment runbook",
 				"The alpha deployment runbook documents the release checklist and rollback.",
 				"", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
@@ -49,10 +49,11 @@ public class KnowledgeContextTests
 				"Alpha was previously deployed by hand. This note is superseded.",
 				"", false, Human,
 				new[] { objective.Id }, Array.Empty<Guid>(), null);
-			await ctx.Service.UpdateNoteAsync(
-				superseded.Id,
-				new BunkerNotePatch(Status: BunkerNoteStatus.Superseded),
-				Human);
+			// Create a successor note that supersedes the old one — status is derived.
+			await ctx.Service.CreateNoteAsync(
+				campaign.Id, BunkerNoteKind.Decision, "Superseding note",
+				"This note replaces the old alpha plan.", "", false, Human,
+				new[] { objective.Id }, Array.Empty<Guid>(), superseded.Id);
 
 			var options = TestOptions(path);
 			var client = new FakeEmbeddingClient();
@@ -107,18 +108,16 @@ public class KnowledgeContextTests
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
+			// Charter is now on the campaign column, not a note. The context
+			// no longer carries a charter group; the briefing does.
 			var options = TestOptions(path);
 			options.Enabled = false;
 			var context = await BuildContextAsync(ctx, options, new ThrowingEmbeddingClient(), reconcile: false);
 
 			var result = await context.GetForStepAsync(campaign.Id, step);
 
-			var charter = result.Groups
-				.Single(group => group.Kind == BunkerNoteKind.Charter)
-				.Notes
-				.Single();
-			Assert.Contains("charter", charter.MatchedBy);
-			Assert.Contains("durable why", charter.Excerpt);
+			// No charter group exists — it was removed from GroupOrder.
+			Assert.DoesNotContain(result.Groups, group => group.Kind == BunkerNoteKind.Context);
 		}
 		finally
 		{
@@ -157,6 +156,53 @@ public class KnowledgeContextTests
 			Assert.Equal(7, group.Total);
 			Assert.Equal(5, group.Notes.Count);
 			Assert.Equal(2, group.Omitted);
+		}
+		finally
+		{
+			DeleteSidecar(path);
+		}
+	}
+
+	[Fact]
+	public async Task StepContext_ExcludesDormantNote_AndReportsItInGroupTotals()
+	{
+		var path = TempPath();
+		try
+		{
+			await using var ctx = await TestContext.CreateAsync();
+			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
+			var objective = await ctx.Service.CreateObjectiveAsync(
+				campaign.Id, "Objective", "", PlanState.Active, Human);
+			var step = await ctx.Service.CreateStepAsync(
+				objective.Id, "Alpha step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+			// A gotcha linked to the step, aged past the dormancy threshold; then
+			// the step is done, so its link is no longer live and the note is dormant.
+			var gotcha = await ctx.Service.CreateNoteAsync(
+				campaign.Id, BunkerNoteKind.Gotcha, "Alpha trap",
+				"Unrelated body that does not match the step title needle.",
+				"", false, Human,
+				Array.Empty<Guid>(), new[] { step.Id }, null);
+			gotcha.UpdatedAt = DateTime.UtcNow.AddDays(-40);
+			await ctx.Db.SaveChangesAsync();
+			await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.Done, Human);
+
+			var options = TestOptions(path);
+			options.Enabled = false;
+			var context = await BuildContextAsync(ctx, options, new ThrowingEmbeddingClient(), reconcile: false);
+
+			var result = await context.GetForStepAsync(campaign.Id, step);
+
+			// The dormant note is excluded from the excerpt list but its omission is
+			// reported in the group totals.
+			var gotchaGroup = result.Groups.Single(group => group.Kind == BunkerNoteKind.Gotcha);
+			Assert.Equal(1, gotchaGroup.Total);
+			Assert.Equal(1, gotchaGroup.Omitted);
+			Assert.Empty(gotchaGroup.Notes);
+
+			Assert.DoesNotContain(
+				result.Groups.SelectMany(group => group.Notes),
+				note => note.NoteId == gotcha.Id);
 		}
 		finally
 		{
@@ -242,13 +288,13 @@ public class KnowledgeContextTests
 				campaign.Id, BunkerNoteKind.Gotcha, "G2 on step", "", "", false, Human,
 				Array.Empty<Guid>(), new[] { linkedStep.Id }, null);
 			await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "R1", "", "", false, Human,
+				campaign.Id, BunkerNoteKind.Context, "R1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
 				campaign.Id, BunkerNoteKind.Context, "C1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Question, "Q1", "", "", false, Human,
+				campaign.Id, BunkerNoteKind.Context, "Q1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
 				campaign.Id, BunkerNoteKind.Gotcha, "Unlinked gotcha", "", "", false, Human,
@@ -264,14 +310,12 @@ public class KnowledgeContextTests
 			var linkedCounts = counts[linked.Id];
 			Assert.Equal(1, linkedCounts.Decisions);
 			Assert.Equal(2, linkedCounts.Gotchas);
-			Assert.Equal(1, linkedCounts.References);
-			Assert.Equal(1, linkedCounts.Context);
-			Assert.Equal(1, linkedCounts.Questions);
+			Assert.Equal(3, linkedCounts.Context);
 			Assert.Equal(6, linkedCounts.Total);
 
 			var unlinkedCounts = counts[unlinked.Id];
 			Assert.Equal(0, unlinkedCounts.Total);
-			Assert.Equal(new KnowledgeCounts(0, 0, 0, 0, 0), unlinkedCounts);
+			Assert.Equal(new KnowledgeCounts(0, 0, 0), unlinkedCounts);
 		}
 		finally
 		{
@@ -296,7 +340,7 @@ public class KnowledgeContextTests
 				"Alpha integration details.", "", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
 			var tagged = await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Reference, "Release checklist",
+				campaign.Id, BunkerNoteKind.Context, "Release checklist",
 				"Checks for every release.", "release,ops", false, Human,
 				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
 

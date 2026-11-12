@@ -23,16 +23,11 @@
 		seed: 'seed',
 		active: 'active',
 		superseded: 'muted',
-		resolved: 'done',
 		// Bunker note kinds
-		charter: 'reference',
-		designdoc: 'context',
 		directive: 'directive',
 		decision: 'decision',
 		gotcha: 'gotcha',
-		reference: 'reference',
 		context: 'context',
-		question: 'question',
 		// Step update kinds
 		note: 'muted',
 		blocker: 'blocked',
@@ -40,19 +35,14 @@
 		handoff: 'review',
 		// Evidence kinds
 		link: 'reference',
-		file: 'context',
-		commit: 'decision',
-		test: 'done',
-		screenshot: 'directive',
-		other: 'muted'
+		commit: 'decision'
 	};
 
 	const labelByKey = {
 		'in-progress': 'In progress',
 		'needs-review': 'Needs review',
 		inprogress: 'In progress',
-		seed: 'Seed',
-		designdoc: 'Design doc'
+		seed: 'Seed'
 	};
 
 	function keyOf(value) {

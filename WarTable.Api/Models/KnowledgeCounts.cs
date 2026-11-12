@@ -7,9 +7,7 @@ namespace WarTable.Api.Models;
 public sealed record KnowledgeCounts(
 	int Decisions,
 	int Gotchas,
-	int References,
-	int Context,
-	int Questions)
+	int Context)
 {
-	public int Total => Decisions + Gotchas + References + Context + Questions;
+	public int Total => Decisions + Gotchas + Context;
 }

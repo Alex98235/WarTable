@@ -11,7 +11,11 @@ public class Evidence
 	public string Label { get; set; } = "";
 	public EvidenceKind Kind { get; set; } = EvidenceKind.Link;
 
-	/// <summary>URL, path, hash, or result text.</summary>
+	/// <summary>
+	/// URL or commit sha. A kind survives only if a reader can dereference the
+	/// value. WarTable stores no files — do not point at a path; if the proof is
+	/// already in the repository, the commit is the citation.
+	/// </summary>
 	public string Value { get; set; } = "";
 
 	public string CreatedBy { get; set; } = "human";
@@ -21,12 +25,14 @@ public class Evidence
 	public Step? Step { get; set; }
 }
 
+/// <summary>
+/// Kind of proof. A kind survives only if a reader can dereference the value.
+/// File, Test, Screenshot, and Other were removed because they either name a
+/// medium WarTable does not store or cannot be followed at all. If the proof
+/// is already in the repository, the commit is the citation — do not cite a path.
+/// </summary>
 public enum EvidenceKind
 {
 	Link,
-	File,
 	Commit,
-	Test,
-	Screenshot,
-	Other,
 }

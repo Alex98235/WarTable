@@ -206,6 +206,46 @@ public class KnowledgeSearchTests
 	}
 
 	[Fact]
+	public async Task Search_IncludesDormantNote_MarkedDormant()
+	{
+		var path = TempPath();
+		try
+		{
+			await using var ctx = await TestContext.CreateAsync();
+			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", "human");
+			var dormant = await ctx.Service.CreateNoteAsync(
+				campaign.Id, BunkerNoteKind.Context, "Stale launch note",
+				"The alpha launch checklist was archived and is no longer linked.",
+				"", false, "human",
+				Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+			dormant.UpdatedAt = DateTime.UtcNow.AddDays(-40);
+			await ctx.Db.SaveChangesAsync();
+
+			var options = TestOptions(path);
+			var profiles = new EmbeddingProfileProvider(
+				Microsoft.Extensions.Options.Options.Create(options), NullLogger<EmbeddingProfileProvider>.Instance);
+			var search = new KnowledgeSearchService(
+				ctx.Service,
+				new SqliteKnowledgeIndex(path),
+				new ThrowingEmbeddingClient(),
+				profiles,
+				Microsoft.Extensions.Options.Options.Create(options),
+				NullLogger<KnowledgeSearchService>.Instance);
+
+			var response = await search.SearchAsync(
+				campaign.Id, "alpha launch", KnowledgeSearchMode.Keyword);
+
+			var result = Assert.Single(response.Results, r => r.NoteId == dormant.Id);
+			Assert.True(result.Dormant);
+			Assert.True(result.DormantDays >= 30);
+		}
+		finally
+		{
+			DeleteSidecar(path);
+		}
+	}
+
+	[Fact]
 	public async Task Reconcile_UsesActualVectorDimensions_WhenProfileHintDiffers()
 	{
 		var path = TempPath();

@@ -11,7 +11,7 @@ public static class CampaignTools
 	[McpServerTool(Name = "create_campaign")]
 	[Description(
 		"Create a new campaign in the planning workspace. A non-empty charter is " +
-		"stored as the campaign's Charter note (why it exists, scope, architecture).")]
+		"stored on the campaign record (why it exists, scope, architecture).")]
 	public static async Task<object> CreateCampaignAsync(
 		WarTableService service,
 		string title,
@@ -82,13 +82,13 @@ public static class CampaignTools
 
 	[McpServerTool(Name = "update_campaign")]
 	[Description(
-		"Update campaign metadata (title, tags, archived_at). The charter is a " +
-		"Bunker note; edit it with update_note.")]
+		"Update campaign metadata (title, tags, charter, archived_at).")]
 	public static async Task<object> UpdateCampaignAsync(
 		WarTableService service,
 		string campaign_id,
 		string? title = null,
 		string? tags = null,
+		string? charter = null,
 		DateTime? archived_at = null,
 		string? actor = null)
 	{
@@ -101,7 +101,8 @@ public static class CampaignTools
 			var patch = new CampaignPatch(
 				Title: title,
 				Tags: tags,
-				ArchivedAt: archived_at);
+				ArchivedAt: archived_at,
+				Charter: charter);
 
 			var updated = await service.UpdateCampaignAsync(id.Value, patch, McpArgs.Actor(actor));
 			return updated is null
