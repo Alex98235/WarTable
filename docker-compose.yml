@@ -2,9 +2,9 @@ services:
     wartable:
         platform: linux/amd64
         # Tracks the newest non-breaking release in the major. Set WARTABLE_TAG
-        # to a full version (2.1.0) to pin, or to a new major when you choose to
+        # to a full version (3.0.0) to pin, or to a new major when you choose to
         # make that jump: a major is never picked up automatically.
-        image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:-2}
+        image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:-3}
         container_name: wartable
         restart: unless-stopped
         ports:

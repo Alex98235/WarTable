@@ -29,14 +29,14 @@ rewrites them.
 
 | Tag | What it tracks |
 | --- | --- |
-| `2.1.3` | Exactly that release. Never changes. |
-| `2.1` | The newest `2.1.x`, including patch fixes. |
-| `2` | The newest non-breaking release in the major. |
+| `3.0.0` | Exactly that release. Never changes. |
+| `3.0` | The newest `3.0.x`, including patch fixes. |
+| `3` | The newest non-breaking release in the major. |
 | `latest` | The newest release of any kind, including a breaking major. |
 
-The shipped `docker-compose.yml` defaults to `2`. That means
+The shipped `docker-compose.yml` defaults to `3`. That means
 `docker compose pull` brings patch releases and new features within the major
-without you editing anything, and a `3.0.0` never replaces your running server
+without you editing anything, and a `4.0.0` never replaces your running server
 on its own. Pin a full version only when you want to stop moving.
 
 ## Container
@@ -66,7 +66,7 @@ Leave the image line alone to take the newest release in the major you are on.
 To move to a specific version, set it in `.env` next to the Compose file:
 
 ```sh
-WARTABLE_TAG=2.1.3
+WARTABLE_TAG=3.0.0
 ```
 
 ### 3. Pull, then recreate
