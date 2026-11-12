@@ -133,7 +133,7 @@ substitution.
 What the Compose file forwards:
 
 - The repository [`docker-compose.yml`](../docker-compose.yml) is the only
-  shipped Compose file. `WARTABLE_TAG` defaults to `2`, which tracks non-breaking
+  shipped Compose file. `WARTABLE_TAG` defaults to `3`, which tracks non-breaking
   releases in the current major; set it to a full `X.Y.Z` release to pin one, and
   to a new major when you choose to move. It forwards
   `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command` and the

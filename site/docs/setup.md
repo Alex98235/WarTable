@@ -35,12 +35,12 @@ Open [http://localhost:5110](http://localhost:5110). The health check answers
 `{"status":"ok","service":"WarTable"}`.
 
 The Compose file uses the named volume `wartable-data`, so recreating the
-container keeps the database. `WARTABLE_TAG` defaults to `2`, which tracks
+container keeps the database. `WARTABLE_TAG` defaults to `3`, which tracks
 non-breaking releases in the current major. To pin an exact release, set
 `WARTABLE_TAG` in a `.env` file beside the Compose file:
 
 ```dotenv
-WARTABLE_TAG=2.1.3
+WARTABLE_TAG=3.0.0
 ```
 
 Then run `docker compose up -d` again. See [Configuration](./configuration.md)

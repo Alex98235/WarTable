@@ -18,7 +18,7 @@ You need a Linux `amd64` host with Docker Engine and Compose v2, port `5110`
 free, and a trusted LAN. The root [`docker-compose.yml`](../docker-compose.yml)
 is the whole deployment: download it, run `docker compose up -d`, and open
 <http://localhost:5110>. It uses the named volume `wartable-data` and defaults
-`WARTABLE_TAG` to `2`. The step-by-step first run, including pinning a release
+`WARTABLE_TAG` to `3`. The step-by-step first run, including pinning a release
 and connecting an agent, is on the site:
 <https://alex98235.github.io/WarTable/setup>.
 
@@ -171,8 +171,8 @@ into documentation or deployment notes; change the file and let this page
 describe the intent. It must keep these properties:
 
 - `platform: linux/amd64` and `image:
-  ghcr.io/alex98235/wartable:${WARTABLE_TAG:-2}`.
-- `WARTABLE_TAG` defaults to `2`, the newest non-breaking release in the major.
+  ghcr.io/alex98235/wartable:${WARTABLE_TAG:-3}`.
+- `WARTABLE_TAG` defaults to `3`, the newest non-breaking release in the major.
   Production pins an immutable `X.Y.Z`; the file never defaults to `latest`.
 - `container_name: wartable`, `restart: unless-stopped`.
 - Port `5110` published on the host.
@@ -203,7 +203,7 @@ testing only. Never document or deploy `latest` in production. Compose reads
 its defaults.
 
 For the no-checkout first run, download the root
-[`docker-compose.yml`](../docker-compose.yml); it defaults to the `2` tag and the
+[`docker-compose.yml`](../docker-compose.yml); it defaults to the `3` tag and the
 named volume `wartable-data`. Production deployments pin an immutable `X.Y.Z`
 tag as described above. Upgrades are on the site:
 <https://alex98235.github.io/WarTable/updating>; backups are in

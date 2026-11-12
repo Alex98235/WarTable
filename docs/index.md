@@ -55,7 +55,7 @@ newest tag in a checkout:
 git tag --sort=-v:refname | head -n 1
 ```
 
-At the time of writing the newest tag is `v2.0.0`. Use the tag and GitHub
+At the time of writing the newest tag is `v3.0.0`. Use the tag and GitHub
 Release as the source of truth; this page does not track version numbers for
 you. Container images use the same `X.Y.Z` version as an immutable tag, with
 `latest` reserved for first runs.

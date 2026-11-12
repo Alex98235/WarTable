@@ -35,7 +35,7 @@ The service definition is the root [`docker-compose.yml`](../docker-compose.yml)
 Do not keep a second copy of it in documentation; read the file for the current
 ports, volume, command line, environment, and health check. For the first run,
 download the root [`docker-compose.yml`](../docker-compose.yml); `WARTABLE_TAG`
-defaults to `2` and the container uses a named volume.
+defaults to `3` and the container uses a named volume.
 
 Production start, data-directory ownership, `.env` contents, backup, and update
 procedure are all owned by [`deployment.md`](deployment.md):
