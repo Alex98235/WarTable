@@ -42,6 +42,22 @@ Multiple devices see the same state; there are no accounts and no offline writes
    carry the state that matters.
 9. **One server is the source of truth.** Multiple clients may connect over the
    LAN, but there is one database and no offline write queue.
+10. **The agent is an unreliable narrator.** An agent's output looks identical
+    whether it reasoned or post-hoc justified, so no check that inspects only
+    that output can separate the two. WarTable does not try to detect a
+    fabricated rationale; it refuses to let an agent-authored field become
+    load-bearing on assertion alone.
+    - Shape constrains a write; it never certifies it. A filled field is not
+      evidence the field is true.
+    - A fabricated field must be inert. Standing is derived from use and
+      resolvability, never assigned — the same reason objective status is
+      derived from steps.
+    - What is load-bearing resolves against ground truth the agent did not
+      write: a step that exists, an evidence row, a commit, an external source.
+      A basis that cannot be dereferenced is self-identifying as unfounded.
+    - This binds future surfaces, not just notes. The question for a new feature
+      is not "can the agent be trusted with this?" but "what happens when it is
+      wrong?"
 
 ### Deployment model
 
@@ -687,7 +703,8 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ## 9. Non-goals
 
 - Team collaboration: multi-user accounts, authentication, membership,
-  permissions, and sharing. WarTable is single-human.
+  permissions, and sharing. WarTable is single-human; see
+  [`designs/single-human-boundary.md`](designs/single-human-boundary.md).
 - Cloud hosting and unauthenticated internet exposure. The server is LAN-first;
   access beyond the LAN requires a VPN or an authenticated reverse proxy.
 - Offline-first sync, CRDTs, and multi-writer conflict resolution. Clients are

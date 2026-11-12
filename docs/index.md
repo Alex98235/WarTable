@@ -23,6 +23,7 @@ your role, then use the authority table when two pages seem to disagree.
 | CLI flags, configuration precedence, `.env`, `Embeddings__*`, `Logging__*`, Compose substitution | [`configuration.md`](configuration.md) |
 | Fallback agent system instruction and MCP usage behavior | [`agent-instructions.md`](agent-instructions.md) |
 | Product intent, domain model, scenarios, screen and MCP surface design | [`design.md`](design.md) |
+| Long-form argument for the current design | [`designs/`](designs/README.md) |
 | Codebase structure, request flow, HTTP API, live-update internals | [`architecture.md`](architecture.md) |
 | Supported production contract: pinned image, bind mount, backup, updates, network and security | [`deployment.md`](deployment.md) |
 | Container tags, image verification, volumes, smoke and update tests | [`container.md`](container.md) |

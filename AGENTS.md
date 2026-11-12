@@ -35,6 +35,10 @@ serves whatever `wwwroot` already contains.
   mismatched database rather than migrating it. No silent data loss.
 - Keep MCP tools and HTTP endpoints compatible unless the change is explicitly
   breaking and documented as such.
+- Agents are unreliable narrators: their output looks the same whether they
+  reasoned or post-hoc justified. Never accept agent self-report where a
+  derivation is possible, and never treat a filled field as evidence. See
+  [`docs/design.md`](docs/design.md) §2, principle 10.
 - Conventional Commits drive the changelog and semantic version.
 - Backend formatting is clean under `dotnet format`. `npm run format-check:backend`
   verifies it; `format:backend` writes, so commit formatting separately from
