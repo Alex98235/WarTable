@@ -61,5 +61,5 @@ USER 10001:10001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/usr/local/bin/busybox", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5110/api/health"]
 
-ENTRYPOINT ["dotnet", "WarTable.Api.dll"]
+ENTRYPOINT ["dotnet", "wartable.dll"]
 CMD ["--mode", "serve", "--host", "0.0.0.0", "--port", "5110", "--db", "/data/wartable.db"]

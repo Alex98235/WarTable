@@ -213,6 +213,9 @@ vite.config.ts.timestamp-*
 # Temporary design work (obsolete once the change lands)
 /.designs/
 
+# Docusaurus site build output
+/site/build/
+
 # WarTable build output and runtime data
 /WarTable.Api/wwwroot/
 backups/

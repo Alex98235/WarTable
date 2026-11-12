@@ -9,6 +9,9 @@
     <Version>0.0.0-local</Version>
     <Product>WarTable</Product>
     <Description>Human-AI planning workspace</Description>
+
+    <!-- One binary name everywhere: local builds, Docker, and release assets. -->
+    <AssemblyName>wartable</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
