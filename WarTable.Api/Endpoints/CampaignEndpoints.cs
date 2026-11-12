@@ -14,6 +14,7 @@ public record UpdateCampaignRequest(
 	string? Title = null,
 	string? Tags = null,
 	DateTime? ArchivedAt = null,
+	string? Charter = null,
 	string? Actor = null);
 
 /// <summary>
@@ -64,7 +65,8 @@ public static class CampaignEndpoints
 				var patch = new CampaignPatch(
 					request.Title,
 					request.Tags,
-					request.ArchivedAt);
+					request.ArchivedAt,
+					request.Charter);
 				var updated = await service.UpdateCampaignAsync(id, patch, Actor(request.Actor));
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}

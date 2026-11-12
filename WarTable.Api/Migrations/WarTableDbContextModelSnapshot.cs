@@ -79,6 +79,13 @@ namespace WarTable.Api.Migrations
                     b.Property<int>("Alias")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Basis")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Body")
                         .IsRequired()
                         .HasMaxLength(40000)
@@ -170,6 +177,10 @@ namespace WarTable.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime?>("ArchivedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Charter")
+                        .HasMaxLength(40000)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")

@@ -86,11 +86,10 @@ laptop agent    --+
 
 ### A. Cold start after a week
 
-The human opens the dashboard and sees an attention inbox: two flagged steps, one
-blocked objective, one open question. The agent starts with a single briefing
-call: campaign and charter excerpt, ready steps, blockers, flagged steps,
-directives, preferences, recent decisions, and design-doc excerpts. It does not
-read forty journal entries.
+The human opens the dashboard and sees an attention inbox: two flagged steps and
+one blocked objective. The agent starts with a single briefing call: campaign and
+charter excerpt, ready steps, blockers, flagged steps, directives, preferences,
+and recent decisions. It does not read forty journal entries.
 
 **Requirements:** computed briefing, attention queue, ready computation from
 dependencies, always-on directives and preferences.
@@ -169,18 +168,20 @@ A namespace and folder. It is not a work item and has no status.
 |---|---|
 | `Id` | GUID |
 | `Title` | |
+| `Charter` | Markdown. The durable why, scope, and architecture. Nullable. |
 | `Tags` | Comma-separated labels. |
 | `NextAliasNumber` | Campaign-scoped monotonic counter for objectives and notes. |
 | `CreatedAt`, `UpdatedAt` | |
 | `ArchivedAt` | Nullable. Set when the campaign is archived. |
 
-The campaign charter is a `Charter` Bunker note, not a campaign column. One
-active charter is allowed; campaign creation can create it automatically. A
-`DesignDoc` note records a component or area. Both are ordinary notes for
-aliases, links, status, search, activity, and MCP note tools. Campaign responses
-add `CharterExcerpt` and `CharterAlias` derived from the active charter. Campaigns
-have no intent field; a legacy `Intent` column remains in SQLite only so existing
-databases stay writable, and the application never reads or exposes it.
+The campaign charter is a campaign column, not a note. It is framing rather than
+knowledge: it has no alias, no status, and nothing supersedes it. Campaign
+creation and `update_campaign` write it; campaign responses add `CharterExcerpt`
+derived from the column. A kind that only shadowed a campaign field (`Charter`)
+or a briefing section (`DesignDoc`) does not belong in the note taxonomy —
+principle 10. Campaigns have no intent field; a legacy `Intent` column remains in
+SQLite only so existing databases stay writable, and the application never reads
+or exposes it.
 
 Relationships: objectives, bunker notes.
 
@@ -265,15 +266,24 @@ Campaign knowledge and campaign directives.
 | `Id` | GUID |
 | `CampaignId` | |
 | `Alias` | `#N`, campaign-scoped, shared counter with objectives, never reused. |
-| `Kind` | `Charter`, `DesignDoc`, `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`, `Question`. |
+| `Kind` | `Directive`, `Decision`, `Gotcha`, `Reference`, `Context`. |
 | `Title` | |
 | `Body` | Markdown. |
-| `Status` | `Active`, `Superseded`, or `Resolved` (questions). |
+| `Status` | `Active` or `Superseded`. `Resolved` still reads but is no longer produced. |
+| `Basis` | Nullable. Where the claim can be checked: `#12`, `#12.3`, a commit sha, or a URL. |
+| `ApprovedAt` | Nullable. Human confirmation of this exact body; any body edit clears it. |
 | `Pinned` | Directives are pinned and always injected. |
 | `Tags` | |
 | `CreatedBy`, `CreatedAt`, `UpdatedAt` | |
 | `SupersedesId` | Nullable. For decisions that replace earlier decisions. |
 | `DeletedAt` | Soft delete. |
+
+Each kind has a shape the agent must supply, enforced at the MCP boundary:
+`Decision` needs the chosen option, the rejected alternative, the reason, and a
+basis; `Gotcha` needs the trap and the escape; `Context` needs at least one
+objective or step link; `Directive` and `Reference` need a body. The shape is a
+template written into the body, not a certificate — see principle 10. HTTP note
+writes stay free-form, because the human is not the unreliable narrator.
 
 Links to objectives and steps are optional and many-to-many.
 
@@ -312,15 +322,15 @@ component. `get_plan` adds only explicit-link counts and never runs semantic
 retrieval per objective.
 
 Context is grouped by kind with per-kind quotas (directives 10, decisions 5,
-gotchas 5, references 3, context 3, questions 3, charter 1, design docs 3), so a
-long reference cannot bury the gotchas. Each entry carries alias, title, a
-240-character excerpt, heading path, match reasons (`linked-step`,
-`linked-objective`, `tag`, `directive`, `charter`, `semantic`, `keyword`), and a
-count of omitted entries. Ranking puts pinned/directive and explicit links above
-tags, then semantic score. Only active notes are considered; superseded notes stay
-resolvable through `get_note` but do not enter context. Full bodies are never
+gotchas 5, references 3, context 3), so a long reference cannot bury the gotchas.
+Each entry carries alias, title, a 240-character excerpt, heading path, match
+reasons (`linked-step`, `linked-objective`, `tag`, `directive`, `semantic`,
+`keyword`), and a count of omitted entries. Ranking puts pinned/directive and
+explicit links above tags, then semantic score. Only active notes are considered;
+superseded notes stay resolvable through `get_note` but do not enter context. Full
+bodies are never
 included. If embeddings are disabled or unavailable, the same call returns
-linked, tagged, directive, charter, and keyword candidates with `degraded: true`.
+linked, tagged, directive, and keyword candidates with `degraded: true`.
 
 ### Preference
 
@@ -366,12 +376,10 @@ Every mutation writes one event.
 These are not tables.
 
 - **Briefing** — campaign and charter excerpt, ready steps, blocked steps,
-  flagged steps, open questions, active directives, active preferences, recent
-  decisions, design-doc excerpts, seeds, and recent activity. Bounded and
-  token-aware.
-- **Attention** — cross-campaign inbox: flagged steps, blocked objectives, open
-  questions, and stale in-progress steps. Draft plans and seeds get a calm
-  separate section.
+  flagged steps, active directives, active preferences, recent decisions, seeds,
+  and recent activity. Bounded and token-aware.
+- **Attention** — cross-campaign inbox: flagged steps, blocked objectives, and
+  stale in-progress steps. Draft plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
 
 ### Aliases and addressing
@@ -399,13 +407,14 @@ timestamps are caches.
   delete or leave it Draft.
 - **Step:** `open` → `in-progress` → `done`. `flagged` and `blocked` can occur at
   any time. A blocked step should carry a `Blocker` update explaining why.
-- **Note:** `Active` → `Superseded` (decisions) or `Resolved` (questions).
+- **Note:** `Active` → `Superseded`. Nothing resolves a note any more; a gotcha
+  that no longer applies is superseded by the knowledge that replaced it.
 - **Preference:** `Active` → retired, preserving history.
 
 ### Storage lifecycle
 
 SQLite is the only persistent store. Startup applies EF migrations and stamps
-`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 2) as a
+`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 3) as a
 generation marker. Pending migrations run after the WAL is checkpointed and the
 database copied to `wartable.db.bak-<timestamp>`; a failed migration restores that
 copy and aborts startup. A database written before migrations existed is adopted
@@ -453,10 +462,10 @@ negotiated by the SDK.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `create_campaign` | `title`, `charter`, `tags`, `actor` | Folder, no status. A non-empty charter is stored as a `Charter` note. |
+| `create_campaign` | `title`, `charter`, `tags`, `actor` | Folder, no status. A non-empty charter is stored in the campaign's `Charter` column. |
 | `get_campaign` | `campaign_id` | Campaign with its objectives and Bunker notes; steps are not included. Prefer `get_briefing` for a bounded start. |
 | `list_campaigns` | `search`, `include_archived` | Archived campaigns are hidden by default. |
-| `update_campaign` | `campaign_id`, `title`, `tags`, `archived_at`, `actor` | Edit the charter with `update_note`. |
+| `update_campaign` | `campaign_id`, `title`, `charter`, `tags`, `archived_at`, `actor` | Omitted members are left unchanged. |
 | `delete_campaign` | `campaign_id`, `actor` | Hard delete. |
 
 ### Plans and briefing
@@ -558,15 +567,16 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   If the human declines, proceed without WarTable. Do not duplicate an existing
   campaign under a more generic title; use it and propose updating its charter,
   tags, or title instead.
-- Read the campaign Charter and relevant DesignDoc notes before proposing work.
-  The charter is the durable why, scope, and architecture; update it with
-  `update_note`.
+- Read the campaign Charter before proposing work. The charter is the durable why,
+  scope, and architecture; `update_campaign` writes it. Component-level design
+  detail belongs in the relevant objective description and its steps.
 - When a planning phase finishes, offer to import the plan. Import as `Draft` if
   it will not be executed immediately; activate when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
-- Record durable decisions, gotchas, references, and open questions in the Bunker
-  as they arise. Use DesignDoc notes for component-level design detail.
+- Record durable decisions, gotchas, references, and context notes in the Bunker
+  as they arise. Each kind has a shape to fill in: a decision states what was
+  chosen, what was rejected, why, and where the claim can be checked.
 - Before adding a note, or when asked whether something was already discussed,
   use `search_knowledge` and cite the note alias and snippet.
 - Capture a preference when the human expresses a durable preference. If it is
@@ -655,13 +665,13 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 - **Hero:** title, tags, compact stats (`in play`, `finished`, steps done, last
   update), and the primary actions (`Edit campaign`, `Bunker`, `+ Objective`).
-- **Charter:** the active Charter note as a 3-line preview with `Read charter` /
-  `Show less`, an edit action, and a link into the Bunker. No charter and inactive
-  charter states are compact inline invitations, not empty panels.
-- **Bounded brief:** "What matters now" with `Needs you` (flagged and blocked),
-  `Ready`, and `Questions`, capped at two rows per group plus `+N` counts.
-  Directives and recent decisions collapse into one context chip row;
-  preferences appear only here, capped at four.
+- **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
+  / `Show less` and an edit action that writes the campaign. An empty charter is a
+  compact inline invitation, not an empty panel.
+- **Bounded brief:** "What matters now" with `Needs you` (flagged and blocked) and
+  `Ready`, capped at two rows per group plus `+N` counts. Directives and recent
+  decisions collapse into one context chip row; preferences appear only here,
+  capped at four.
 - **Seed capture strip:** one input above the plan to park a thought — title plus
   optional detail, no steps.
 - **Plan tiers:** `In play` (active, unfinished), `Parked` (seeds, then drafts),
@@ -670,8 +680,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   reorder, or state controls; `updatedAt` is shown as last activity, never as a
   completion timestamp. Reorder applies only within `In play`.
 - **Knowledge rail:** sticky on desktop and stacked on narrow screens. Bunker
-  search with recent notes, plus a compact DesignDoc index and create action.
-  Charter and design docs are not repeated in recent notes.
+  search with recent notes. The charter is not repeated in recent notes.
 - The page is organized around the plan, not by object type.
 
 ### Objective detail

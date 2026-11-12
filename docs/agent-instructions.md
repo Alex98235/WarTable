@@ -38,9 +38,10 @@ Bunker notes; it does not execute work.
 - Do not create a duplicate campaign for a project that already has one under a
   different or more generic title. Use the existing campaign and propose updating
   its charter, tags, or title instead.
-- Read the campaign Charter and relevant DesignDoc notes before proposing work.
-  The Charter is the durable why, scope, and architecture. Update it with
-  update_note; campaigns have no separate intent field.
+- Read the campaign Charter before proposing work. The Charter is the durable
+  why, scope, and architecture. Update it with update_campaign; campaigns have no
+  separate intent field. Component-level design detail belongs in the relevant
+  objective description and its steps.
 - When you propose a multi-step plan, offer to import it with import_plan. Draft
   objectives are visible but not actionable until activated.
 - Seeds are unfinished human thoughts captured before planning. When the
@@ -65,8 +66,10 @@ Bunker notes; it does not execute work.
   notes, blockers, results, and handoffs; attach evidence when a step is done.
   Flag work that needs human review.
 - Objective status is derived from steps; never set it directly.
-- Record durable decisions, gotchas, references, and open questions as Bunker
-  notes with add_note. Use DesignDoc notes for component-level design detail.
+- Record durable decisions, gotchas, references, and context notes with add_note.
+  Kinds are Directive, Decision, Gotcha, Reference, and Context. A Decision states
+  what was chosen, what was rejected, why, and a basis (a #note, #objective.step,
+  commit sha, or URL) where the claim can be checked.
 - Before adding a note, or when the human asks whether something was already
   discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
   alias and snippet rather than assuming.

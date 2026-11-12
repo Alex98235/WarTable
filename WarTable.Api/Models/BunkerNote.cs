@@ -31,6 +31,21 @@ public class BunkerNote
 	/// <summary>For decisions that replace earlier decisions.</summary>
 	public Guid? SupersedesId { get; set; }
 
+	/// <summary>
+	/// Human-only confirmation timestamp. Set only by the UI/HTTP path, never by
+	/// an MCP tool, so an agent cannot self-certify its own output. A filled value
+	/// records that a human reviewed the note; it is not evidence the content is true.
+	/// </summary>
+	public DateTime? ApprovedAt { get; set; }
+
+	/// <summary>
+	/// Pointer to the artifact a claim rests on: a WarTable reference such as
+	/// <c>#12</c> or <c>#12.3</c>, a commit sha, or a URL. Nullable. Because this is
+	/// set by the note author (usually an agent), it is a claim, not a guarantee:
+	/// an unresolvable basis self-identifies the note as unfounded.
+	/// </summary>
+	public string? Basis { get; set; }
+
 	public DateTime? DeletedAt { get; set; }
 
 	[JsonIgnore]
@@ -54,9 +69,6 @@ public enum BunkerNoteKind
 	Gotcha,
 	Reference,
 	Context,
-	Question,
-	Charter,
-	DesignDoc,
 }
 
 public enum BunkerNoteStatus

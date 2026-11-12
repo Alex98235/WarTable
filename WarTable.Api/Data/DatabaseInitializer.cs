@@ -21,7 +21,7 @@ public static class DatabaseInitializer
 	/// EF model changes so release notes can flag it; migrations move the data,
 	/// this number only describes the shape.
 	/// </summary>
-	public const int SchemaVersion = 2;
+	public const int SchemaVersion = 3;
 
 	/// <summary>
 	/// Schema generation reproduced by the initial migration — the last shape

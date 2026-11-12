@@ -30,12 +30,6 @@
 			items: attention?.blockedObjectives ?? []
 		},
 		{
-			key: 'question',
-			label: 'Open questions',
-			hint: 'Bunker questions still active',
-			items: attention?.openQuestions ?? []
-		},
-		{
 			key: 'stale',
 			label: 'Stale in-progress',
 			hint: 'No update in over 72 hours',
@@ -199,7 +193,7 @@
 					<span class="calm-mark" aria-hidden="true">◌</span>
 					<div>
 						<h3>The inbox is clear.</h3>
-						<p>No flagged steps, blocked objectives, open questions, or stale work.</p>
+						<p>No flagged steps, blocked objectives, or stale work.</p>
 					</div>
 				</div>
 			{:else}

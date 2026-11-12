@@ -14,7 +14,7 @@ It also stores the context around the work:
 - **Preferences** — global soft rules about how you like to work, worth
   remembering between sessions.
 - **Bunker notes** — campaign-specific knowledge: directives, decisions,
-  gotchas, references, and open questions.
+  gotchas, references, and context.
 
 Built with C# ASP.NET Minimal API, EF Core + SQLite, Svelte 5, and the official
 MCP C# SDK. The product and domain design lives in
@@ -83,7 +83,7 @@ your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
 
 ## Core concepts
 
-- **Campaign** — a folder for a body of work. It has a Charter note but no status.
+- **Campaign** — a folder for a body of work. It has a charter but no status.
 - **Objective** — a durable outcome inside a campaign, with a campaign-scoped
   alias (`#N`) and a `Seed`, `Draft`, or `Active` plan state. A seed is a captured
   unfinished thought: visible, but not actionable until drafted.

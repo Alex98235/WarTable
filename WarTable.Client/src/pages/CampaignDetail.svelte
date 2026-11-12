@@ -50,10 +50,6 @@
 	let charterForm = $state({ body: '' });
 	let charterSaving = $state(false);
 
-	let showDesignDoc = $state(false);
-	let designDocForm = $state({ title: '', body: '', tags: '' });
-	let designDocSaving = $state(false);
-
 	let showObjectiveModal = $state(false);
 	let objectiveForm = $state({
 		title: '',
@@ -110,34 +106,9 @@
 
 	let tags = $derived(campaign ? parseTags(campaign.tags) : []);
 
-	let charterNote = $derived(
-		notes.find(
-			(note) => !note.deletedAt && note.kind === 'Charter' && note.status === 'Active'
-		) || null
-	);
-
-	// A charter can exist but be superseded. The backend only allows one, so the
-	// empty invitation must not promise to write a second one.
-	let inactiveCharter = $derived(
-		notes.find(
-			(note) => !note.deletedAt && note.kind === 'Charter' && note.status !== 'Active'
-		) || null
-	);
-
-	let designDocs = $derived(
-		notes
-			.filter(
-				(note) => !note.deletedAt && note.kind === 'DesignDoc' && note.status === 'Active'
-			)
-			.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
-	);
-
 	let railNotes = $derived(
 		notes
 			.filter((note) => note.status === 'Active')
-			// Charter and design docs already have dedicated homes in the hero and
-			// rail; recent notes should stay a genuinely different list.
-			.filter((note) => note.kind !== 'Charter' && note.kind !== 'DesignDoc')
 			.filter((note) => {
 				const query = railSearch.trim().toLowerCase();
 				if (!query) return true;
@@ -268,7 +239,7 @@
 	}
 
 	function openCharterEditor() {
-		charterForm = { body: charterNote?.body || '' };
+		charterForm = { body: campaign?.charter || '' };
 		editingCharter = true;
 	}
 
@@ -276,65 +247,17 @@
 		event.preventDefault();
 		charterSaving = true;
 		try {
-			if (charterNote) {
-				await apiPut(`/api/notes/${charterNote.id}`, {
-					title: charterNote.title || 'Charter',
-					body: charterForm.body,
-					actor: ACTOR
-				});
-				addToast('Charter saved.', 'success');
-			} else {
-				await apiPost('/api/notes', {
-					campaignId,
-					kind: 'Charter',
-					title: 'Charter',
-					body: charterForm.body,
-					actor: ACTOR
-				});
-				addToast('Charter written.', 'success');
-			}
+			await apiPut(`/api/campaigns/${campaignId}`, {
+				charter: charterForm.body,
+				actor: ACTOR
+			});
+			addToast('Charter saved.', 'success');
 			editingCharter = false;
 			await load({ silent: true });
 		} catch (err) {
 			addToast(err.message || 'Could not save the charter.', 'error');
 		} finally {
 			charterSaving = false;
-		}
-	}
-
-	function openDesignDocModal() {
-		designDocForm = { title: '', body: '', tags: '' };
-		showDesignDoc = true;
-	}
-
-	async function createDesignDoc(event) {
-		event.preventDefault();
-		if (!designDocForm.title.trim()) {
-			addToast('A design doc needs a title.', 'warning');
-			return;
-		}
-		designDocSaving = true;
-		try {
-			const created = await apiPost('/api/notes', {
-				campaignId,
-				kind: 'DesignDoc',
-				title: designDocForm.title.trim(),
-				body: designDocForm.body,
-				tags: parseTags(designDocForm.tags).join(', '),
-				actor: ACTOR
-			});
-			addToast(
-				created?.alias != null
-					? `Design doc #${created.alias} created.`
-					: 'Design doc created.',
-				'success'
-			);
-			showDesignDoc = false;
-			await load({ silent: true });
-		} catch (err) {
-			addToast(err.message || 'Could not create the design doc.', 'error');
-		} finally {
-			designDocSaving = false;
 		}
 	}
 
@@ -599,45 +522,25 @@
 		</div>
 
 		<div class="hero-charter">
-			{#if charterNote}
+			{#if campaign.charter}
 				<div class="hero-charter-head">
 					<p class="eyebrow">Charter</p>
-					<span class="hero-charter-age">updated {timeAgo(charterNote.updatedAt)}</span>
 					<div class="hero-charter-actions">
 						<button
 							type="button"
 							class="btn btn-ghost btn-sm"
 							onclick={openCharterEditor}>Edit charter</button
 						>
-						<a class="text-link" href={noteHref(charterNote)}>Open in Bunker →</a>
 					</div>
 				</div>
 				<div class="hero-charter-body markdown-wrap">
-					{#if charterNote.body}
-						<Markdown
-							source={charterNote.body}
-							{campaignId}
-							clamp={3}
-							collapsible
-							showLabel="Read charter"
-						/>
-					{:else}
-						<p class="micro-empty">
-							The charter has no body yet. Edit it to write the framing down.
-						</p>
-					{/if}
-				</div>
-			{:else if inactiveCharter}
-				<div class="hero-charter-empty">
-					<span class="hero-charter-mark" aria-hidden="true">◇</span>
-					<p>
-						This campaign's charter is marked
-						{inactiveCharter.status.toLowerCase()}. Reactivate it in the Bunker to bring
-						the framing back for agents.
-					</p>
-					<a class="btn btn-secondary btn-sm" href={noteHref(inactiveCharter)}
-						>Open charter in Bunker</a
-					>
+					<Markdown
+						source={campaign.charter}
+						{campaignId}
+						clamp={3}
+						collapsible
+						showLabel="Read charter"
+					/>
 				</div>
 			{:else}
 				<div class="hero-charter-empty">
@@ -1133,44 +1036,6 @@
 					>Search the Bunker</a
 				>
 			</section>
-
-			<section class="panel rail-panel">
-				<header class="panel-head compact">
-					<div class="panel-heading">
-						<p class="eyebrow">Framing</p>
-						<h2 class="panel-title">Design docs</h2>
-					</div>
-					<button type="button" class="btn btn-ghost btn-sm" onclick={openDesignDocModal}
-						>+ New</button
-					>
-				</header>
-
-				{#if designDocs.length === 0}
-					<p class="micro-empty">
-						No design docs yet. Keep architecture, options, and trade-offs next to the
-						plan.
-					</p>
-				{:else}
-					<ul class="design-doc-list">
-						{#each designDocs as doc (doc.id)}
-							<li>
-								<a class="design-doc-row" href={noteHref(doc)}>
-									<span class="design-doc-main">
-										<span class="design-doc-top">
-											<span class="ref-chip">#{doc.alias}</span>
-											<span class="design-doc-title">{doc.title}</span>
-										</span>
-										<span class="design-doc-age"
-											>updated {timeAgo(doc.updatedAt)}</span
-										>
-									</span>
-									<span class="design-doc-arrow" aria-hidden="true">→</span>
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</section>
 		</aside>
 	</div>
 {/if}
@@ -1273,10 +1138,10 @@
 				<div class="modal-header">
 					<div>
 						<p class="eyebrow">
-							{charterNote ? `#${charterNote.alias} · Charter` : 'Campaign framing'}
+							{campaign?.charter ? 'Charter' : 'Campaign framing'}
 						</p>
 						<h2 id="charter-editor-title">
-							{charterNote ? 'Edit charter' : 'Write charter'}
+							{campaign?.charter ? 'Edit charter' : 'Write charter'}
 						</h2>
 						<p class="panel-subtitle">
 							Why the campaign exists, what it covers, and how it is put together.
@@ -1311,94 +1176,11 @@
 						onclick={() => (editingCharter = false)}>Cancel</button
 					>
 					<button type="submit" class="btn btn-primary" disabled={charterSaving}>
-						{charterSaving ? 'Saving…' : charterNote ? 'Save charter' : 'Write charter'}
-					</button>
-				</div>
-			</form>
-		</div>
-	</div>
-{/if}
-
-{#if showDesignDoc}
-	<div
-		class="modal-overlay"
-		role="presentation"
-		onclick={(e) => {
-			if (e.target === e.currentTarget) showDesignDoc = false;
-		}}
-	>
-		<div
-			class="modal modal-wide"
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="new-design-doc-title"
-			tabindex="-1"
-			onclick={(e) => e.stopPropagation()}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') showDesignDoc = false;
-			}}
-		>
-			<form onsubmit={createDesignDoc}>
-				<div class="modal-header">
-					<div>
-						<p class="eyebrow">Campaign framing</p>
-						<h2 id="new-design-doc-title">New design doc</h2>
-						<p class="panel-subtitle">
-							The longer thinking: architecture, options, trade-offs. Stored as a note
-							in the Bunker.
-						</p>
-					</div>
-					<button
-						type="button"
-						class="modal-close"
-						onclick={() => (showDesignDoc = false)}
-						aria-label="Close">×</button
-					>
-				</div>
-				<div class="modal-body">
-					<div class="form-group">
-						<label class="form-label" for="design-doc-title-input">Title</label>
-						<input
-							id="design-doc-title-input"
-							class="form-input"
-							type="text"
-							bind:value={designDocForm.title}
-							placeholder="e.g. Sync model and conflict handling"
-							required
-						/>
-					</div>
-					<div class="form-group">
-						<label class="form-label" for="design-doc-body"
-							>Body <span class="optional">(markdown)</span></label
-						>
-						<MarkdownEditor
-							id="design-doc-body"
-							bind:value={designDocForm.body}
-							{campaignId}
-							rows={8}
-						/>
-					</div>
-					<div class="form-group">
-						<label class="form-label" for="design-doc-tags"
-							>Tags <span class="optional">(comma separated)</span></label
-						>
-						<input
-							id="design-doc-tags"
-							class="form-input"
-							type="text"
-							bind:value={designDocForm.tags}
-							placeholder="architecture, sync"
-						/>
-					</div>
-				</div>
-				<div class="modal-actions">
-					<button
-						type="button"
-						class="btn btn-ghost"
-						onclick={() => (showDesignDoc = false)}>Cancel</button
-					>
-					<button type="submit" class="btn btn-primary" disabled={designDocSaving}>
-						{designDocSaving ? 'Creating…' : 'Create design doc'}
+						{charterSaving
+							? 'Saving…'
+							: campaign?.charter
+								? 'Save charter'
+								: 'Write charter'}
 					</button>
 				</div>
 			</form>

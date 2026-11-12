@@ -20,7 +20,8 @@ public record ObjectivePatch(
 public record CampaignPatch(
 	string? Title = null,
 	string? Tags = null,
-	DateTime? ArchivedAt = null);
+	DateTime? ArchivedAt = null,
+	string? Charter = null);
 
 /// <summary>Partial update payload for a step. A null member means "leave unchanged".</summary>
 public record StepPatch(
@@ -37,7 +38,9 @@ public record BunkerNotePatch(
 	BunkerNoteStatus? Status = null,
 	bool? Pinned = null,
 	string? Tags = null,
-	Guid? SupersedesId = null);
+	Guid? SupersedesId = null,
+	string? Basis = null,
+	DateTime? ApprovedAt = null);
 
 /// <summary>Partial update payload for an operator preference. Same semantics as <see cref="ObjectivePatch"/>.</summary>
 public record PreferencePatch(
@@ -279,36 +282,18 @@ public partial class WarTableService
 			query = query.Where(c =>
 				c.Title.ToLower().Contains(lower) ||
 				c.Tags.ToLower().Contains(lower) ||
-				c.BunkerNotes.Any(n =>
-					n.Kind == BunkerNoteKind.Charter &&
-					(n.Title.ToLower().Contains(lower) || n.Body.ToLower().Contains(lower))));
+				(c.Charter != null && (c.Charter.ToLower().Contains(lower) || c.Title.ToLower().Contains(lower))));
 		}
 
 		var campaigns = await query
 			.OrderByDescending(c => c.UpdatedAt)
 			.ToListAsync();
 
-		// List views need a short charter preview without loading every note.
-		if (campaigns.Count == 0)
-			return campaigns;
-
-		var campaignIds = campaigns.Select(c => c.Id).ToList();
-		var charters = await _db.BunkerNotes.AsNoTracking()
-			.Where(n => campaignIds.Contains(n.CampaignId) &&
-						n.Kind == BunkerNoteKind.Charter &&
-						n.Status == BunkerNoteStatus.Active)
-			.OrderByDescending(n => n.UpdatedAt)
-			.Select(n => new { n.CampaignId, n.Alias, n.Body })
-			.ToListAsync();
-
+		// List views need a short charter preview.
 		foreach (var campaign in campaigns)
 		{
-			var charter = charters.FirstOrDefault(n => n.CampaignId == campaign.Id);
-			if (charter is null)
-				continue;
-
-			campaign.CharterAlias = charter.Alias;
-			campaign.CharterExcerpt = Excerpt(charter.Body, CampaignCharterExcerptLength);
+			if (!string.IsNullOrWhiteSpace(campaign.Charter))
+				campaign.CharterExcerpt = Excerpt(campaign.Charter, CampaignCharterExcerptLength);
 		}
 
 		return campaigns;
@@ -340,13 +325,8 @@ public partial class WarTableService
 		foreach (var note in campaign.BunkerNotes)
 			PopulateNoteLinks(note);
 
-		var charter = campaign.BunkerNotes.FirstOrDefault(n =>
-			n.Kind == BunkerNoteKind.Charter && n.Status == BunkerNoteStatus.Active);
-		if (charter is not null)
-		{
-			campaign.CharterAlias = charter.Alias;
-			campaign.CharterExcerpt = Excerpt(charter.Body, CampaignCharterExcerptLength);
-		}
+		if (!string.IsNullOrWhiteSpace(campaign.Charter))
+			campaign.CharterExcerpt = Excerpt(campaign.Charter, CampaignCharterExcerptLength);
 
 		return campaign;
 	}
@@ -358,6 +338,7 @@ public partial class WarTableService
 		{
 			Title = title,
 			Intent = "",
+			Charter = string.IsNullOrWhiteSpace(charter) ? null : charter,
 			Tags = tags,
 			CreatedAt = now,
 			UpdatedAt = now,
@@ -366,28 +347,13 @@ public partial class WarTableService
 
 		_db.Campaigns.Add(campaign);
 
+		if (!string.IsNullOrWhiteSpace(charter))
+			campaign.CharterExcerpt = Excerpt(charter, CampaignCharterExcerptLength);
+
 		await RecordEventAsync(
 			campaign.Id, actor, ActivityEntityType.Campaign, campaign.Id,
 			"Created", $"Created campaign \"{campaign.Title}\"",
 			new { campaign_id = campaign.Id, title = campaign.Title });
-
-		if (!string.IsNullOrWhiteSpace(charter))
-		{
-			var charterNote = await CreateNoteAsync(
-				campaign.Id,
-				BunkerNoteKind.Charter,
-				"Charter",
-				charter,
-				"",
-				false,
-				actor,
-				Array.Empty<Guid>(),
-				Array.Empty<Guid>(),
-				null);
-
-			campaign.CharterAlias = charterNote.Alias;
-			campaign.CharterExcerpt = Excerpt(charterNote.Body, CampaignCharterExcerptLength);
-		}
 
 		return campaign;
 	}
@@ -401,7 +367,11 @@ public partial class WarTableService
 		if (patch.Title is not null) campaign.Title = patch.Title;
 		if (patch.Tags is not null) campaign.Tags = patch.Tags;
 		if (patch.ArchivedAt is not null) campaign.ArchivedAt = patch.ArchivedAt;
+		if (patch.Charter is not null) { campaign.Charter = patch.Charter; }
 		campaign.UpdatedAt = DateTime.UtcNow;
+
+		if (!string.IsNullOrWhiteSpace(campaign.Charter))
+			campaign.CharterExcerpt = Excerpt(campaign.Charter, CampaignCharterExcerptLength);
 
 		await RecordEventAsync(
 			campaign.Id, actor, ActivityEntityType.Campaign, campaign.Id,
@@ -1165,19 +1135,12 @@ public partial class WarTableService
 		string createdBy,
 		IEnumerable<Guid> linkedObjectiveIds,
 		IEnumerable<Guid> linkedStepIds,
-		Guid? supersedesId)
+		Guid? supersedesId,
+		string? basis = null)
 	{
 		// Keep campaign-not-found precedence over link validation, as before.
 		if (!await _db.Campaigns.AsNoTracking().AnyAsync(c => c.Id == campaignId))
 			throw new InvalidOperationException($"Campaign not found: {campaignId}");
-
-		if (kind == BunkerNoteKind.Charter &&
-			await _db.BunkerNotes.AsNoTracking()
-				.AnyAsync(n => n.CampaignId == campaignId && n.Kind == BunkerNoteKind.Charter))
-		{
-			throw new InvalidOperationException(
-				"This campaign already has a charter. Update the existing charter instead.");
-		}
 
 		var objectiveIds = (linkedObjectiveIds ?? Enumerable.Empty<Guid>()).Distinct().ToList();
 		var stepIds = (linkedStepIds ?? Enumerable.Empty<Guid>()).Distinct().ToList();
@@ -1229,6 +1192,7 @@ public partial class WarTableService
 			CreatedAt = now,
 			UpdatedAt = now,
 			SupersedesId = supersedesId,
+			Basis = basis,
 		};
 
 		foreach (var objectiveId in objectiveIds)
@@ -1265,10 +1229,20 @@ public partial class WarTableService
 		var oldStatus = note.Status;
 
 		if (patch.Title is not null) note.Title = patch.Title;
-		if (patch.Body is not null) note.Body = patch.Body;
+		if (patch.Body is not null)
+		{
+			// A confirmation is of the text that was confirmed: changing the body
+			// clears it. Assigning the same text again is not a change, so a client
+			// that round-trips the body does not silently drop the approval.
+			if (patch.Body != note.Body)
+				note.ApprovedAt = null;
+			note.Body = patch.Body;
+		}
 		if (patch.Status is not null) note.Status = patch.Status.Value;
 		if (patch.Pinned is not null) note.Pinned = patch.Pinned.Value;
 		if (patch.Tags is not null) note.Tags = patch.Tags;
+		if (patch.Basis is not null) note.Basis = patch.Basis;
+		if (patch.ApprovedAt is not null) note.ApprovedAt = patch.ApprovedAt;
 		if (patch.SupersedesId is not null)
 		{
 			if (patch.SupersedesId.Value == note.Id)
@@ -1330,27 +1304,6 @@ public partial class WarTableService
 			.Where(n => n.CampaignId == campaignId &&
 						n.Kind == BunkerNoteKind.Directive &&
 						n.Status == BunkerNoteStatus.Active)
-			.OrderByDescending(n => n.Pinned)
-			.ThenByDescending(n => n.CreatedAt)
-			.ToListAsync();
-
-		foreach (var note in notes)
-			PopulateNoteLinks(note);
-
-		return notes;
-	}
-
-	public async Task<List<BunkerNote>> GetOpenQuestionsAsync(Guid? campaignId = null)
-	{
-		var query = _db.BunkerNotes.AsNoTracking()
-			.Include(n => n.Links)
-			.Where(n => n.Kind == BunkerNoteKind.Question &&
-						n.Status == BunkerNoteStatus.Active);
-
-		if (campaignId.HasValue)
-			query = query.Where(n => n.CampaignId == campaignId.Value);
-
-		var notes = await query
 			.OrderByDescending(n => n.Pinned)
 			.ThenByDescending(n => n.CreatedAt)
 			.ToListAsync();
@@ -1492,7 +1445,6 @@ public partial class WarTableService
 			}
 		}
 
-		var openQuestions = (await GetOpenQuestionsAsync(campaignId)).Take(BriefingNoteLimit).ToList();
 		var directives = (await GetDirectivesAsync(campaignId)).Take(BriefingNoteLimit).ToList();
 		var preferences = (await GetPreferencesAsync()).Take(BriefingPreferenceLimit).ToList();
 
@@ -1509,25 +1461,8 @@ public partial class WarTableService
 
 		var recentActivity = (await GetActivityAsync(campaignId, since)).Take(BriefingActivityLimit).ToList();
 
-		var charterNote = await _db.BunkerNotes.AsNoTracking()
-			.Where(n => n.CampaignId == campaignId &&
-						n.Kind == BunkerNoteKind.Charter &&
-						n.Status == BunkerNoteStatus.Active)
-			.OrderByDescending(n => n.UpdatedAt)
-			.FirstOrDefaultAsync();
-		var designDocs = await _db.BunkerNotes.AsNoTracking()
-			.Where(n => n.CampaignId == campaignId &&
-						n.Kind == BunkerNoteKind.DesignDoc &&
-						n.Status == BunkerNoteStatus.Active)
-			.OrderByDescending(n => n.UpdatedAt)
-			.Take(BriefingDocumentLimit)
-			.ToListAsync();
-
-		if (charterNote is not null)
-		{
-			campaign.CharterAlias = charterNote.Alias;
-			campaign.CharterExcerpt = Excerpt(charterNote.Body, CampaignCharterExcerptLength);
-		}
+		if (!string.IsNullOrWhiteSpace(campaign.Charter))
+			campaign.CharterExcerpt = Excerpt(campaign.Charter, CampaignCharterExcerptLength);
 
 		var seeds = await _db.Objectives.AsNoTracking()
 			.Where(o => o.CampaignId == campaignId && o.PlanState == PlanState.Seed)
@@ -1541,12 +1476,11 @@ public partial class WarTableService
 			ready.Take(BriefingStepLimit).ToList(),
 			blocked.Take(BriefingStepLimit).ToList(),
 			flagged.Take(BriefingStepLimit).ToList(),
-			openQuestions,
 			directives,
 			preferences,
 			recentDecisions,
-			charterNote is null ? null : ToBriefingDocument(charterNote),
-			designDocs.Select(ToBriefingDocument).ToList(),
+			string.IsNullOrWhiteSpace(campaign.Charter) ? null : ToBriefingDocumentInline(campaign),
+			new List<BriefingDocument>(),
 			seeds,
 			recentActivity);
 	}
@@ -1581,19 +1515,6 @@ public partial class WarTableService
 										   o.Id, o.Alias, null, o.Status))
 									   .Take(AttentionLimit)
 									   .ToListAsync();
-
-		var openQuestions = await (from n in _db.BunkerNotes.AsNoTracking()
-								   join c in _db.Campaigns.AsNoTracking() on n.CampaignId equals c.Id
-								   where n.Kind == BunkerNoteKind.Question &&
-										 n.Status == BunkerNoteStatus.Active &&
-										 (!hasCampaign || n.CampaignId == cid)
-								   orderby n.CreatedAt descending
-								   select new AttentionItem(
-									   "OpenQuestion", n.CampaignId, c.Title, n.Id, n.Title,
-									   $"Open question #{n.Alias}", n.CreatedAt,
-									   null, null, null, "Active", n.Alias))
-								   .Take(AttentionLimit)
-								   .ToListAsync();
 
 		var staleInProgress = await (from s in _db.Steps.AsNoTracking()
 									 join o in _db.Objectives.AsNoTracking() on s.ObjectiveId equals o.Id
@@ -1633,7 +1554,7 @@ public partial class WarTableService
 									.Take(AttentionLimit)
 									.ToListAsync();
 
-		return new Attention(flagged, blockedObjectives, openQuestions, staleInProgress, draftObjectives, seedObjectives);
+		return new Attention(flagged, blockedObjectives, staleInProgress, draftObjectives, seedObjectives);
 	}
 
 	// ── Helpers ──
@@ -1649,6 +1570,18 @@ public partial class WarTableService
 			step.Title,
 			step.Status,
 			step.Assignee);
+	}
+
+	private static BriefingDocument ToBriefingDocumentInline(Campaign campaign)
+	{
+		return new BriefingDocument(
+			campaign.Id,
+			0,
+			"Charter",
+			BunkerNoteKind.Context,
+			Excerpt(campaign.Charter, BriefingDocumentExcerptLength) ?? "",
+			campaign.Tags,
+			campaign.UpdatedAt);
 	}
 
 	private static BriefingDocument ToBriefingDocument(BunkerNote note)

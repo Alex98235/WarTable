@@ -204,30 +204,10 @@ export function truncate(text, maxLen = 120) {
 export const STEP_STATUSES = ['open', 'in-progress', 'done', 'flagged', 'blocked'];
 
 /** All note kinds and statuses, matching the backend enums. */
-export const NOTE_KINDS = [
-	'Charter',
-	'DesignDoc',
-	'Directive',
-	'Decision',
-	'Gotcha',
-	'Reference',
-	'Context',
-	'Question'
-];
+export const NOTE_KINDS = ['Directive', 'Decision', 'Gotcha', 'Reference', 'Context'];
 
-/**
- * Kinds the generic Bunker capture dialog may create. The Charter is excluded:
- * a campaign can only ever have one, and it is written from the campaign's
- * Framing section.
- */
-export const NOTE_CREATE_KINDS = NOTE_KINDS.filter((kind) => kind !== 'Charter');
-
-/** Display labels for note kinds whose enum value is not the label we show. */
-export const NOTE_KIND_LABELS = { Charter: 'Charter', DesignDoc: 'Design doc' };
-
-export function noteKindLabel(kind) {
-	return NOTE_KIND_LABELS[kind] || kind;
-}
+/** Kinds the generic Bunker capture dialog may create. */
+export const NOTE_CREATE_KINDS = NOTE_KINDS;
 
 export const NOTE_STATUSES = ['Active', 'Superseded', 'Resolved'];
 export const EVIDENCE_KINDS = ['Link', 'File', 'Commit', 'Test', 'Screenshot', 'Other'];

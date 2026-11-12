@@ -19,6 +19,9 @@ public class Campaign
 	[JsonIgnore]
 	public string Intent { get; set; } = "";
 
+	/// <summary>Campaign charter in markdown. Promoted from a Bunker note.</summary>
+	public string? Charter { get; set; }
+
 	public string Tags { get; set; } = "";
 	public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 	public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
@@ -26,10 +29,6 @@ public class Campaign
 	/// <summary>Populated by the service for list views; not persisted on Campaign.</summary>
 	[NotMapped]
 	public string? CharterExcerpt { get; set; }
-
-	/// <summary>Alias of the active charter note, when one exists.</summary>
-	[NotMapped]
-	public int? CharterAlias { get; set; }
 
 	/// <summary>Nullable archive marker. Archive semantics are deferred.</summary>
 	public DateTime? ArchivedAt { get; set; }

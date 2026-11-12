@@ -49,13 +49,10 @@ public sealed class KnowledgeContextService
 	private static readonly BunkerNoteKind[] GroupOrder =
 	[
 		BunkerNoteKind.Directive,
-		BunkerNoteKind.Charter,
 		BunkerNoteKind.Decision,
 		BunkerNoteKind.Gotcha,
 		BunkerNoteKind.Reference,
 		BunkerNoteKind.Context,
-		BunkerNoteKind.Question,
-		BunkerNoteKind.DesignDoc,
 	];
 
 	private static readonly IReadOnlyDictionary<BunkerNoteKind, int> Quotas =
@@ -66,9 +63,6 @@ public sealed class KnowledgeContextService
 			[BunkerNoteKind.Gotcha] = 5,
 			[BunkerNoteKind.Reference] = 3,
 			[BunkerNoteKind.Context] = 3,
-			[BunkerNoteKind.Question] = 3,
-			[BunkerNoteKind.Charter] = 1,
-			[BunkerNoteKind.DesignDoc] = 3,
 		};
 
 	private static readonly string[] MatchedByOrder =
@@ -204,7 +198,7 @@ public sealed class KnowledgeContextService
 	{
 		var counts = objectives.ToDictionary(
 			objective => objective.Id,
-			_ => new KnowledgeCounts(0, 0, 0, 0, 0));
+			_ => new KnowledgeCounts(0, 0, 0, 0));
 
 		if (objectives.Count == 0)
 			return counts;
@@ -223,7 +217,6 @@ public sealed class KnowledgeContextService
 			var gotchas = 0;
 			var references = 0;
 			var context = 0;
-			var questions = 0;
 
 			foreach (var note in notes)
 			{
@@ -248,14 +241,11 @@ public sealed class KnowledgeContextService
 					case BunkerNoteKind.Context:
 						context++;
 						break;
-					case BunkerNoteKind.Question:
-						questions++;
-						break;
 				}
 			}
 
 			counts[objective.Id] = new KnowledgeCounts(
-				decisions, gotchas, references, context, questions);
+				decisions, gotchas, references, context);
 		}
 
 		return counts;
@@ -294,9 +284,6 @@ public sealed class KnowledgeContextService
 
 			if (note.Kind == BunkerNoteKind.Directive)
 				Add(candidates, note, "directive");
-
-			if (note.Kind == BunkerNoteKind.Charter)
-				Add(candidates, note, "charter");
 		}
 
 		var semanticUsed = false;
@@ -397,7 +384,6 @@ public sealed class KnowledgeContextService
 		=> candidates
 			.OrderByDescending(candidate => candidate.Note.Pinned)
 			.ThenByDescending(candidate => candidate.Note.Kind == BunkerNoteKind.Directive)
-			.ThenByDescending(candidate => candidate.Note.Kind == BunkerNoteKind.Charter)
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("linked-step"))
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("linked-objective"))
 			.ThenByDescending(candidate => candidate.MatchedBy.Contains("tag"))

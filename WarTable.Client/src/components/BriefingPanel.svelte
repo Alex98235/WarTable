@@ -12,7 +12,6 @@
 	let flagged = $derived(briefing?.flaggedSteps ?? []);
 	let ready = $derived(briefing?.readySteps ?? []);
 	let blocked = $derived(briefing?.blockedSteps ?? []);
-	let questions = $derived(briefing?.openQuestions ?? []);
 	let directives = $derived(briefing?.directives ?? []);
 	let decisions = $derived(briefing?.recentDecisions ?? []);
 	let preferences = $derived(briefing?.preferences ?? []);
@@ -36,7 +35,7 @@
 		}))
 	]);
 
-	let urgentCount = $derived(flagged.length + blocked.length + questions.length);
+	let urgentCount = $derived(flagged.length + blocked.length);
 	let calm = $derived(urgentCount === 0 && ready.length === 0);
 
 	let lead = $derived(
@@ -44,11 +43,9 @@
 			? `${flagged.length} flagged step${flagged.length === 1 ? '' : 's'} need you`
 			: blocked.length > 0
 				? `${blocked.length} step${blocked.length === 1 ? '' : 's'} blocked`
-				: questions.length > 0
-					? `${questions.length} open question${questions.length === 1 ? '' : 's'}`
-					: ready.length > 0
-						? `${ready.length} step${ready.length === 1 ? '' : 's'} ready to pull`
-						: 'Nothing is demanding attention'
+				: ready.length > 0
+					? `${ready.length} step${ready.length === 1 ? '' : 's'} ready to pull`
+					: 'Nothing is demanding attention'
 	);
 
 	// Directives and decisions stay available, but as a single line of reference
@@ -167,34 +164,6 @@
 						{#if ready.length > ROW_CAP}
 							<span class="brief-more is-quiet"
 								>+{ready.length - ROW_CAP} more ready in the plan</span
-							>
-						{/if}
-					{/if}
-				</div>
-
-				<div class="brief-group">
-					<div class="brief-group-head">
-						<p class="zone-label">
-							<span class="live-dot tone-question"></span> Questions
-						</p>
-						{#if questions.length > 0}
-							<span class="brief-group-count">{questions.length}</span>
-						{/if}
-					</div>
-					{#if questions.length === 0}
-						<p class="micro-empty">No open questions.</p>
-					{:else}
-						<div class="brief-list">
-							{#each questions.slice(0, ROW_CAP) as note (note.id)}
-								<a class="brief-row tone-question" href={noteHref(note)}>
-									<span class="ref-chip">#{note.alias}</span>
-									<span class="brief-row-title">{note.title}</span>
-								</a>
-							{/each}
-						</div>
-						{#if questions.length > ROW_CAP}
-							<a class="brief-more" href="#/attention"
-								>+{questions.length - ROW_CAP} more in Attention</a
 							>
 						{/if}
 					{/if}

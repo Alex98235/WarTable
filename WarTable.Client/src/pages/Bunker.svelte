@@ -8,7 +8,6 @@
 		apiGet,
 		apiPost,
 		apiPut,
-		noteKindLabel,
 		parseTags,
 		plainText,
 		stepRef,
@@ -529,9 +528,8 @@
 		<p class="eyebrow">Campaign knowledge</p>
 		<h1 class="page-title">The Bunker</h1>
 		<p class="lede">
-			Directives are always applied. Decisions, gotchas, references, context, and questions
-			are searched when they matter. The charter frames the campaign; design docs hold the
-			longer thinking. Nothing here is a status report.
+			Directives are always applied. Decisions, gotchas, references, and context are searched
+			when they matter. The charter frames the campaign. Nothing here is a status report.
 		</p>
 	</div>
 	<div class="page-actions">
@@ -617,7 +615,7 @@
 			<span class="sr-only">Filter by kind</span>
 			<select class="form-select" bind:value={kindFilter} onchange={applyFilters}>
 				<option value="">All kinds</option>
-				{#each NOTE_KINDS as kind}<option value={kind}>{noteKindLabel(kind)}</option>{/each}
+				{#each NOTE_KINDS as kind}<option value={kind}>{kind}</option>{/each}
 			</select>
 		</label>
 
@@ -764,7 +762,7 @@
 					<div class="inline-empty">
 						{hasFilters
 							? 'No notes match those filters.'
-							: 'The Bunker is empty. Capture a design doc, directive, decision, gotcha, reference, context note, or question.'}
+							: 'The Bunker is empty. Capture a directive, decision, gotcha, reference, or context note.'}
 					</div>
 				{:else}
 					<ul class="note-list">
@@ -838,21 +836,12 @@
 								{selectedNote.pinned ? 'Unpin' : 'Pin'}
 							</button>
 							{#if selectedNote.status === 'Active'}
-								{#if selectedNote.kind === 'Question'}
-									<button
-										type="button"
-										class="btn btn-ghost btn-sm"
-										onclick={() => setStatus(selectedNote, 'Resolved')}
-										>Resolve</button
-									>
-								{:else}
-									<button
-										type="button"
-										class="btn btn-ghost btn-sm"
-										onclick={() => setStatus(selectedNote, 'Superseded')}
-										>Mark superseded</button
-									>
-								{/if}
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm"
+									onclick={() => setStatus(selectedNote, 'Superseded')}
+									>Mark superseded</button
+								>
 							{:else}
 								<button
 									type="button"
@@ -1024,8 +1013,7 @@
 								value={captureForm.kind}
 								onchange={(e) => kindDefaultPinned(e.currentTarget.value)}
 							>
-								{#each NOTE_CREATE_KINDS as kind}<option value={kind}
-										>{noteKindLabel(kind)}</option
+								{#each NOTE_CREATE_KINDS as kind}<option value={kind}>{kind}</option
 									>{/each}
 							</select>
 						</div>

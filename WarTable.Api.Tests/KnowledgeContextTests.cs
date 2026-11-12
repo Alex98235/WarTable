@@ -107,18 +107,16 @@ public class KnowledgeContextTests
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
+			// Charter is now on the campaign column, not a note. The context
+			// no longer carries a charter group; the briefing does.
 			var options = TestOptions(path);
 			options.Enabled = false;
 			var context = await BuildContextAsync(ctx, options, new ThrowingEmbeddingClient(), reconcile: false);
 
 			var result = await context.GetForStepAsync(campaign.Id, step);
 
-			var charter = result.Groups
-				.Single(group => group.Kind == BunkerNoteKind.Charter)
-				.Notes
-				.Single();
-			Assert.Contains("charter", charter.MatchedBy);
-			Assert.Contains("durable why", charter.Excerpt);
+			// No charter group exists — it was removed from GroupOrder.
+			Assert.DoesNotContain(result.Groups, group => group.Kind == BunkerNoteKind.Context);
 		}
 		finally
 		{
@@ -248,7 +246,7 @@ public class KnowledgeContextTests
 				campaign.Id, BunkerNoteKind.Context, "C1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
-				campaign.Id, BunkerNoteKind.Question, "Q1", "", "", false, Human,
+				campaign.Id, BunkerNoteKind.Context, "Q1", "", "", false, Human,
 				new[] { linked.Id }, Array.Empty<Guid>(), null);
 			await ctx.Service.CreateNoteAsync(
 				campaign.Id, BunkerNoteKind.Gotcha, "Unlinked gotcha", "", "", false, Human,
@@ -265,13 +263,12 @@ public class KnowledgeContextTests
 			Assert.Equal(1, linkedCounts.Decisions);
 			Assert.Equal(2, linkedCounts.Gotchas);
 			Assert.Equal(1, linkedCounts.References);
-			Assert.Equal(1, linkedCounts.Context);
-			Assert.Equal(1, linkedCounts.Questions);
+			Assert.Equal(2, linkedCounts.Context);
 			Assert.Equal(6, linkedCounts.Total);
 
 			var unlinkedCounts = counts[unlinked.Id];
 			Assert.Equal(0, unlinkedCounts.Total);
-			Assert.Equal(new KnowledgeCounts(0, 0, 0, 0, 0), unlinkedCounts);
+			Assert.Equal(new KnowledgeCounts(0, 0, 0, 0), unlinkedCounts);
 		}
 		finally
 		{

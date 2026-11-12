@@ -176,24 +176,20 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task CreateCampaign_WithCharter_CreatesCharterNote()
+	public async Task CreateCampaign_WithCharter_StoresOnCampaign()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 
 		var campaign = await ctx.Service.CreateCampaignAsync(
 			"Chartered", "# Why\n\nBecause.", "tag", Human);
 
-		var charter = Assert.Single(await ctx.Service.GetNotesAsync(
-			campaign.Id, null, BunkerNoteKind.Charter, null));
-		Assert.Equal("Charter", charter.Title);
-		Assert.Equal("# Why\n\nBecause.", charter.Body);
-		Assert.Equal(1, charter.Alias);
-		Assert.Equal(1, campaign.CharterAlias);
+		// Charter is stored on the campaign column, not as a note.
+		Assert.Equal("# Why\n\nBecause.", campaign.Charter);
 		Assert.Equal("# Why\n\nBecause.", campaign.CharterExcerpt);
+		Assert.Empty(await ctx.Service.GetNotesAsync(campaign.Id, null, null, null));
 
 		var listed = Assert.Single(await ctx.Service.GetCampaignsAsync());
 		Assert.Equal("# Why\n\nBecause.", listed.CharterExcerpt);
-		Assert.Equal(1, listed.CharterAlias);
 	}
 
 	[Fact]
@@ -202,51 +198,72 @@ public class WarTableServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "First charter", "", Human);
 
-		var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-			ctx.Service.CreateNoteAsync(
-				campaign.Id,
-				BunkerNoteKind.Charter,
-				"Another charter",
-				"Second",
-				"",
-				false,
-				Human,
-				Array.Empty<Guid>(),
-				Array.Empty<Guid>(),
-				null));
-
-		Assert.Contains("already has a charter", exception.Message, StringComparison.OrdinalIgnoreCase);
+		// Charter is no longer a note kind, so trying to create a Charter note
+		// will fail at enum parsing. This test is kept for the shape — the
+		// removed guard is gone.
 	}
 
 	[Fact]
-	public async Task Briefing_IncludesCharterAndDesignDocs()
+	public async Task Briefing_CharterComesFromColumn_AndNoDesignDocsSection()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync(
 			"Framed", "Charter body", "", Human);
 
-		await ctx.Service.CreateNoteAsync(
-			campaign.Id,
-			BunkerNoteKind.DesignDoc,
-			"Index lifecycle",
-			"Design body",
-			"search, index",
-			false,
-			Human,
-			Array.Empty<Guid>(),
-			Array.Empty<Guid>(),
-			null);
-
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 
 		Assert.NotNull(briefing.Charter);
-		Assert.Equal("Charter", briefing.Charter!.Title);
-		Assert.Equal("Charter body", briefing.Charter.Excerpt);
-		Assert.Equal(1, briefing.Campaign.CharterAlias);
+		Assert.Equal("Charter body", briefing.Charter!.Excerpt);
 		Assert.Equal("Charter body", briefing.Campaign.CharterExcerpt);
-		var designDoc = Assert.Single(briefing.DesignDocs);
-		Assert.Equal("Index lifecycle", designDoc.Title);
-		Assert.Equal(BunkerNoteKind.DesignDoc, designDoc.Kind);
+		Assert.Empty(briefing.DesignDocs);
+	}
+
+	[Fact]
+	public async Task UpdateCampaign_Charter_ReplacesColumn()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "Original charter", "", Human);
+
+		await ctx.Service.UpdateCampaignAsync(
+			campaign.Id,
+			new CampaignPatch(Charter: "Replaced charter"),
+			Human);
+
+		var reloaded = await ctx.Service.GetCampaignAsync(campaign.Id);
+		Assert.NotNull(reloaded);
+		Assert.Equal("Replaced charter", reloaded!.Charter);
+		Assert.Equal("Replaced charter", reloaded.CharterExcerpt);
+	}
+
+	[Fact]
+	public async Task NoteBodyEdit_ClearsApprovedAt()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var note = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Approved decision",
+			"Original text.", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		// Set ApprovedAt via the patch (simulates human confirmation).
+		var approvalTime = DateTime.UtcNow;
+		await ctx.Service.UpdateNoteAsync(
+			note.Id,
+			new BunkerNotePatch(ApprovedAt: approvalTime),
+			Human);
+		var withApproval = await ctx.Service.GetNoteAsync(note.Id);
+		Assert.NotNull(withApproval);
+		Assert.NotNull(withApproval!.ApprovedAt);
+
+		// Editing the body must clear ApprovedAt.
+		await ctx.Service.UpdateNoteAsync(
+			note.Id,
+			new BunkerNotePatch(Body: "Revised text."),
+			Human);
+		var afterEdit = await ctx.Service.GetNoteAsync(note.Id);
+		Assert.NotNull(afterEdit);
+		Assert.Equal("Revised text.", afterEdit!.Body);
+		Assert.Null(afterEdit.ApprovedAt);
 	}
 
 	[Fact]

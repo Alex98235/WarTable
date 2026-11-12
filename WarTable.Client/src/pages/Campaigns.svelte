@@ -266,8 +266,8 @@
 							rows={5}
 						/>
 						<p class="form-hint">
-							Stored as the campaign's Charter note, so agents read the same framing
-							you do. You can edit it any time from the campaign.
+							Stored as the campaign's charter, so agents read the same framing you
+							do. You can edit it any time from the campaign.
 						</p>
 					</div>
 					<div class="form-group">

@@ -12,18 +12,24 @@ public static class BunkerTools
 {
 	[McpServerTool(Name = "add_note")]
 	[Description(
-		"Add a Bunker note (directive, decision, gotcha, reference, context or question) " +
+		"Add a Bunker note (directive, decision, gotcha, reference, or context) " +
 		"to a campaign, optionally linking objectives and steps.")]
 	public static async Task<object> AddNoteAsync(
 		WarTableService service,
 		string campaign_id,
+		string kind,
 		string title,
-		string? kind = null,
 		string? body = null,
 		string? tags = null,
 		bool? pinned = null,
 		NoteLinksInput? links = null,
 		string? supersedes_id = null,
+		string? chosen = null,
+		string? rejected = null,
+		string? reason = null,
+		string? basis = null,
+		string? trap = null,
+		string? escape = null,
 		string? actor = null)
 	{
 		try
@@ -31,15 +37,62 @@ public static class BunkerTools
 			var campaignId = McpArgs.Guid(campaign_id);
 			if (campaignId is null)
 				return McpResults.Error("campaign_id is required");
+			if (string.IsNullOrWhiteSpace(kind))
+				return McpResults.Error(
+					"kind is required. Valid values: Directive, Decision, Gotcha, Reference, Context");
 			if (string.IsNullOrWhiteSpace(title))
 				return McpResults.Error("title is required");
 
-			var noteKind = BunkerNoteKind.Context;
-			if (!string.IsNullOrWhiteSpace(kind) &&
-				!Enum.TryParse(kind, ignoreCase: true, out noteKind))
+			if (!Enum.TryParse<BunkerNoteKind>(kind, ignoreCase: true, out var noteKind))
 			{
 				return McpResults.Error(
 					$"Invalid kind: {kind}. Valid values: {string.Join(", ", Enum.GetNames<BunkerNoteKind>())}");
+			}
+
+			// Per-kind shape enforcement (MCP boundary only; HTTP endpoints stay free-form).
+			if (noteKind == BunkerNoteKind.Decision)
+			{
+				if (string.IsNullOrWhiteSpace(chosen))
+					return McpResults.Error(
+						"A Decision needs `chosen`: the option that was selected, so a later reader knows what direction was taken.");
+				if (string.IsNullOrWhiteSpace(rejected))
+					return McpResults.Error(
+						"A Decision needs `rejected`: what the alternative was, so a later reader can tell whether the rejection still holds.");
+				if (string.IsNullOrWhiteSpace(reason))
+					return McpResults.Error(
+						"A Decision needs `reason`: why the chosen option won out over the alternative.");
+				if (string.IsNullOrWhiteSpace(basis))
+					return McpResults.Error(
+						"A Decision needs `basis`: a pointer to where the claim can be checked — a #note, #objective.step, commit sha, or URL.");
+				body = $"**Chosen.** {chosen}\n\n**Rejected.** {rejected}\n\n**Reason.** {reason}\n\n**Basis.** {basis}";
+			}
+			else if (noteKind == BunkerNoteKind.Gotcha)
+			{
+				if (string.IsNullOrWhiteSpace(trap))
+					return McpResults.Error(
+						"A Gotcha needs `trap`: the thing that can go wrong, so the reader can watch for it.");
+				if (string.IsNullOrWhiteSpace(escape))
+					return McpResults.Error(
+						"A Gotcha needs `escape`: how to avoid or recover from the trap.");
+				body = $"**Trap.** {trap}\n\n**Escape.** {escape}";
+			}
+			else if (noteKind == BunkerNoteKind.Context)
+			{
+				if (links is null ||
+					(links.ObjectiveIds is null || links.ObjectiveIds.Count == 0) &&
+					(links.StepIds is null || links.StepIds.Count == 0))
+				{
+					return McpResults.Error(
+						"A Context note must link at least one objective or step so the reader knows what it belongs to.");
+				}
+			}
+			else if (noteKind == BunkerNoteKind.Directive || noteKind == BunkerNoteKind.Reference)
+			{
+				if (string.IsNullOrWhiteSpace(body))
+					return McpResults.Error(
+						noteKind == BunkerNoteKind.Directive
+							? "A Directive needs `body`: the hard rule to enforce."
+							: "A Reference needs `body`: the information or pointer to document.");
 			}
 
 			IEnumerable<Guid> linkedObjectiveIds =
@@ -57,7 +110,8 @@ public static class BunkerTools
 				McpArgs.Actor(actor),
 				linkedObjectiveIds,
 				linkedStepIds,
-				McpArgs.Guid(supersedes_id));
+				McpArgs.Guid(supersedes_id),
+				basis: basis);
 
 			return note;
 		}

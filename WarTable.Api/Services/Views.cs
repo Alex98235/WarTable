@@ -80,7 +80,6 @@ public record Briefing(
 	List<BriefingStep> ReadySteps,
 	List<BriefingStep> BlockedSteps,
 	List<BriefingStep> FlaggedSteps,
-	List<BunkerNote> OpenQuestions,
 	List<BunkerNote> Directives,
 	List<Preference> Preferences,
 	List<BunkerNote> RecentDecisions,
@@ -108,7 +107,6 @@ public record AttentionItem(
 public record Attention(
 	List<AttentionItem> FlaggedSteps,
 	List<AttentionItem> BlockedObjectives,
-	List<AttentionItem> OpenQuestions,
 	List<AttentionItem> StaleInProgressSteps,
 	List<AttentionItem> DraftObjectives,
 	List<AttentionItem> SeedObjectives);

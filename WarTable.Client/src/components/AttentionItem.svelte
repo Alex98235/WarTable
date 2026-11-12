@@ -7,7 +7,6 @@
 	const metaByKind = {
 		FlaggedStep: { label: 'Flagged step', mark: '!', tone: 'flag' },
 		BlockedObjective: { label: 'Blocked objective', mark: '×', tone: 'blocked' },
-		OpenQuestion: { label: 'Open question', mark: '?', tone: 'question' },
 		StaleStep: { label: 'Stale work', mark: '◷', tone: 'stale' },
 		DraftObjective: { label: 'Parked draft', mark: '◇', tone: 'draft' },
 		SeedObjective: { label: 'Seed · needs shaping', mark: '◌', tone: 'seed' }
@@ -20,17 +19,13 @@
 			? `#${item.objectiveAlias}.${item.stepNumber}`
 			: item.objectiveAlias != null
 				? `#${item.objectiveAlias}`
-				: item.noteAlias != null
-					? `#${item.noteAlias}`
-					: ''
+				: ''
 	);
 
 	let href = $derived(
-		item.kind === 'OpenQuestion'
-			? `#/campaign/${item.campaignId}/bunker/${item.noteAlias}`
-			: item.objectiveAlias != null
-				? `#/campaign/${item.campaignId}/objective/${item.objectiveAlias}`
-				: `#/campaign/${item.campaignId}`
+		item.objectiveAlias != null
+			? `#/campaign/${item.campaignId}/objective/${item.objectiveAlias}`
+			: `#/campaign/${item.campaignId}`
 	);
 </script>
 
