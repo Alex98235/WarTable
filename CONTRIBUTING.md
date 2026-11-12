@@ -223,16 +223,19 @@ duplicating it.
 
 | Document | Owns |
 | --- | --- |
-| `README.md` | Front door: what WarTable is, the fastest path to a running instance, links |
+| `README.md` | Front door for users: what WarTable is, one-line run paths, links to the site and repo docs |
+| `site/docs/` | User-facing procedure: setup, standalone install, configuration walkthrough, upgrades, agent embedding |
 | `docs/design.md` | Current product and domain design: concepts, behavior, decisions |
 | `docs/architecture.md` | Code map: projects, layers, request flow, where things live |
-| `docs/configuration.md` | Environment variables and configuration precedence |
+| `docs/configuration.md` | Configuration contract: environment variables and precedence |
 | `docs/deployment.md` | Production contract: pinned images, volumes, backup, updates |
 | `docs/container.md` | Container operations: tags, smoke and update tests |
 | `docs/development.md` | Local development loop, build, test, release mechanics |
 | `CONTRIBUTING.md` | Collaboration: branches, commits, pull requests, gates |
 
-If a change alters observable behavior, update `docs/design.md`. If it adds or
-renames configuration, update `docs/configuration.md` and `.env.example`. If it
-changes the deployment contract, update `docs/deployment.md`. A pull request
-that changes behavior without a documentation change should say why.
+If a change alters observable behavior, update `docs/design.md`. If it changes a
+user-facing behaviour or procedure, update the matching page under `site/docs/`.
+If it adds or renames configuration, update `docs/configuration.md`,
+`site/docs/configuration.md`, and `.env.example`. If it changes the deployment
+contract, update `docs/deployment.md`. A pull request that changes behavior
+without a documentation change should say why.

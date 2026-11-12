@@ -1,44 +1,19 @@
 # Configuration
 
-This page is the canonical reference for how WarTable is configured: command-line
-flags, `.env` loading, environment keys, and Docker Compose substitution. Product
-and domain design stay in [`design.md`](design.md); production operations stay in
-[`deployment.md`](deployment.md).
+This page is the repository-side configuration contract: `.env` discovery and
+precedence, the environment key catalogue, and Docker Compose substitution.
+Product and domain design stay in [`design.md`](design.md); production operations
+stay in [`deployment.md`](deployment.md).
+
+For the user-facing walkthrough — command-line flags, copy-paste examples, and
+per-shape setup — see the
+[site configuration page](https://alex98235.github.io/WarTable/configuration).
 
 WarTable starts from `WarTable.Api/appsettings.json`, then applies environment
 configuration. At startup it also loads the nearest `.env` file (or an explicit
 one) into the process environment without overwriting variables that already
 exist. The same keys work for a local `dotnet run`, a published binary, and a
 container.
-
-## Command-line flags
-
-Flags are parsed by the executable before the web host starts. They control
-process placement, not application settings.
-
-| Flag | Alias | Values | Default | Meaning |
-| --- | --- | --- | --- | --- |
-| `--mode` | `-m` | `serve`, `mcp` | `serve` | `serve` starts the web UI and HTTP API. `mcp` runs a stdio MCP server and does not listen on a port. |
-| `--host` | `-H` | interface or hostname | `localhost` | Interface to bind in `serve` mode. Use `0.0.0.0` to accept LAN connections. |
-| `--port` | `-p` | integer | `5110` | HTTP port in `serve` mode. |
-| `--db` | — | file path | `~/.wartable/wartable.db` | SQLite database path. The parent directory is created if needed. |
-| `--help` | `-h` | — | — | Print usage and exit. |
-
-Examples:
-
-```bash
-# Local UI only
-./wartable --port 5110
-
-# LAN server
-./wartable --host 0.0.0.0 --port 5110 --db /data/wartable.db
-
-# Stdio MCP server
-./wartable --mode mcp --db ~/.wartable/wartable.db
-```
-
-`--host` and `--port` are ignored in `mcp` mode. The stdio process and the web
-server must point at the same database file to see the same data.
 
 ## `.env` loading and precedence
 
@@ -128,9 +103,9 @@ returns keyword results with `degraded: true` instead of failing.
 ### Logging
 
 Logging uses the standard .NET configuration stack. `appsettings.json` sets
-`Default` to `Information` and `Microsoft.AspNetCore` to `Warning`. The Compose
-files set the EF command log to `Warning` to keep SQL noise out of container
-logs.
+`Default` to `Information` and `Microsoft.AspNetCore` to `Warning`. The shipped
+Compose file sets the EF command log to `Warning` to keep SQL noise out of
+container logs.
 
 ```bash
 Logging__LogLevel__Default=Debug
@@ -155,75 +130,36 @@ Compose reads `.env` from the directory containing the Compose file but does
 unless the Compose file references it in `environment:` or in a `${...}`
 substitution.
 
-What each Compose file forwards:
+What the Compose file forwards:
 
-- The repository [`docker-compose.yml`](../docker-compose.yml) requires
-  `WARTABLE_TAG` and uses it as the immutable image tag. It forwards
+- The repository [`docker-compose.yml`](../docker-compose.yml) is the only
+  shipped Compose file. `WARTABLE_TAG` defaults to `2`, which tracks non-breaking
+  releases in the current major; set it to a full `X.Y.Z` release to pin one, and
+  to a new major when you choose to move. It forwards
   `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command` and the
   `Embeddings__*` keys listed under `environment:`.
-- [`docker-compose.yml`](../docker-compose.yml) is the only Compose file;
-  `WARTABLE_TAG` defaults to `2` (see [`updates.md`](updates.md)).
+- [`docker-compose.build.yml`](../docker-compose.build.yml) is a build override
+  for local images, not a second deployment file. It requires `WARTABLE_TAG`
+  because it uses it as the local image tag.
 - `WARTABLE_TAG` is substitution-only. It is not an application setting inside
   the container.
 
 Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`, `ApiKey`,
-and `Profile` are currently passed through by the Compose files. To use another
-`Embeddings__*` key (for example `BatchSize`, `TimeoutSeconds`, `PollSeconds`,
-`TopK`, `MinScore`, or `SidecarPath`) from `.env`, add it under `environment:`
-in your Compose file, or pass it with `-e` on `docker run`.
+and `Profile` are currently passed through by the shipped Compose file. To use
+another `Embeddings__*` key (for example `BatchSize`, `TimeoutSeconds`,
+`PollSeconds`, `TopK`, `MinScore`, or `SidecarPath`) from `.env`, add it under
+`environment:` in your Compose file, or pass it with `-e` on `docker run`.
 
 Inside the container, `localhost` and `127.0.0.1` mean the container itself. Use
-`host.docker.internal` for a service on the Docker host; both Compose files map
-that name to the Linux host gateway. If the embedding service is another Compose
-service, use its service name, for example `http://ollama:11434/v1`.
-
-## Examples
-
-A local `.env` beside the repository or `WarTable.Api`:
-
-```dotenv
-# Pin an immutable image tag when using the repository Compose file.
-WARTABLE_TAG=X.Y.Z
-
-# Local semantic search against an Ollama instance on the same machine.
-Embeddings__Enabled=true
-Embeddings__Endpoint=http://localhost:11434/v1
-Embeddings__Model=embeddinggemma
-Embeddings__Dimensions=768
-```
-
-The same settings as environment variables (shell or container):
-
-```bash
-export Embeddings__Enabled=true
-export Embeddings__Endpoint=http://localhost:11434/v1
-export Embeddings__Model=embeddinggemma
-```
-
-The equivalent `appsettings.json` shape:
-
-```json
-{
-  "Embeddings": {
-    "Enabled": true,
-    "Endpoint": "http://localhost:11434/v1",
-    "Model": "embeddinggemma",
-    "Dimensions": 768
-  }
-}
-```
-
-Run with the dotenv file disabled or redirected:
-
-```bash
-WARTABLE_SKIP_DOTENV=1 ./wartable --mode serve
-WARTABLE_ENV_FILE=/etc/wartable/wartable.env ./wartable --mode serve
-```
+`host.docker.internal` for a service on the Docker host; the shipped Compose file
+maps that name to the Linux host gateway. If the embedding service is another
+Compose service, use its service name, for example `http://ollama:11434/v1`.
 
 ## Related
 
 - [`design.md`](design.md) — semantic search and work-surface context design.
 - [`deployment.md`](deployment.md) — the production configuration contract and
   Compose file.
-- [`updates.md`](updates.md) — upgrade procedures.
+- [Site updating page](https://alex98235.github.io/WarTable/updating) — upgrade
+  procedures.
 - [`development.md`](development.md) — local environment and test loop.

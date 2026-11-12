@@ -3,7 +3,7 @@ name: Image update test
 # Manual version-to-version upgrade test against published public GHCR images.
 # It does not build, push, or change a release workflow. The job starts from
 # `from_version`, seeds a campaign and a Bunker note, backs up the volume the way
-# docs/updates.md tells an operator to, upgrades to `to_version`, verifies the new
+# https://alex98235.github.io/WarTable/updating tells an operator to, upgrades to `to_version`, verifies the new
 # image serves the seeded data, then restores the archive under the old tag and
 # checks the data again. That last step is why the test matters: rolling the image
 # back alone is not a rollback once a migration has run.
@@ -161,8 +161,8 @@ jobs:
           fi
           echo "seeded campaign ${campaign_id} and note ${note_id}"
 
-          # Step 1 of docs/updates.md: cold-copy the volume with a throwaway
-          # container, then prove the archive actually holds the database.
+          # Cold-copy the volume as the site's updating page describes, then
+          # prove the archive actually holds the database.
           BACKUP_NAME="wartable-$(date -u +%Y%m%dT%H%M%SZ).tgz"
           docker run --rm -v "${VOLUME}:/data" -v "${BACKUP_DIR}:/backup" alpine \
             tar czf "/backup/${BACKUP_NAME}" -C /data .

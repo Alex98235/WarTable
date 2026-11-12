@@ -26,62 +26,27 @@ MCP C# SDK. The product and domain design lives in
 
 - [WarTable](#wartable)
   - [Table of Contents](#table-of-contents)
-  - [30 second start](#30-second-start)
-  - [Install a binary](#install-a-binary)
+  - [Run it](#run-it)
   - [Core concepts](#core-concepts)
   - [Documentation](#documentation)
-  - [Connect an agent (OpenCode)](#connect-an-agent-opencode)
-  - [Optional semantic search](#optional-semantic-search)
   - [License and security](#license-and-security)
 
 <!-- /TOC -->
 
-## 30 second start
+## Run it
 
-Run the public image with a named volume. There is no checkout, `.env`, host data
-directory, or `chown` step:
+- **Container:** download the root [`docker-compose.yml`](docker-compose.yml)
+  and run `docker compose up -d` — see the
+  [setup guide](https://alex98235.github.io/WarTable/setup).
+- **Standalone binary:** download a self-contained archive from the
+  [Releases page](https://github.com/Alex98235/WarTable/releases) — see the
+  [standalone guide](https://alex98235.github.io/WarTable/standalone).
+- **An agent:** point an MCP client at the server — see
+  [embedding WarTable in an agent workflow](https://alex98235.github.io/WarTable/embedding).
 
-```bash
-docker run -d \
-  --name wartable \
-  --restart unless-stopped \
-  --platform linux/amd64 \
-  -p 5110:5110 \
-  -v wartable-data:/data \
-  ghcr.io/alex98235/wartable:latest \
-  --mode serve --host 0.0.0.0 --port 5110 --db /data/wartable.db
-
-curl -fsS http://localhost:5110/api/health
-```
-
-Open <http://localhost:5110>. Logs are `docker logs -f wartable`. The database
-lives in the `wartable-data` volume; recreating the container keeps it.
-
-This follows the moving `latest` tag and is meant for a first run. For the
-Compose option, everyday commands, and troubleshooting, download the root
-[`docker-compose.yml`](docker-compose.yml) and see
-[`docs/deployment.md`](docs/deployment.md). For upgrades, see
-[`docs/updates.md`](docs/updates.md). For a controlled deployment,
-pin an immutable version as described in
-[`docs/deployment.md`](docs/deployment.md).
-
-## Install a binary
-
-Download `wartable-<version>-win-x64.zip` or
-`wartable-<version>-linux-x64.tar.gz` from the
-[Releases page](https://github.com/Alex98235/WarTable/releases), along with the
-matching `.sha256` sidecar. The archive is a single self-contained binary with
-the web UI embedded; no .NET runtime is required.
-
-```bash
-./wartable --port 5110                       # local only
-./wartable --host 0.0.0.0 --port 5110        # reachable from your LAN
-./wartable --mode mcp --db ~/.wartable/wartable.db
-```
-
-The Linux binary still needs the host's **glibc** and **ICU** libraries. Install
-your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
-24.04) before starting it. The Windows binary needs no extra packages.
+Configuration and upgrades live on the same site:
+[configuration](https://alex98235.github.io/WarTable/configuration) and
+[updating](https://alex98235.github.io/WarTable/updating).
 
 ## Core concepts
 
@@ -92,10 +57,13 @@ your distribution's ICU package (`libicu72` on Debian 12, `libicu74` on Ubuntu
 - **Step** — atomic, verifiable work with a stable reference (`#N.M`), explicit
   dependencies, and an `Open` / `InProgress` / `Done` status (plus `Flagged` and
   `Blocked`). Objective status is derived from its steps.
-- **Bunker** — campaign knowledge and always-on directives, stored as notes with
-  status, tags, links, and supersession.
+- **Bunker notes** — campaign knowledge in four kinds: `Directive`, `Decision`,
+  `Gotcha`, and `Context`. Notes are Markdown with tags, links, and
+  supersession; their status is derived, not stored.
 - **Preferences** — advisory rules that apply to the human across campaigns. A
   campaign directive overrides a conflicting preference.
+- **Evidence** — proof that lives outside the repository, recorded as a `Link`
+  or a `Commit`.
 - **Briefing and Attention** — a bounded "what matters now" view of one campaign,
   and a cross-campaign inbox for flagged, blocked, open, and stale work.
 - **Live updates** — every mutation is recorded as activity and pushed to the UI
@@ -106,91 +74,32 @@ there are no accounts and no offline write queue.
 
 ## Documentation
 
-[`docs/index.md`](docs/index.md) is the full map, including which document owns
-each topic. The short version:
+[`docs/index.md`](docs/index.md) is the full map. User-facing procedure lives on
+the [documentation site](https://alex98235.github.io/WarTable/); this repository
+keeps the design and contributor references.
+
+**Using WarTable**
+
+| You want to | Read |
+| --- | --- |
+| Install and run the container | [Setup](https://alex98235.github.io/WarTable/setup) |
+| Run a standalone binary | [Standalone](https://alex98235.github.io/WarTable/standalone) |
+| Configure it | [Configuration](https://alex98235.github.io/WarTable/configuration) |
+| Upgrade it | [Updating](https://alex98235.github.io/WarTable/updating) |
+| Connect an agent | [Embedding](https://alex98235.github.io/WarTable/embedding) |
+
+**Contributing and internals**
 
 | Document | Owns |
 | --- | --- |
-| [`docker-compose.yml`](docker-compose.yml) + [`docs/deployment.md`](docs/deployment.md) | Canonical first run with Docker Compose |
-| [`docs/updates.md`](docs/updates.md) | Upgrade procedures |
-| [`docs/configuration.md`](docs/configuration.md) | CLI flags, `.env`, environment keys, Compose substitution |
-| [`docs/agent-instructions.md`](docs/agent-instructions.md) | Copyable fallback agent instructions |
 | [`docs/design.md`](docs/design.md) | Product and domain design |
 | [`docs/architecture.md`](docs/architecture.md) | Codebase structure, HTTP API, and live updates |
+| [`docs/configuration.md`](docs/configuration.md) | Configuration contract: `.env` precedence, environment keys, Compose substitution |
 | [`docs/deployment.md`](docs/deployment.md) | Supported production contract: pinned image, data, backup, updates |
 | [`docs/container.md`](docs/container.md) | Container tags, operations, volumes, smoke and update tests |
 | [`docs/development.md`](docs/development.md) | Build, test, frontend dev loop, local image, release workflow |
+| [`docs/agent-instructions.md`](docs/agent-instructions.md) | Where the fallback agent instruction lives and how to keep it in sync |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow and review expectations |
-
-## Connect an agent (OpenCode)
-
-WarTable exposes MCP tools over stdio and Streamable HTTP. The recommended
-OpenCode V2 configuration for an agent on the same machine as the source
-checkout is:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "servers": {
-      "wartable": {
-        "type": "local",
-        "command": [
-          "dotnet", "run",
-          "--project", "C:/full/path/to/WarTable/WarTable.Api",
-          "--", "--mode", "mcp"
-        ]
-      }
-    }
-  }
-}
-```
-
-With a published binary, replace `command` with the executable and database
-path:
-
-```json
-"command": ["C:/path/wartable.exe", "--mode", "mcp", "--db", "C:/Users/you/.wartable/wartable.db"]
-```
-
-Or use the remote transport for LAN deployments:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "servers": {
-      "wartable": {
-        "type": "remote",
-        "url": "http://<server>:5110/mcp"
-      }
-    }
-  }
-}
-```
-
-`/mcp` is stateless and unauthenticated; it is intended for a trusted LAN. The
-stdio process and the server must use the same local database path.
-
-The server sends baseline usage guidance during the MCP `initialize` handshake.
-For clients that ignore server instructions, copy the fallback prompt from
-[`docs/agent-instructions.md`](docs/agent-instructions.md) into your agent
-configuration.
-
-## Optional semantic search
-
-WarTable can index Bunker notes and answer "have we said anything about X?"
-semantically as well as by keyword. The embedding model is **not bundled**:
-WarTable talks to any standalone service that exposes the OpenAI-compatible
-`POST /v1/embeddings` contract (Ollama, llama.cpp, LM Studio, vLLM, or a hosted
-provider). WarTable owns chunking, the disposable sidecar index, ranking, and
-keyword fallback when the service is unavailable.
-
-Enable it with `Embeddings__Enabled=true` and an endpoint. The complete key
-list, defaults, `.env` behavior, and Compose guidance are in
-[`docs/configuration.md`](docs/configuration.md#semantic-search). The design
-rationale is in
-[`docs/design.md`](docs/design.md#semantic-knowledge-search).
 
 ## License and security
 
