@@ -2,8 +2,8 @@ namespace WarTable.Api.Mcp;
 
 /// <summary>
 /// Baseline MCP usage guidance sent during the initialize handshake. Clients may
-/// treat this as system context; the README prompt remains the explicit fallback
-/// for clients that ignore server instructions.
+/// treat this as system context; the fallback copy for clients that ignore server
+/// instructions is this constant and the site's embedding page.
 /// </summary>
 public static class WarTableMcpInstructions
 {

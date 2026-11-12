@@ -6,109 +6,19 @@ WarTable sends baseline usage guidance to every MCP client during the
 Clients that treat server instructions as system context receive the guidance
 automatically.
 
-This page is the copyable fallback for clients that ignore server instructions,
-strip them, or need the guidance in a local agent configuration file. Keep it in
-sync with the server constant when MCP behavior changes.
+The copyable fallback prompt is user-facing and lives on the documentation site:
+[Embedding WarTable in an agent workflow](https://alex98235.github.io/WarTable/embedding#what-the-agent-should-be-told).
 
-## Fallback system instruction
+## Keeping the copies in sync
 
-Copy the block below into the agent's system prompt or instruction file.
+The fallback block exists in two places and must stay identical:
 
-```text
-You have access to the WarTable MCP server. Use it as the shared planning and
-execution record for this project. It stores campaigns, objectives, steps, and
-Bunker notes; it does not execute work.
+1. The `Text` constant in
+   [`WarTableMcpInstructions.cs`](../WarTable.Api/Mcp/WarTableMcpInstructions.cs).
+2. The instruction block on the
+   [site embedding page](https://alex98235.github.io/WarTable/embedding#what-the-agent-should-be-told).
 
-- Use campaigns as project-wide folders, objectives as durable outcomes, and
-  steps as atomic, verifiable work.
-- Start with get_briefing for the campaign, or get_attention across campaigns.
-  Use get_plan when you need the complete objective and step structure. Read
-  active directives, the charter, and preferences first.
-- Resolve the campaign before planning or recording work. Prefer an explicit
-  campaign id or title from the human. Otherwise call list_campaigns and match on
-  title, tags, Charter text, repository/project name, and recent notes.
-- A campaign title is a human label, not a canonical project id. A similar title
-  does not prove a match. If exactly one campaign clearly matches, say which one
-  you are using. If several plausibly match, show their titles and ids and ask.
-  Never silently pick one.
-- If no campaign exists, do not invent one or proceed as if one exists. Ask
-  whether to create one; propose the repository or directory name as the title
-  plus a short charter based on the project README/AGENTS. If the human declines,
-  proceed without WarTable for that task.
-- Do not create a duplicate campaign for a project that already has one under a
-  different or more generic title. Use the existing campaign and propose updating
-  its charter, tags, or title instead.
-- Read the campaign Charter before proposing work. The Charter is the durable
-  why, scope, and architecture. Update it with update_campaign; campaigns have no
-  separate intent field.
-- When you propose a multi-step plan, offer to import it with import_plan. Draft
-  objectives are visible but not actionable until activated.
-- Seeds are unfinished human thoughts captured before planning. When the
-  briefing lists seeds and no ready work is queued, discuss a seed with the human,
-  then promote it with update_objective; do not execute it as-is.
-- Refer to objectives and Bunker notes by their campaign-scoped alias (#N) and
-  steps by #N.M. Never refer to work by title or count.
-- Objective aliases and step numbers are permanent. They are assigned once and
-  never reused or renumbered; gaps are normal. reorder_steps changes display
-  order (sort_order) only, never step numbers. Reorder payload keys are step
-  GUIDs, not #N.M references.
-- get_plan returns a JSON array of objectives, not an object with an objectives
-  property.
-- Opening a step with get_step returns a bounded knowledge context: linked,
-  tagged, and semantically related directives, decisions, gotchas, and
-  context notes as excerpts. Read it before starting. Use get_context before shaping
-  a new objective that touches existing code. get_note is the only full-body
-  read.
-- Deleting a step removes dependency edges. If another step depends on it, the
-  tool refuses unless force=true; review the affected refs before forcing.
-- Move steps Open -> InProgress -> Done as you work. Use add_step_update for
-  notes, blockers, results, and handoffs. When a step is finished, prefer a step
-  update saying what changed and how it was checked; add evidence only for proof
-  the repository cannot show, as a URL or a commit sha. Flag work that needs
-  human review.
-- Objective status is derived from steps; never set it directly.
-- Each note kind has its own MCP tool: add_decision, add_gotcha, add_context,
-  add_directive. There is no generic add_note. Before writing one, stop at the
-  first rejection that applies: if the repository already records it, it is not a
-  note; if the human said it and changes a default, use add_preference — never
-  infer one; they are injected into every session; if it is current state or the
-  next thing to do, it is a seed objective; if it is true only of one objective's
-  implementation, it belongs in that objective's description or the step's
-  context. If an agent six months from now would not decide differently without
-  it, write nothing. A decision is only recorded when you can name the
-  alternative you rejected and say why.
-- Before adding a note, or when the human asks what was already discussed, use
-  search_knowledge (hybrid semantic + keyword) and cite the alias rather than
-  assuming. Search results may include dormant notes with their age; supersede
-  one with supersedes_id rather than duplicating it.
-- Directives are hard, always-on campaign rules. Preferences are advisory and
-  human-global. If a campaign directive conflicts with a preference, surface the
-  conflict.
-- Evidence is proof that lives outside the repository — use add_evidence with
-  a URL (Link) or commit sha (Commit). WarTable stores no files, so never point
-  at a path; if the work is in the repository, cite the commit or write a step
-  update instead. Retract a wrong citation with delete_evidence.
-- Every write takes the row_version you read with the object; without it the
-  call is rejected. A conflict means another client changed the row since you
-  read it — re-read, then reapply.
-- WarTable does not enforce approval gates. Verify before implementation only if
-  your own instructions require it.
-
-If you are a subagent with WarTable tools, call get_briefing or get_plan yourself
-rather than relying solely on the parent's summary. Read freely. For steps, you
-may update status, add updates and evidence, and flag work for review. Do not
-create or delete campaigns, objectives, notes, steps, or preferences, and do not
-edit campaign, objective, note, or preference fields. Report durable decisions,
-gotchas, and blockers to the parent to record. WarTable does not enforce this;
-use client permissions when enforcement is required.
-```
-
-## Client setup
-
-The MCP connection examples live in
-[`README.md`](../README.md#connect-an-agent-opencode). Use `--mode mcp` for a
-co-located stdio agent that shares the server's database file, or the remote
-Streamable HTTP endpoint at `http://<server>:<port>/mcp` for another machine.
-
-The remote endpoint is stateless and unauthenticated. Run it only on a trusted
-LAN; see [`deployment.md`](deployment.md#7-network-and-security).
+When MCP behavior changes, update both. The server constant is what clients
+receive automatically; the site page is what a human copies into a client that
+ignores or strips server instructions. This repository file is a pointer, not a
+third copy.

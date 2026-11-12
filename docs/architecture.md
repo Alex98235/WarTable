@@ -9,7 +9,7 @@ One ASP.NET process owns a SQLite database; browsers (JSON API + SSE) and agents
 (MCP over streamable HTTP or stdio) are clients, and there is no second datastore.
 
 ```text
-Svelte UI ──REST/SSE──┐
+Svelte UI ──REST/SSE───┐
 MCP agent ──HTTP/stdio─┴─> WarTable.Api ─> WarTableService ─> EF Core ─> wartable.db
                                         └─> ActivityBroadcaster <── WAL write events
 ```
@@ -113,6 +113,14 @@ There is no timer and no idle polling: an idle feed issues no queries.
 the current head), replays the backlog to close the gap against the live
 subscription, then streams `id:`/`event: activity`/JSON frames with a 15-second
 keepalive comment.
+
+The endpoint is `GET /api/events?campaignId=<id>&since=<sequence>`. A client
+with no cursor starts at the current head and does not replay the entire
+history; a reconnecting client passes its last cursor as `since`. If a
+notification is genuinely missed (for example, a watcher overflow), live
+delivery waits for the next write, and reconnecting with `since` recovers the
+event from the database. The watcher is local-filesystem-only; a network-share
+database is not a supported deployment.
 
 ## Embeddings pipeline
 

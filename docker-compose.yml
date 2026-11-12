@@ -10,8 +10,8 @@ services:
         ports:
             - '5110:5110'
         # Replacing an older install that kept its database in ./data starts
-        # empty: copy that directory into the volume first, as described in
-        # docs/updates.md.
+        # empty: copy that directory into the volume first, as described at
+        # https://alex98235.github.io/WarTable/updating.
         volumes:
             - wartable-data:/data
         command:

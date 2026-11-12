@@ -5,12 +5,18 @@ your role, then use the authority table when two pages seem to disagree.
 
 ## Start here
 
-- **First run:** [`docker-compose.yml`](../docker-compose.yml) plus
-  [`deployment.md`](deployment.md) — Docker Compose on a trusted LAN.
-- **Connect an agent:** the MCP section in [`README.md`](../README.md), then
-  [`agent-instructions.md`](agent-instructions.md).
-- **Configure it:** [`configuration.md`](configuration.md) — flags, `.env`, and
-  environment keys.
+- **First run:** the [site setup page](https://alex98235.github.io/WarTable/setup)
+  — Docker Compose on a trusted LAN.
+- **Connect an agent:** the
+  [site embedding page](https://alex98235.github.io/WarTable/embedding), then
+  [`agent-instructions.md`](agent-instructions.md) for the repo-side sync note.
+- **Configure it:** [`configuration.md`](configuration.md) — the configuration
+  contract for `.env`, environment keys, and Compose substitution. The
+  [site configuration page](https://alex98235.github.io/WarTable/configuration)
+  has the walkthrough and examples.
+- **Upgrade it:** the
+  [site updating page](https://alex98235.github.io/WarTable/updating) — moving
+  between container tags.
 - **Run it in production:** [`deployment.md`](deployment.md) — the supported
   contract for images, data, backups, updates, and security.
 
@@ -18,15 +24,16 @@ your role, then use the authority table when two pages seem to disagree.
 
 | Topic | Canonical owner |
 | --- | --- |
-| What WarTable is, core concepts, MCP connect summary | [`README.md`](../README.md) |
-| Container upgrades | [`updates.md`](updates.md) |
-| First run, Compose option, everyday commands | [`docker-compose.yml`](../docker-compose.yml) + [`deployment.md`](deployment.md) |
-| CLI flags, configuration precedence, `.env`, `Embeddings__*`, `Logging__*`, Compose substitution | [`configuration.md`](configuration.md) |
-| Fallback agent system instruction and MCP usage behavior | [`agent-instructions.md`](agent-instructions.md) |
+| User-facing procedure: setup, standalone install, configuration walkthrough, upgrades, agent embedding | [Documentation site](https://alex98235.github.io/WarTable/) |
+| What WarTable is, core concepts, run paths | [`README.md`](../README.md) |
+| Container upgrades | [Site updating page](https://alex98235.github.io/WarTable/updating) |
+| First run, Compose option, everyday commands | [Site setup page](https://alex98235.github.io/WarTable/setup) + [`deployment.md`](deployment.md) |
+| Configuration precedence, `.env`, `Embeddings__*`, `Logging__*`, Compose substitution | [`configuration.md`](configuration.md) |
+| MCP usage behavior and where the fallback instruction is kept in sync | [`agent-instructions.md`](agent-instructions.md) |
 | Product intent, domain model, scenarios, screen and MCP surface design | [`design.md`](design.md) |
 | Long-form argument for the current design | [`designs/`](designs/README.md) |
 | Codebase structure, request flow, HTTP API, live-update internals | [`architecture.md`](architecture.md) |
-| Supported production contract: pinned image, bind mount, backup, updates, network and security | [`deployment.md`](deployment.md) |
+| Supported production contract: pinned image, named volume, backup, updates, network and security | [`deployment.md`](deployment.md) |
 | Container tags, image verification, volumes, smoke and update tests | [`container.md`](container.md) |
 | Local build, test, frontend loop, local image, release workflow | [`development.md`](development.md) |
 | Contribution workflow, commit grammar, PR gates, schema and release policy | [`CONTRIBUTING.md`](../CONTRIBUTING.md) |
@@ -48,7 +55,7 @@ newest tag in a checkout:
 git tag --sort=-v:refname | head -n 1
 ```
 
-At the time of writing the newest tag is `v1.0.1`. Use the tag and GitHub
+At the time of writing the newest tag is `v2.0.0`. Use the tag and GitHub
 Release as the source of truth; this page does not track version numbers for
 you. Container images use the same `X.Y.Z` version as an immutable tag, with
 `latest` reserved for first runs.
