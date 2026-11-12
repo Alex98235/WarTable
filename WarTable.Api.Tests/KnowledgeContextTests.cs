@@ -49,10 +49,11 @@ public class KnowledgeContextTests
 				"Alpha was previously deployed by hand. This note is superseded.",
 				"", false, Human,
 				new[] { objective.Id }, Array.Empty<Guid>(), null);
-			await ctx.Service.UpdateNoteAsync(
-				superseded.Id,
-				new BunkerNotePatch(Status: BunkerNoteStatus.Superseded),
-				Human);
+			// Create a successor note that supersedes the old one — status is derived.
+			await ctx.Service.CreateNoteAsync(
+				campaign.Id, BunkerNoteKind.Decision, "Superseding note",
+				"This note replaces the old alpha plan.", "", false, Human,
+				new[] { objective.Id }, Array.Empty<Guid>(), superseded.Id);
 
 			var options = TestOptions(path);
 			var client = new FakeEmbeddingClient();

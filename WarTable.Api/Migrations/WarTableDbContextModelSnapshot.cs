@@ -113,11 +113,6 @@ namespace WarTable.Api.Migrations
                     b.Property<bool>("Pinned")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
                     b.Property<Guid?>("SupersedesId")
                         .HasColumnType("TEXT");
 
@@ -139,7 +134,7 @@ namespace WarTable.Api.Migrations
                     b.HasIndex("CampaignId", "Alias")
                         .IsUnique();
 
-                    b.HasIndex("CampaignId", "Kind", "Status");
+                    b.HasIndex("CampaignId", "Kind");
 
                     b.ToTable("BunkerNotes");
                 });

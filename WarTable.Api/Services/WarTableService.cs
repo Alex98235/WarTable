@@ -35,7 +35,6 @@ public record StepPatch(
 public record BunkerNotePatch(
 	string? Title = null,
 	string? Body = null,
-	BunkerNoteStatus? Status = null,
 	bool? Pinned = null,
 	string? Tags = null,
 	Guid? SupersedesId = null,
@@ -1116,7 +1115,14 @@ public partial class WarTableService
 			query = query.Where(n => n.Kind == kind.Value);
 
 		if (status.HasValue)
-			query = query.Where(n => n.Status == status.Value);
+		{
+			if (status.Value == BunkerNoteStatus.Active)
+				query = query.Where(n => !_db.BunkerNotes.Any(x =>
+					x.SupersedesId == n.Id && x.DeletedAt == null));
+			else if (status.Value == BunkerNoteStatus.Superseded)
+				query = query.Where(n => _db.BunkerNotes.Any(x =>
+					x.SupersedesId == n.Id && x.DeletedAt == null));
+		}
 
 		var notes = await query
 			.Include(n => n.Links)
@@ -1126,6 +1132,8 @@ public partial class WarTableService
 
 		foreach (var note in notes)
 			PopulateNoteLinks(note);
+
+		await PopulateDerivedStatusAsync(notes);
 
 		if (includeDormant is not null && notes.Count > 0)
 		{
@@ -1173,7 +1181,12 @@ public partial class WarTableService
 			.Include(n => n.Links)
 			.FirstOrDefaultAsync(n => n.Id == id);
 		if (note is not null)
+		{
 			PopulateNoteLinks(note);
+			if (await _db.BunkerNotes.AnyAsync(x =>
+					x.SupersedesId == note.Id && x.DeletedAt == null))
+				note.Status = BunkerNoteStatus.Superseded;
+		}
 		return note;
 	}
 
@@ -1185,8 +1198,39 @@ public partial class WarTableService
 			.Include(n => n.Links)
 			.FirstOrDefaultAsync(n => n.CampaignId == campaignId && n.Alias == alias);
 		if (note is not null)
+		{
 			PopulateNoteLinks(note);
+			if (await _db.BunkerNotes.AnyAsync(x =>
+					x.SupersedesId == note.Id && x.DeletedAt == null))
+				note.Status = BunkerNoteStatus.Superseded;
+		}
 		return note;
+	}
+
+	/// <summary>
+	/// Populates the derived <see cref="BunkerNote.Status"/> on a collection of
+	/// notes using a single query for the set of superseded note ids. Never
+	/// stored — computed on read.
+	/// </summary>
+	private async Task PopulateDerivedStatusAsync(List<BunkerNote> notes)
+	{
+		if (notes.Count == 0)
+			return;
+
+		var ids = notes.Select(n => n.Id).ToHashSet();
+		var supersededIds = await _db.BunkerNotes.AsNoTracking()
+			.Where(x => x.SupersedesId != null &&
+						ids.Contains(x.SupersedesId.Value) &&
+						x.DeletedAt == null)
+			.Select(x => x.SupersedesId!.Value)
+			.ToListAsync();
+
+		var set = supersededIds.ToHashSet();
+		foreach (var note in notes)
+		{
+			if (set.Contains(note.Id))
+				note.Status = BunkerNoteStatus.Superseded;
+		}
 	}
 
 	public async Task<BunkerNote> CreateNoteAsync(
@@ -1249,7 +1293,6 @@ public partial class WarTableService
 			Kind = kind,
 			Title = title,
 			Body = body,
-			Status = BunkerNoteStatus.Active,
 			Pinned = pinned,
 			Tags = tags,
 			CreatedBy = NormalizeActor(createdBy),
@@ -1290,8 +1333,6 @@ public partial class WarTableService
 		if (note is null)
 			return null;
 
-		var oldStatus = note.Status;
-
 		if (patch.Title is not null) note.Title = patch.Title;
 		if (patch.Body is not null)
 		{
@@ -1302,7 +1343,6 @@ public partial class WarTableService
 				note.ApprovedAt = null;
 			note.Body = patch.Body;
 		}
-		if (patch.Status is not null) note.Status = patch.Status.Value;
 		if (patch.Pinned is not null) note.Pinned = patch.Pinned.Value;
 		if (patch.Tags is not null) note.Tags = patch.Tags;
 		if (patch.Basis is not null) note.Basis = patch.Basis;
@@ -1323,11 +1363,8 @@ public partial class WarTableService
 		note.UpdatedAt = DateTime.UtcNow;
 		PopulateNoteLinks(note);
 
-		var statusChanged = oldStatus != note.Status;
-		var action = statusChanged ? "StatusChanged" : "Updated";
-		var summary = statusChanged
-			? $"Note #{note.Alias} status changed {oldStatus} -> {note.Status}"
-			: $"Updated {note.Kind} note #{note.Alias}: {note.Title}";
+		var action = "Updated";
+		var summary = $"Updated {note.Kind} note #{note.Alias}: {note.Title}";
 
 		await RecordEventAsync(
 			note.CampaignId, actor, ActivityEntityType.Note, note.Id,
@@ -1336,8 +1373,6 @@ public partial class WarTableService
 			{
 				alias = note.Alias,
 				kind = note.Kind.ToString(),
-				old_status = oldStatus.ToString(),
-				new_status = note.Status.ToString(),
 			});
 
 		return note;
@@ -1367,7 +1402,8 @@ public partial class WarTableService
 			.Include(n => n.Links)
 			.Where(n => n.CampaignId == campaignId &&
 						n.Kind == BunkerNoteKind.Directive &&
-						n.Status == BunkerNoteStatus.Active)
+						!_db.BunkerNotes.Any(x =>
+							x.SupersedesId == n.Id && x.DeletedAt == null))
 			.OrderByDescending(n => n.Pinned)
 			.ThenByDescending(n => n.CreatedAt)
 			.ToListAsync();
@@ -1375,6 +1411,7 @@ public partial class WarTableService
 		foreach (var note in notes)
 			PopulateNoteLinks(note);
 
+		await PopulateDerivedStatusAsync(notes);
 		return notes;
 	}
 
@@ -1516,12 +1553,14 @@ public partial class WarTableService
 			.Include(n => n.Links)
 			.Where(n => n.CampaignId == campaignId &&
 						n.Kind == BunkerNoteKind.Decision &&
-						n.Status == BunkerNoteStatus.Active)
+						!_db.BunkerNotes.Any(x =>
+							x.SupersedesId == n.Id && x.DeletedAt == null))
 			.OrderByDescending(n => n.CreatedAt)
 			.Take(BriefingNoteLimit)
 			.ToListAsync();
 		foreach (var note in recentDecisions)
 			PopulateNoteLinks(note);
+		await PopulateDerivedStatusAsync(recentDecisions);
 
 		var recentActivity = (await GetActivityAsync(campaignId, since)).Take(BriefingActivityLimit).ToList();
 

@@ -271,7 +271,7 @@ Campaign knowledge and campaign directives.
 | `Kind` | `Directive`, `Decision`, `Gotcha`, `Context`. |
 | `Title` | |
 | `Body` | Markdown. |
-| `Status` | `Active` or `Superseded`. |
+| `Status` | `Active` or `Superseded`. Derived on read: a note is `Superseded` when another non-deleted note names it in `SupersedesId`. Not stored. |
 | `Basis` | Nullable. Where the claim can be checked: `#12`, `#12.3`, a commit sha, or a URL. |
 | `ApprovedAt` | Nullable. Human confirmation of this exact body; any body edit clears it. |
 | `Pinned` | Directives are pinned and always injected. |
@@ -345,7 +345,7 @@ gotchas 5, context 3), so many context notes cannot bury the gotchas.
 Each entry carries alias, title, a 240-character excerpt, heading path, match
 reasons (`linked-step`, `linked-objective`, `tag`, `directive`, `semantic`,
 `keyword`), and a count of omitted entries. Ranking puts pinned/directive and
-explicit links above tags, then semantic score. Only live, active notes are considered: superseded and dormant notes stay
+explicit links above tags, then semantic score. Superseded and dormant notes stay
 resolvable through `get_note` but do not enter context. Full
 bodies are never
 included. If embeddings are disabled or unavailable, the same call returns
@@ -426,14 +426,15 @@ timestamps are caches.
   delete or leave it Draft.
 - **Step:** `open` → `in-progress` → `done`. `flagged` and `blocked` can occur at
   any time. A blocked step should carry a `Blocker` update explaining why.
-- **Note:** `Active` → `Superseded`. Nothing resolves a note any more; a gotcha
-  that no longer applies is superseded by the knowledge that replaced it.
+- **Note:** A note is `Superseded` when another non-deleted note names it in
+  `SupersedesId`; nothing sets the status column. A gotcha that no longer applies
+  is superseded by the knowledge that replaced it.
 - **Preference:** `Active` → retired, preserving history.
 
 ### Storage lifecycle
 
 SQLite is the only persistent store. Startup applies EF migrations and stamps
-`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 5) as a
+`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 6) as a
 generation marker. Pending migrations run after the WAL is checkpointed and the
 database copied to `wartable.db.bak-<timestamp>`; a failed migration restores that
 copy and aborts startup. A database written before migrations existed is adopted
@@ -552,7 +553,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
 | `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
-| `update_note` | `note_id`, `title`, `body`, `status`, `pinned`, `tags`, `supersedes_id`, `actor` | |
+| `update_note` | `note_id`, `title`, `body`, `pinned`, `tags`, `supersedes_id`, `actor` | Status is derived — no longer settable. | |
 
 ### Preferences
 

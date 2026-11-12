@@ -76,7 +76,6 @@
 		title: '',
 		body: '',
 		tags: '',
-		status: 'Active',
 		pinned: false,
 		supersedesId: ''
 	});
@@ -454,7 +453,6 @@
 			title: note.title || '',
 			body: note.body || '',
 			tags: note.tags || '',
-			status: note.status || 'Active',
 			pinned: !!note.pinned,
 			supersedesId: note.supersedesId || ''
 		};
@@ -469,7 +467,6 @@
 				title: editForm.title.trim(),
 				body: editForm.body,
 				tags: parseTags(editForm.tags).join(', '),
-				status: editForm.status,
 				pinned: editForm.pinned,
 				supersedesId: editForm.supersedesId || null,
 				actor: ACTOR
@@ -481,16 +478,6 @@
 			addToast(err.message || 'Could not save the note.', 'error');
 		} finally {
 			editSaving = false;
-		}
-	}
-
-	async function setStatus(note, status) {
-		try {
-			await apiPut(`/api/notes/${note.id}`, { status, actor: ACTOR });
-			addToast(`Note marked ${status.toLowerCase()}.`, 'success');
-			await load({ silent: true });
-		} catch (err) {
-			addToast(err.message || 'Could not change the note status.', 'error');
 		}
 	}
 
@@ -863,21 +850,6 @@
 							>
 								{selectedNote.pinned ? 'Unpin' : 'Pin'}
 							</button>
-							{#if selectedNote.status === 'Active'}
-								<button
-									type="button"
-									class="btn btn-ghost btn-sm"
-									onclick={() => setStatus(selectedNote, 'Superseded')}
-									>Mark superseded</button
-								>
-							{:else}
-								<button
-									type="button"
-									class="btn btn-ghost btn-sm"
-									onclick={() => setStatus(selectedNote, 'Active')}
-									>Reactivate</button
-								>
-							{/if}
 							<button
 								type="button"
 								class="btn btn-ghost btn-sm danger-hover"
@@ -1231,28 +1203,14 @@
 							rows={6}
 						/>
 					</div>
-					<div class="form-row">
-						<div class="form-group">
-							<label class="form-label" for="edit-note-tags">Tags</label>
-							<input
-								id="edit-note-tags"
-								class="form-input"
-								type="text"
-								bind:value={editForm.tags}
-							/>
-						</div>
-						<div class="form-group">
-							<label class="form-label" for="edit-note-status">Status</label>
-							<select
-								id="edit-note-status"
-								class="form-select"
-								bind:value={editForm.status}
-							>
-								{#each NOTE_STATUSES as status}<option value={status}
-										>{status}</option
-									>{/each}
-							</select>
-						</div>
+					<div class="form-group">
+						<label class="form-label" for="edit-note-tags">Tags</label>
+						<input
+							id="edit-note-tags"
+							class="form-input"
+							type="text"
+							bind:value={editForm.tags}
+						/>
 					</div>
 					<div class="form-group">
 						<label class="form-label" for="edit-note-supersedes">Supersedes</label>

@@ -21,6 +21,13 @@ public class BunkerNote
 	/// <summary>Markdown.</summary>
 	public string Body { get; set; } = "";
 
+	/// <summary>
+	/// Derived on read: Superseded when another non-deleted note in the same campaign
+	/// has <see cref="SupersedesId"/> == this note's <see cref="Id"/>. Never stored —
+	/// no column, no migration. Populated by the service via an EXISTS query; default
+	/// <c>Active</c> is used everywhere else.
+	/// </summary>
+	[NotMapped]
 	public BunkerNoteStatus Status { get; set; } = BunkerNoteStatus.Active;
 	public bool Pinned { get; set; }
 	public string Tags { get; set; } = "";

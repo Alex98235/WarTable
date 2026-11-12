@@ -538,4 +538,135 @@ public class WarTableServiceTests
 			.Count(e => e.Action == "Deleted");
 		Assert.Equal(before, after);
 	}
+
+	// ── Derived note status ──
+
+	[Fact]
+	public async Task SupersedingNote_DerivesSupersededStatus_OnSupersededNote()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var original = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Original", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		// Before supersession: reads as Active.
+		var before = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(before);
+		Assert.Equal(BunkerNoteStatus.Active, before!.Status);
+
+		// Create a successor that supersedes the original.
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), original.Id);
+
+		// After supersession: original reads as Superseded with no explicit Status write.
+		var after = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(after);
+		Assert.Equal(BunkerNoteStatus.Superseded, after!.Status);
+	}
+
+	[Fact]
+	public async Task SupersedingNote_ReadsActive_WhenSuccessorIsSoftDeleted()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var original = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Original", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		var successor = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), original.Id);
+
+		// Soft-delete the successor.
+		await ctx.Service.DeleteNoteAsync(successor.Id, Human);
+
+		// Original reads as Active again because its only superseder was deleted.
+		var after = await ctx.Service.GetNoteAsync(original.Id);
+		Assert.NotNull(after);
+		Assert.Equal(BunkerNoteStatus.Active, after!.Status);
+	}
+
+	[Fact]
+	public async Task GetNotes_FiltersByDerivedStatus_Active()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var active = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Active", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Gotcha, "Will be superseded", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var activeNotes = await ctx.Service.GetNotesAsync(
+			campaign.Id, null, null, BunkerNoteStatus.Active);
+		Assert.Contains(activeNotes, n => n.Id == active.Id);
+		Assert.DoesNotContain(activeNotes, n => n.Id == superseded.Id);
+	}
+
+	[Fact]
+	public async Task GetNotes_FiltersByDerivedStatus_Superseded()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var active = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Active", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Gotcha, "Will be superseded", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Context, "Successor", "", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var supersededNotes = await ctx.Service.GetNotesAsync(
+			campaign.Id, null, null, BunkerNoteStatus.Superseded);
+		Assert.DoesNotContain(supersededNotes, n => n.Id == active.Id);
+		Assert.Contains(supersededNotes, n => n.Id == superseded.Id);
+	}
+
+	[Fact]
+	public async Task GetDirectives_ExcludesSuperseded()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var directive = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Active directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var supersededDirective = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Superseded directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Directive, "Successor directive", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), supersededDirective.Id);
+
+		var directives = await ctx.Service.GetDirectivesAsync(campaign.Id);
+		Assert.Contains(directives, n => n.Id == directive.Id);
+		Assert.DoesNotContain(directives, n => n.Id == supersededDirective.Id);
+	}
+
+	[Fact]
+	public async Task Briefing_ExcludesSupersededDecisions()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
+		var decision = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Active decision", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		var superseded = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Superseded decision", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Decision, "Successor", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+		Assert.Contains(briefing.RecentDecisions, n => n.Id == decision.Id);
+		Assert.DoesNotContain(briefing.RecentDecisions, n => n.Id == superseded.Id);
+	}
 }

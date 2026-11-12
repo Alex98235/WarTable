@@ -272,7 +272,6 @@ public static class BunkerTools
 		string note_id,
 		string? title = null,
 		string? body = null,
-		string? status = null,
 		bool? pinned = null,
 		string? tags = null,
 		string? supersedes_id = null,
@@ -284,19 +283,9 @@ public static class BunkerTools
 			if (id is null)
 				return McpResults.Error("note_id is required");
 
-			BunkerNoteStatus? noteStatus = null;
-			if (!string.IsNullOrWhiteSpace(status))
-			{
-				if (!Enum.TryParse<BunkerNoteStatus>(status, ignoreCase: true, out var parsed))
-					return McpResults.Error(
-						$"Invalid status: {status}. Valid values: {string.Join(", ", Enum.GetNames<BunkerNoteStatus>())}");
-				noteStatus = parsed;
-			}
-
 			var patch = new BunkerNotePatch(
 				Title: title,
 				Body: body,
-				Status: noteStatus,
 				Pinned: pinned,
 				Tags: tags,
 				SupersedesId: McpArgs.Guid(supersedes_id));

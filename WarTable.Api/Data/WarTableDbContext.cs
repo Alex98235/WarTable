@@ -135,13 +135,15 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.Title).IsRequired().HasMaxLength(300);
 			entity.Property(e => e.Body).HasMaxLength(40000);
 			entity.Property(e => e.Kind).HasConversion<string>().HasMaxLength(20);
-			entity.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
+			// Status is not mapped — it is derived on read (Superseded when another
+			// non-deleted note points at this one via SupersedesId).
+			entity.Ignore(e => e.Status);
 			entity.Property(e => e.Tags).HasMaxLength(1000);
 			entity.Property(e => e.CreatedBy).HasMaxLength(100);
 			entity.Property(e => e.Basis).HasMaxLength(500);
 
 			entity.HasIndex(e => new { e.CampaignId, e.Alias }).IsUnique();
-			entity.HasIndex(e => new { e.CampaignId, e.Kind, e.Status });
+			entity.HasIndex(e => new { e.CampaignId, e.Kind });
 
 			entity.HasQueryFilter(e => e.DeletedAt == null);
 

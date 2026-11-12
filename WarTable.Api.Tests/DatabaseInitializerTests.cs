@@ -55,8 +55,17 @@ public sealed class DatabaseInitializerTests
 			await using (var legacy = Open(path))
 			{
 				await legacy.Database.EnsureCreatedAsync();
-				// The current EnsureCreated includes the Charter column that the
-				// migration will add; drop it so the migration can apply cleanly.
+				// The current EnsureCreated (which lacks a Status column because it
+				// is now [NotMapped]) did not create it. Prior schema versions had it,
+				// so add it back to simulate a real legacy database.
+				await legacy.Database.ExecuteSqlRawAsync(
+					"ALTER TABLE \"BunkerNotes\" ADD COLUMN \"Status\" TEXT NOT NULL DEFAULT 'Active';");
+				// EnsureCreated creates the new index (without Status); replace it with
+				// the legacy index so the migration's DropIndex finds it.
+				await legacy.Database.ExecuteSqlRawAsync(
+					"DROP INDEX IF EXISTS \"IX_BunkerNotes_CampaignId_Kind\";");
+				await legacy.Database.ExecuteSqlRawAsync(
+					"CREATE INDEX \"IX_BunkerNotes_CampaignId_Kind_Status\" ON \"BunkerNotes\" (\"CampaignId\", \"Kind\", \"Status\");");
 				await legacy.Database.ExecuteSqlRawAsync(
 					"ALTER TABLE \"BunkerNotes\" DROP COLUMN \"ApprovedAt\";");
 				await legacy.Database.ExecuteSqlRawAsync(
