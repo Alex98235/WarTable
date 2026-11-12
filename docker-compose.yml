@@ -1,13 +1,19 @@
 services:
     wartable:
         platform: linux/amd64
-        image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}
+        # Tracks the newest non-breaking release in the major. Set WARTABLE_TAG
+        # to a full version (2.1.0) to pin, or to a new major when you choose to
+        # make that jump: a major is never picked up automatically.
+        image: ghcr.io/alex98235/wartable:${WARTABLE_TAG:-2}
         container_name: wartable
         restart: unless-stopped
         ports:
             - '5110:5110'
+        # Replacing an older install that kept its database in ./data starts
+        # empty: copy that directory into the volume first, as described in
+        # docs/updates.md.
         volumes:
-            - ./data:/data
+            - wartable-data:/data
         command:
             - --mode
             - serve
@@ -46,3 +52,7 @@ services:
             timeout: 5s
             retries: 3
             start_period: 10s
+
+volumes:
+    wartable-data:
+        name: wartable-data

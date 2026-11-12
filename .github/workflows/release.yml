@@ -111,7 +111,7 @@ jobs:
               fi
             fi
 
-            echo "- Upgrade and rollback: ${SERVER_URL}/${REPO}/blob/${docs_ref}/docs/deployment.md#11-manual-updates-and-rollback"
+            echo "- Upgrade and rollback: ${SERVER_URL}/${REPO}/blob/${docs_ref}/docs/updates.md"
           } >> RELEASE_NOTES.md
 
           cat RELEASE_NOTES.md
@@ -258,6 +258,7 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' && !contains(github.ref_name, '-') }}
             type=raw,value=edge,enable=${{ github.ref_type != 'tag' }}
 

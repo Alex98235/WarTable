@@ -3,7 +3,7 @@
 The container is the supported LAN server for the web UI, HTTP API, MCP
 Streamable HTTP at `/mcp`, and SSE at `/api/events`. This page is the
 container-specific companion: image tags, image builds, running the container,
-volumes and health, the image smoke test, and the update-image workflow.
+volumes and health, and the image smoke test.
 
 The production contract — topology, runtime requirements, the Compose service
 definition, data and backup rules, schema lifecycle, updates, and the network
@@ -26,16 +26,16 @@ archives:
 - `X.Y` — moving alias for the latest patch of a minor line.
 - `latest` — moving tag, opt-in testing only. Never the production default.
 
-The quickstart deliberately uses `latest`. Production pins an immutable `X.Y.Z`
-through `WARTABLE_TAG`; the base Compose file never defaults to `latest`.
+Production pins an immutable `X.Y.Z` through `WARTABLE_TAG`; the base Compose
+file never defaults to `latest`.
 
 ## Running the container
 
 The service definition is the root [`docker-compose.yml`](../docker-compose.yml).
 Do not keep a second copy of it in documentation; read the file for the current
-ports, volume, command line, environment, and health check. The first-run shape
-is the [quickstart](../quickstart/README.md), which uses `latest` and a named
-volume.
+ports, volume, command line, environment, and health check. For the first run,
+download the root [`docker-compose.yml`](../docker-compose.yml); `WARTABLE_TAG`
+defaults to `2` and the container uses a named volume.
 
 Production start, data-directory ownership, `.env` contents, backup, and update
 procedure are all owned by [`deployment.md`](deployment.md):
@@ -43,7 +43,7 @@ procedure are all owned by [`deployment.md`](deployment.md):
 - [Compose contract and `.env`](deployment.md#52-compose)
 - [Data volume ownership](deployment.md#53-data-volume)
 - [Backups and restore](deployment.md#82-backups)
-- [Manual updates](deployment.md#11-manual-updates-and-rollback)
+- [Upgrading](updates.md)
 - [LAN-only network boundary](deployment.md#7-network-and-security)
 
 Validate the file without starting anything:
@@ -135,28 +135,10 @@ kept for private forks and to avoid anonymous pull rate limits. A successful run
 ends with `IMAGE SMOKE OK image=... digest=... campaign=...`; a failure dumps the
 container logs before the job exits.
 
-## Version-to-version update test
+## Upgrade procedure
 
-[`update-image.yml`](../.github/workflows/update-image.yml) is a manual
-`workflow_dispatch` test for [`scripts/update.sh`](../scripts/update.sh). Both
-`from_version` and `to_version` are required and must name two published
-versions. The job starts `from_version` in an isolated temporary workspace,
-seeds a campaign and Bunker note, upgrades to `to_version`, checks health, the
-running image, `.env`, the seeded data, and the `wartable.db` backup archive,
-then deliberately updates back to `from_version` and rechecks health and data.
-
-```bash
-gh workflow run update-image.yml -f from_version=<from> -f to_version=<to>
-gh run watch
-```
-
-A successful run ends with
-`UPGRADE OK from=<from> to=<to> rollback=<from> campaign=<id> backup=<path>`.
-
-Published releases currently share one schema, so the workflow does not
-exercise a real schema bump. It also does not force the automatic
-health-failure rollback path; that path is covered by the local sandbox suite. A
-real schema-bump upgrade remains untested until a release changes the schema.
+Upgrading the container — cold backup, image pull, tag pin, health check, and
+rollback — is documented in [`updates.md`](updates.md).
 
 ## Private fork or private package
 

@@ -58,8 +58,10 @@ Open <http://localhost:5110>. Logs are `docker logs -f wartable`. The database
 lives in the `wartable-data` volume; recreating the container keeps it.
 
 This follows the moving `latest` tag and is meant for a first run. For the
-Compose option, everyday commands, updates, port conflicts, and troubleshooting,
-see [`quickstart/README.md`](quickstart/README.md). For a controlled deployment,
+Compose option, everyday commands, and troubleshooting, download the root
+[`docker-compose.yml`](docker-compose.yml) and see
+[`docs/deployment.md`](docs/deployment.md). For upgrades, see
+[`docs/updates.md`](docs/updates.md). For a controlled deployment,
 pin an immutable version as described in
 [`docs/deployment.md`](docs/deployment.md).
 
@@ -109,7 +111,8 @@ each topic. The short version:
 
 | Document | Owns |
 | --- | --- |
-| [`quickstart/README.md`](quickstart/README.md) | Canonical first run with Docker or Compose |
+| [`docker-compose.yml`](docker-compose.yml) + [`docs/deployment.md`](docs/deployment.md) | Canonical first run with Docker Compose |
+| [`docs/updates.md`](docs/updates.md) | Upgrade procedures |
 | [`docs/configuration.md`](docs/configuration.md) | CLI flags, `.env`, environment keys, Compose substitution |
 | [`docs/agent-instructions.md`](docs/agent-instructions.md) | Copyable fallback agent instructions |
 | [`docs/design.md`](docs/design.md) | Product and domain design |

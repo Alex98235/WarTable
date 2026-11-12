@@ -161,11 +161,10 @@ What each Compose file forwards:
   `WARTABLE_TAG` and uses it as the immutable image tag. It forwards
   `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command` and the
   `Embeddings__*` keys listed under `environment:`.
-- The quickstart [`quickstart/docker-compose.yml`](../quickstart/docker-compose.yml)
-  uses the moving `latest` image and `WARTABLE_PORT` for the host-side port
-  mapping only. It forwards the same logging and `Embeddings__*` keys.
-- `WARTABLE_TAG` and `WARTABLE_PORT` are substitution-only. They are not
-  application settings inside the container.
+- [`docker-compose.yml`](../docker-compose.yml) is the only Compose file;
+  `WARTABLE_TAG` defaults to `2` (see [`updates.md`](updates.md)).
+- `WARTABLE_TAG` is substitution-only. It is not an application setting inside
+  the container.
 
 Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`, `ApiKey`,
 and `Profile` are currently passed through by the Compose files. To use another
@@ -226,6 +225,5 @@ WARTABLE_ENV_FILE=/etc/wartable/wartable.env ./wartable --mode serve
 - [`design.md`](design.md) — semantic search and work-surface context design.
 - [`deployment.md`](deployment.md) — the production configuration contract and
   Compose file.
-- [`quickstart/README.md`](../quickstart/README.md) — first-run commands and
-  port conflicts.
+- [`updates.md`](updates.md) — upgrade procedures.
 - [`development.md`](development.md) — local environment and test loop.

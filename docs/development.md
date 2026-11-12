@@ -194,20 +194,17 @@ production pinning rules are part of the deployment contract; see
 | [`ci.yml`](../.github/workflows/ci.yml) | pull request, manual dispatch | Builds frontend and backend, checks backend formatting, runs `npm run validate` and backend tests; `pr-title` validates the Conventional Commit PR title |
 | [`release.yml`](../.github/workflows/release.yml) | `v*` tag push, manual | Builds binaries, publishes the image, creates the GitHub release |
 | [`smoke-image.yml`](../.github/workflows/smoke-image.yml) | manual | Pulls a published image and verifies health, REST, MCP, restart, and persistence |
-| [`update-image.yml`](../.github/workflows/update-image.yml) | manual | Runs `scripts/update.sh` between two published versions and verifies rollback |
 
-Run the image checks after publishing:
+Run the image smoke test after publishing:
 
 ```bash
 gh workflow run smoke-image.yml -f image=ghcr.io/alex98235/wartable:<X.Y.Z>
-gh workflow run update-image.yml -f from_version=<from> -f to_version=<to>
 gh run watch
 ```
 
-`smoke-image.yml` accepts any published image reference. `update-image.yml`
-requires two published version tags. Both accept a private fork package when the
-workflow token has package read access. The workflows themselves are documented
-in [`container.md`](container.md#smoke-test-the-published-image).
+`smoke-image.yml` accepts any published image reference. It accepts a private
+fork package when the workflow token has package read access. The workflow is
+documented in [`container.md`](container.md#smoke-test-the-published-image).
 
 ## Repository layout
 
@@ -215,10 +212,9 @@ in [`container.md`](container.md#smoke-test-the-published-image).
 WarTable.Api/             ASP.NET minimal API, HTTP endpoints, MCP tools, EF Core/SQLite
 WarTable.Api.Tests/       xUnit test project
 WarTable.Client/          Svelte 5 + Vite frontend
-docs/                     Architecture, design, configuration, deployment, container, this guide
-quickstart/               One-file Compose deployment and first-run guide
-scripts/                  update.sh (manual update/rollback) and release.mjs (tagging)
-.github/workflows/        CI, release, image smoke test, image update test
+docs/                     Architecture, design, configuration, deployment, container, updates, this guide
+scripts/                  release.mjs (tagging)
+.github/workflows/        CI, release, image smoke test
 docker-compose.yml        Production Compose: pinned image + bind mount
 docker-compose.build.yml  Local-build override; use it with the base file
 Dockerfile                Three-stage frontend/backend/runtime image
