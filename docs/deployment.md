@@ -400,8 +400,8 @@ Requirements:
   that. Prune older backups only after the new version has been validated.
 - A backup that has not been restore-tested is not a backup. Test the restore
   procedure at least once.
-- Do not rely on the automatic schema backup as the only copy. It only runs
-  when the schema version changes.
+- Do not rely on the automatic pre-migration backup as the only copy. It lives
+  next to the database on the same disk, and it is only as good as that disk.
 
 ### 8.3 Restore
 
@@ -413,21 +413,27 @@ Requirements:
 
 ### 8.4 Schema changes
 
-WarTable has no migrations. Startup stamps a schema version. If the stored
-schema does not match the current version, the database is copied to
-`wartable.db.bak-<timestamp>` and a new empty database is created.
+WarTable applies EF migrations at startup. Before applying any pending migration
+it checkpoints the WAL and copies the database to `wartable.db.bak-<timestamp>`.
+If a migration throws, that copy is restored and startup aborts, so a failed
+upgrade leaves the previous database in place.
 
 Consequences:
 
-- A release that bumps the schema version **discards the live data** after
-  taking its automatic backup.
-- Release notes must state the schema version and whether the update recreates
-  the database.
-- Take a cold backup before any update, even when the release claims to be
-  compatible.
-- If the data matters and a schema bump is announced, do not update until a
-  migration or an export path exists. That is a deliberate limitation of the
-  current product, not an accident.
+- Schema changes carry live rows forward. A release that changes the schema
+  normally keeps campaigns, objectives, steps, and notes.
+- Release notes still state the schema generation (`SchemaVersion`), because it
+  tells you which releases crossed a schema change.
+- A failed migration is loud: the process exits, the previous database is in
+  place, and the logs name the migration.
+- Migrations are not a backup. A migration can succeed and still damage data, and
+  only the cold backup returns you to the previous state.
+- WarTable does not migrate down. Rolling back across a schema change means
+  restoring the cold backup before starting the older build.
+- A database stamped below schema generation `2` predates migrations, has no
+  upgrade path, and is backed up and recreated. Only very old installs hit this.
+- `--reset-db` discards the database on purpose, after a backup. Nothing discards
+  it automatically.
 
 ---
 
@@ -498,8 +504,8 @@ The tool surface itself is described in [`design.md`](design.md) and
 - Release notes include:
   - the container image reference and digest
   - the binary archive checksums
-  - the database schema version and whether it changed since the previous tag,
-    including the backup-and-recreate warning when it did
+  - the database schema generation and whether it changed since the previous
+    tag, with a note that startup migrates the database after taking a backup
   - a full-changelog compare link between the previous and current tag
   - any change to ports, paths, or MCP transport
   - upgrade and rollback steps
@@ -644,25 +650,23 @@ curl -fsS http://127.0.0.1:5110/api/health
 Before any update:
 
 1. Read the release notes.
-2. Confirm the database schema version and whether it changed.
+2. Confirm whether the release changed the schema generation.
 3. Take the cold backup even if the release claims compatibility. The script
    does this automatically; the manual fallback below does not.
 
-WarTable has no migrations. If startup detects that the stored schema does not
-match the current version, it copies the database to
-`wartable.db.bak-<timestamp>` and creates a new empty database (see section
-8.4). A schema bump therefore recreates the database and discards the live rows
-after the automatic backup. A rollback restores the cold backup, not the new
-empty database. An older WarTable version may not be able to read a database
-created by a newer schema; do not update across a schema bump unless you accept
-the reset or have an export path.
+Startup applies migrations after copying the database to
+`wartable.db.bak-<timestamp>`; a failed migration restores that copy and exits
+(see section 8.4). Migrations move rows forward, but they are not a backup: if a
+migration succeeds and damages data, only the cold backup restores the previous
+state. Rolling back to an older build after a schema change also requires the cold
+backup, because WarTable does not migrate down.
 
 ### 11.5 Manual Compose fallback
 
 Use this only if the script cannot run or you need to intervene by hand. It does
 not provide automatic rollback; the script is the primary path.
 
-1. Read the release notes and confirm the schema version.
+1. Read the release notes and confirm whether the schema changed.
 2. Take a cold backup (section 8.2).
 3. Record the current `WARTABLE_TAG` and image ID.
 4. Set `WARTABLE_TAG` in `.env` to the new immutable version.
@@ -702,9 +706,9 @@ not provide automatic rollback; the script is the primary path.
 - The update script can roll back automatically only after it has taken the cold
   backup. Failures during the preflight or image pull happen before the service
   or `.env` is touched.
-- Rolling back the image/binary is safe only if the database schema did not
-  change. A schema bump recreates the database; the old version cannot read the
-  new file, and the new file is empty unless restored.
+- Rolling back the image/binary is safe without a restore only if the schema did
+  not change. A schema change is not reversed by starting the older build;
+  restore the cold backup first.
 - The cold backup is the rollback path for data. The image tag is the rollback
   path for code.
 - Manual Compose updates have no automatic rollback watchdog. The supported
@@ -782,7 +786,5 @@ The following are not supported and should not be added incidentally:
 - NFS/SMB/network-share databases
 - offline browser writes or CRDT-style conflict resolution
 - team collaboration or multi-writer conflict resolution
-- database migrations; schema changes currently reset the database after a
-  backup
 - a separate "issue tracker" entity; actionable work is an Objective, and
   Bunker notes are knowledge

@@ -101,13 +101,13 @@ docs(release): document tag signing in the development guide
 ```
 
 ```text
-feat(api)!: reject databases written by an older schema
+feat(api)!: apply database migrations at startup
 
-Schema changes are no longer tolerated silently at startup.
+Schema changes now upgrade the database instead of recreating it.
 
-BREAKING CHANGE: a database whose schema version is not current is backed up
-to `<name>.bak-<timestamp>` and recreated. Operators must restore or export
-data before upgrading across a schema bump.
+BREAKING CHANGE: a database stamped below schema generation 2 is still backed up
+and recreated instead of upgraded. Restore the automatic backup if you upgrade
+from an install that old.
 ```
 
 A breaking change is either `!` after the type/scope or a `BREAKING CHANGE:`
@@ -178,20 +178,27 @@ check is a blocker, not a suggestion.
 
 ## Schema and data
 
-WarTable uses SQLite through EF Core with `EnsureCreated`, not EF migrations.
-There is no migration history and no `dotnet ef database update` step.
+WarTable uses SQLite through EF Core with migrations. `InitialCreate` reproduces
+the shape that pre-migration `EnsureCreated` databases were written with, which
+is what lets those databases be adopted instead of discarded.
 
-- Changing the EF model shape requires bumping `SchemaVersion` in
-  `WarTable.Api/Data/DatabaseInitializer.cs`.
-- At startup `DatabaseInitializer` reads `PRAGMA user_version`. If it does not
-  match `SchemaVersion`, the existing database file is copied to
-  `<name>.bak-<timestamp>`, the database is deleted, recreated, and restamped.
-- That recreation is a clean slate. It preserves a backup, but it does not move
-  rows forward. Treat any schema bump as a data event and say so in the pull
-  request and the release notes.
-- Test compatibility with a database written by the previous schema before
-  merging. Do not merge a schema bump that has only been exercised on a fresh
-  database.
+- Changing the EF model requires a migration. `dotnet tool restore`, then
+  `dotnet ef migrations add <Name> --project WarTable.Api`. Commit the migration
+  and the model snapshot with the model change.
+- Bump `SchemaVersion` in `WarTable.Api/Data/DatabaseInitializer.cs` too. Release
+  notes read that constant to flag a schema change; the migration is what moves
+  rows forward.
+- Startup applies pending migrations after checkpointing the WAL and copying the
+  database to `<name>.bak-<timestamp>`. If a migration throws, that copy is
+  restored and startup aborts.
+- A database with no migration history is adopted only when `PRAGMA user_version`
+  is at or above `BaselineSchemaVersion` (currently `2`). Older files have no
+  upgrade path: they are backed up and recreated, and the pull request must say
+  so.
+- Test the migration against a database written by the previous schema, not only
+  a fresh one. `Migrated_schema_matches_the_model` guards the baseline shape.
+- WarTable never migrates down. Rolling back across a schema change means
+  restoring the cold backup.
 - No silent data loss: never drop or rewrite user data without a backup path and
   a documented recovery step.
 

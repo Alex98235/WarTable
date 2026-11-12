@@ -30,9 +30,11 @@ serves whatever `wwwroot` already contains.
 
 ## Invariants
 
-- SQLite with EF Core `EnsureCreated`, no migrations. Any EF model change needs a
-  `SchemaVersion` bump in `DatabaseInitializer`; startup backs up and recreates a
-  mismatched database rather than migrating it. No silent data loss.
+- SQLite with EF Core migrations. Any EF model change needs a migration and a
+  `SchemaVersion` bump in `DatabaseInitializer`; startup applies pending
+  migrations after backing up, and restores that backup if one fails. A database
+  written before migrations existed is adopted at `InitialCreate` instead of
+  being recreated. No silent data loss.
 - Keep MCP tools and HTTP endpoints compatible unless the change is explicitly
   breaking and documented as such.
 - Agents are unreliable narrators: their output looks the same whether they

@@ -404,13 +404,16 @@ timestamps are caches.
 
 ### Storage lifecycle
 
-SQLite is the only persistent store. Startup calls `EnsureCreated` and stamps
-`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 2).
-There are no EF migrations: when the stored version differs, the server copies
-the database to `wartable.db.bak-<timestamp>`, recreates an empty database, and
-enables WAL. The embedding index is a separate disposable sidecar. Backups,
-restore, and schema-change consequences are specified in
-[`deployment.md`](deployment.md).
+SQLite is the only persistent store. Startup applies EF migrations and stamps
+`PRAGMA user_version` with `DatabaseInitializer.SchemaVersion` (currently 2) as a
+generation marker. Pending migrations run after the WAL is checkpointed and the
+database copied to `wartable.db.bak-<timestamp>`; a failed migration restores that
+copy and aborts startup. A database written before migrations existed is adopted
+by recording the initial migration as applied, so live data survives upgrades.
+Only `--reset-db` discards a database, and it backs up first. WAL is enabled for
+file-backed databases, which is the broadcaster's write signal. The embedding
+index is a separate disposable sidecar. Backups, restore, and rollback are
+specified in [`deployment.md`](deployment.md).
 
 ### Conflict rule
 
@@ -716,8 +719,6 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - Kanban views or columns.
 - Mandatory approval gates.
 - Rich text or file storage. Markdown and evidence links only.
-- Database migrations. The single server's database remains disposable; see
-  [`deployment.md`](deployment.md) for the schema-version and backup contract.
 
 ## 10. Success criteria
 

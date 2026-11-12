@@ -76,15 +76,19 @@ ahead of the data.
 `StepDependencies`, `StepUpdates`, `Evidence`, `BunkerNotes`, `BunkerNoteLinks`,
 `Preferences`, `ActivityEvents`. Models live in `Models/`.
 
-`Data/DatabaseInitializer.cs` is the schema gate. There are no migrations:
+`Data/DatabaseInitializer.cs` owns the schema lifecycle through EF migrations:
 
 - `SchemaVersion` is a constant, bumped whenever the EF model changes shape.
-- Startup reads the stored version. On a match it runs `EnsureCreatedAsync` (a
-  no-op once tables exist) and enables WAL, which gives the broadcaster its write
-  signal; in-memory databases skip WAL.
-- On a mismatch it copies the database to `<db>.bak-<UTC>`, recreates it empty,
-  and writes the new version: a schema bump discards live rows and needs a cold
-  backup.
+  Release notes read it; `Migrations/` carries the actual schema and data steps.
+- Startup applies pending migrations, then enables WAL, which gives the broadcaster
+  its write signal; in-memory databases skip WAL.
+- Before applying anything it checkpoints the WAL and copies the database to
+  `<db>.bak-<UTC>`. A failing migration restores that copy and aborts startup.
+- A database created before migrations existed has no history. If its stamped
+  version is at or above `BaselineSchemaVersion`, the initial migration is
+  recorded as applied and later migrations run normally. Below that, there is no
+  path forward: it is backed up and recreated.
+- `--reset-db` is the only way to discard a database, and it backs up first.
 - The canonical data path is the `--db` argument; the container passes
   `/data/wartable.db`.
 

@@ -32,6 +32,7 @@ public class Program
 		var mode = "serve";
 		var host = "localhost";
 		var port = 5110;
+		var reset = false;
 		var dbPath = Path.Combine(
 			Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
 			".wartable",
@@ -56,6 +57,9 @@ public class Program
 				case "--db":
 					if (i + 1 < args.Length) dbPath = args[++i];
 					break;
+				case "--reset-db":
+					reset = true;
+					break;
 				case "--help":
 				case "-h":
 					PrintHelp();
@@ -69,13 +73,13 @@ public class Program
 
 		if (mode == "mcp")
 		{
-			await RunMcpAsync(connectionString);
+			await RunMcpAsync(connectionString, reset);
 			return 0;
 		}
 
 		if (mode == "serve")
 		{
-			await RunServeAsync(connectionString, host, port);
+			await RunServeAsync(connectionString, host, port, reset);
 			return 0;
 		}
 
@@ -83,7 +87,7 @@ public class Program
 		return 1;
 	}
 
-	private static async Task RunServeAsync(string connectionString, string host, int port)
+	private static async Task RunServeAsync(string connectionString, string host, int port, bool reset)
 	{
 		var builder = WebApplication.CreateBuilder();
 
@@ -126,11 +130,11 @@ public class Program
 
 		var app = builder.Build();
 
-		// Initialize database (backs up and recreates on schema changes)
+		// Initialize database (applies pending migrations, backing up first)
 		using (var scope = app.Services.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
-			await DatabaseInitializer.InitializeAsync(db);
+			await DatabaseInitializer.InitializeAsync(db, reset);
 		}
 
 		// Serve the built Svelte bundle. A physical wwwroot wins when present
@@ -203,7 +207,7 @@ public class Program
 		}
 	}
 
-	private static async Task RunMcpAsync(string connectionString)
+	private static async Task RunMcpAsync(string connectionString, bool reset)
 	{
 		var builder = Host.CreateApplicationBuilder(Array.Empty<string>());
 
@@ -237,7 +241,7 @@ public class Program
 		using (var scope = host.Services.CreateScope())
 		{
 			var db = scope.ServiceProvider.GetRequiredService<WarTableDbContext>();
-			await DatabaseInitializer.InitializeAsync(db);
+			await DatabaseInitializer.InitializeAsync(db, reset);
 		}
 
 		await host.RunAsync();
@@ -283,7 +287,7 @@ public class Program
             WarTable — Human-AI planning workspace
 
             USAGE:
-              WarTable.Api [--mode <serve|mcp>] [--port <port>] [--db <path>]
+              WarTable.Api [--mode <serve|mcp>] [--port <port>] [--db <path>] [--reset-db]
 
             OPTIONS:
               --mode, -m  serve | mcp
@@ -294,6 +298,7 @@ public class Program
               --port, -p  HTTP port for serve mode (default: 5110)
               --db        SQLite database path
                           (default: ~/.wartable/wartable.db)
+              --reset-db  back up and delete the database, then create it fresh
               --help, -h  show this help
 
             EXAMPLES:
