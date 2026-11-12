@@ -23,7 +23,7 @@ public static class WarTableMcpInstructions
 		- Seeds are unfinished human thoughts. When no ready work is queued, discuss a seed with the human and promote it with update_objective; do not execute it as-is.
 		- Move steps Open -> InProgress -> Done. Add step updates for blockers, results, and handoffs, and attach evidence when a step is done. Flag work that needs human review.
 		- Objective status is derived from steps; never set it directly.
-		- Record durable decisions, gotchas, references, and context notes as Bunker notes. Before adding a note, or when asked whether something was discussed, use search_knowledge and cite the note alias and snippet.
+		- Record durable decisions, gotchas, references, and context notes as Bunker notes. Before adding a note, or when asked whether something was discussed, use search_knowledge and cite the note alias and snippet. Search results can include dormant notes (no live work links to them) marked with their age; if a dormant note already covers the ground, supersede it with supersedes_id rather than writing a near-duplicate.
 		- Directives are hard campaign rules. Preferences are advisory and human-global. If a directive conflicts with a preference, surface the conflict.
 		- WarTable does not enforce approval gates. Verify before implementation only if your own instructions require it.
 		- Subagents do not inherit the parent prompt or conversation. Call get_briefing or get_plan yourself. Read freely; for steps, update status, add updates and evidence, and flag review items. Do not create or delete campaigns, objectives, notes, steps, or preferences, or edit their fields; report durable findings to the parent. This is advisory, not enforced.

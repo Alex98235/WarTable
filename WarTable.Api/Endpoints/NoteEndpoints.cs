@@ -56,6 +56,7 @@ public static class NoteEndpoints
 			BunkerNoteKind? kind,
 			BunkerNoteStatus? status,
 			bool? includeDeleted,
+			bool? includeDormant,
 			WarTableService service) =>
 		{
 			var notes = await service.GetNotesAsync(
@@ -63,7 +64,8 @@ public static class NoteEndpoints
 				search,
 				kind,
 				status,
-				includeDeleted ?? false);
+				includeDeleted ?? false,
+				includeDormant ?? false);
 			return Results.Ok(notes);
 		});
 

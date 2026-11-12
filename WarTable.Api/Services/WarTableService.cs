@@ -1064,7 +1064,8 @@ public partial class WarTableService
 		string? search,
 		BunkerNoteKind? kind,
 		BunkerNoteStatus? status,
-		bool includeDeleted = false)
+		bool includeDeleted = false,
+		bool? includeDormant = null)
 	{
 		var query = _db.BunkerNotes.AsNoTracking().AsQueryable();
 
@@ -1100,7 +1101,44 @@ public partial class WarTableService
 		foreach (var note in notes)
 			PopulateNoteLinks(note);
 
+		if (includeDormant is not null && notes.Count > 0)
+		{
+			var now = DateTime.UtcNow;
+			var (liveObjectiveIds, liveStepIds) = await GetLiveLinkTargetsAsync();
+			foreach (var note in notes)
+				NoteDormancy.MarkDormancy(note, now, liveObjectiveIds, liveStepIds);
+
+			if (includeDormant == false)
+				notes = notes.Where(n => !n.Dormant).ToList();
+		}
+
 		return notes;
+	}
+
+	/// <summary>
+	/// Ids of objectives and steps that count as live link targets for dormancy:
+	/// not finished and not deleted. An objective is live unless soft-deleted or
+	/// completed; a step is live unless it or its objective is soft-deleted and it
+	/// is not done.
+	/// </summary>
+	private async Task<(IReadOnlySet<Guid> LiveObjectiveIds, IReadOnlySet<Guid> LiveStepIds)>
+		GetLiveLinkTargetsAsync()
+	{
+		var liveObjectiveIds = (await _db.Objectives.AsNoTracking()
+				.Where(o => o.DeletedAt == null && o.Status != ObjectiveStatuses.Completed)
+				.Select(o => o.Id)
+				.ToListAsync())
+			.ToHashSet();
+
+		var liveStepIds = (await (from s in _db.Steps.AsNoTracking()
+								  join o in _db.Objectives.AsNoTracking() on s.ObjectiveId equals o.Id
+								  where s.DeletedAt == null &&
+										s.Status != StepStatuses.Done &&
+										o.DeletedAt == null
+								  select s.Id).ToListAsync())
+			.ToHashSet();
+
+		return (liveObjectiveIds, liveStepIds);
 	}
 
 	public async Task<BunkerNote?> GetNoteAsync(Guid id)

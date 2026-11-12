@@ -23,7 +23,9 @@ public sealed record KnowledgeSearchResult(
 	string? HeadingPath,
 	double Score,
 	string MatchedBy,
-	DateTime UpdatedAt);
+	DateTime UpdatedAt,
+	bool Dormant,
+	int DormantDays);
 
 public sealed record KnowledgeSearchResponse(
 	string Query,
@@ -88,7 +90,8 @@ public sealed class KnowledgeSearchService
 		var keywordNeedle = string.IsNullOrWhiteSpace(keywordQuery)
 			? query
 			: keywordQuery.Trim();
-		var keywordNotes = await _service.GetNotesAsync(campaignId, keywordNeedle, null, null);
+		var keywordNotes = await _service.GetNotesAsync(
+			campaignId, keywordNeedle, null, null, includeDormant: true);
 		var semanticHits = new List<SemanticHit>();
 		string? degraded = null;
 
@@ -223,7 +226,7 @@ public sealed class KnowledgeSearchService
 			.Take(50)
 			.ToList();
 
-		var notes = await _service.GetNotesAsync(campaignId, null, null, null);
+		var notes = await _service.GetNotesAsync(campaignId, null, null, null, includeDormant: true);
 		var byId = notes.ToDictionary(note => note.Id);
 		var hits = new List<SemanticHit>();
 		foreach (var item in bestByNote)
@@ -264,7 +267,9 @@ public sealed class KnowledgeSearchService
 			headingPath,
 			score,
 			matchedBy,
-			note.UpdatedAt);
+			note.UpdatedAt,
+			note.Dormant,
+			note.DormantDays);
 
 	private static string Snippet(string? text, string? title, string query)
 	{

@@ -60,6 +60,23 @@ public class BunkerNote
 	/// <summary>Populated by the service for serialization.</summary>
 	[NotMapped]
 	public List<Guid> LinkedStepIds { get; set; } = new();
+
+	/// <summary>
+	/// Derived on read: true when nothing live points at this note any more (see
+	/// <c>NoteDormancy</c>). Never stored — no column, no migration, no soft
+	/// delete. Populated by the service only where dormancy is computed; everywhere
+	/// else it stays false, which is the truth for pushed surfaces because dormant
+	/// notes are filtered out there.
+	/// </summary>
+	[NotMapped]
+	public bool Dormant { get; set; }
+
+	/// <summary>
+	/// Days since <see cref="UpdatedAt"/> for a dormant note; 0 elsewhere. Derived
+	/// on read, never stored. Populated together with <see cref="Dormant"/>.
+	/// </summary>
+	[NotMapped]
+	public int DormantDays { get; set; }
 }
 
 public enum BunkerNoteKind

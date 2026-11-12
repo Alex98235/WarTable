@@ -72,7 +72,10 @@ Bunker notes; it does not execute work.
   commit sha, or URL) where the claim can be checked.
 - Before adding a note, or when the human asks whether something was already
   discussed, use search_knowledge (hybrid semantic + keyword) and cite the note
-  alias and snippet rather than assuming.
+  alias and snippet rather than assuming. Search results can include dormant
+  notes (no live work links to them) marked with their age; if a dormant note
+  already covers the ground, supersede it with supersedes_id rather than writing
+  a near-duplicate.
 - Directives are hard, always-on campaign rules. Preferences are advisory and
   human-global. If a campaign directive conflicts with a preference, surface the
   conflict.

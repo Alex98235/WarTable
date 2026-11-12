@@ -204,7 +204,7 @@ public sealed class KnowledgeContextService
 			return counts;
 
 		var notes = await _service.GetNotesAsync(
-			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false);
+			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false, includeDormant: false);
 
 		var stepToObjective = objectives
 			.SelectMany(objective => objective.Steps.Select(step => (StepId: step.Id, ObjectiveId: objective.Id)))
@@ -266,7 +266,7 @@ public sealed class KnowledgeContextService
 		var keywordQuery = BuildKeywordQuery(objective, step, requestedTags, extraQuery);
 
 		var notes = await _service.GetNotesAsync(
-			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false);
+			campaignId, null, null, BunkerNoteStatus.Active, includeDeleted: false, includeDormant: true);
 		var byId = notes.ToDictionary(note => note.Id);
 
 		var candidates = new Dictionary<Guid, Candidate>();
@@ -353,7 +353,10 @@ public sealed class KnowledgeContextService
 			.GroupBy(candidate => candidate.Note.Kind)
 			.Select(group =>
 			{
-				var ordered = Rank(group).ToList();
+				// Dormant notes are excluded from ranking and quota selection but
+				// stay counted in Total/Omitted so the omission is honest.
+				var total = group.Count();
+				var ordered = Rank(group.Where(candidate => !candidate.Note.Dormant)).ToList();
 				var quota = Quotas.TryGetValue(group.Key, out var value) ? value : 3;
 				var selected = ordered
 					.Take(quota)
@@ -362,8 +365,8 @@ public sealed class KnowledgeContextService
 
 				return new KnowledgeContextGroup(
 					group.Key,
-					ordered.Count,
-					ordered.Count - selected.Count,
+					total,
+					total - selected.Count,
 					selected);
 			})
 			.OrderBy(group => Array.IndexOf(GroupOrder, group.Kind))

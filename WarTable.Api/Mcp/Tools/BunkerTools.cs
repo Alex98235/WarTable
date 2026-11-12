@@ -178,7 +178,8 @@ public static class BunkerTools
 				McpArgs.Guid(campaign_id),
 				search,
 				noteKind,
-				noteStatus);
+				noteStatus,
+				includeDormant: true);
 		}
 		catch (Exception ex)
 		{

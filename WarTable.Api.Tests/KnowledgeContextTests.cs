@@ -163,6 +163,53 @@ public class KnowledgeContextTests
 	}
 
 	[Fact]
+	public async Task StepContext_ExcludesDormantNote_AndReportsItInGroupTotals()
+	{
+		var path = TempPath();
+		try
+		{
+			await using var ctx = await TestContext.CreateAsync();
+			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
+			var objective = await ctx.Service.CreateObjectiveAsync(
+				campaign.Id, "Objective", "", PlanState.Active, Human);
+			var step = await ctx.Service.CreateStepAsync(
+				objective.Id, "Alpha step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+			// A gotcha linked to the step, aged past the dormancy threshold; then
+			// the step is done, so its link is no longer live and the note is dormant.
+			var gotcha = await ctx.Service.CreateNoteAsync(
+				campaign.Id, BunkerNoteKind.Gotcha, "Alpha trap",
+				"Unrelated body that does not match the step title needle.",
+				"", false, Human,
+				Array.Empty<Guid>(), new[] { step.Id }, null);
+			gotcha.UpdatedAt = DateTime.UtcNow.AddDays(-40);
+			await ctx.Db.SaveChangesAsync();
+			await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.Done, Human);
+
+			var options = TestOptions(path);
+			options.Enabled = false;
+			var context = await BuildContextAsync(ctx, options, new ThrowingEmbeddingClient(), reconcile: false);
+
+			var result = await context.GetForStepAsync(campaign.Id, step);
+
+			// The dormant note is excluded from the excerpt list but its omission is
+			// reported in the group totals.
+			var gotchaGroup = result.Groups.Single(group => group.Kind == BunkerNoteKind.Gotcha);
+			Assert.Equal(1, gotchaGroup.Total);
+			Assert.Equal(1, gotchaGroup.Omitted);
+			Assert.Empty(gotchaGroup.Notes);
+
+			Assert.DoesNotContain(
+				result.Groups.SelectMany(group => group.Notes),
+				note => note.NoteId == gotcha.Id);
+		}
+		finally
+		{
+			DeleteSidecar(path);
+		}
+	}
+
+	[Fact]
 	public async Task DisabledEmbeddings_DegradeToLinkedAndDirectiveNotes()
 	{
 		var path = TempPath();

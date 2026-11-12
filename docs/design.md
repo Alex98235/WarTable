@@ -287,6 +287,23 @@ writes stay free-form, because the human is not the unreliable narrator.
 
 Links to objectives and steps are optional and many-to-many.
 
+**Notes decay.** A note is *dormant* when nothing points at it any more. The
+state is derived on read from the pinned flag, the kind, and whether any link
+still points at unfinished work. It is never stored, never assigned, and never a
+column. A dormant note is not wrong — nothing in the data supports that claim —
+it is simply no longer served to agents. Only `Gotcha`, `Context`, and
+`Reference` decay: they are about work in flight, so a month without a live link
+retires them. A `Decision` dies only when a superseding decision replaces it,
+because "we chose X over Y" stays true until someone chooses differently. A
+`Directive` is pinned and exempt; the human retires it.
+
+Dormancy governs what is pushed, not what can be pulled. Dormant notes never
+enter the briefing or work-surface context, but `search_knowledge` returns them
+marked with their age, and every alias still resolves. That is deliberate: the
+search an agent is already told to run before writing a note is where it meets
+the dormant duplicate, and `supersedes_id` turns that duplicate into a
+supersession instead of a fork.
+
 **Directives are always-on.** They are hard, campaign-scoped rules: "public API
 must stay backward compatible." Other kinds are surfaced through work-surface
 context or searched on demand.
@@ -326,8 +343,8 @@ gotchas 5, references 3, context 3), so a long reference cannot bury the gotchas
 Each entry carries alias, title, a 240-character excerpt, heading path, match
 reasons (`linked-step`, `linked-objective`, `tag`, `directive`, `semantic`,
 `keyword`), and a count of omitted entries. Ranking puts pinned/directive and
-explicit links above tags, then semantic score. Only active notes are considered;
-superseded notes stay resolvable through `get_note` but do not enter context. Full
+explicit links above tags, then semantic score. Only live, active notes are considered: superseded and dormant notes stay
+resolvable through `get_note` but do not enter context. Full
 bodies are never
 included. If embeddings are disabled or unavailable, the same call returns
 linked, tagged, directive, and keyword candidates with `degraded: true`.
