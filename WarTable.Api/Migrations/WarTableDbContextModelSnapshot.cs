@@ -113,6 +113,13 @@ namespace WarTable.Api.Migrations
                     b.Property<bool>("Pinned")
                         .HasColumnType("INTEGER");
 
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"))
+                        .HasJsonPropertyName("rowVersion");
+
                     b.Property<Guid?>("SupersedesId")
                         .HasColumnType("TEXT");
 
@@ -190,6 +197,13 @@ namespace WarTable.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(1);
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"))
+                        .HasJsonPropertyName("rowVersion");
 
                     b.Property<string>("Tags")
                         .IsRequired()
@@ -281,6 +295,13 @@ namespace WarTable.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"))
+                        .HasJsonPropertyName("rowVersion");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");
 
@@ -321,6 +342,13 @@ namespace WarTable.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(5000)
                         .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"))
+                        .HasJsonPropertyName("rowVersion");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -374,6 +402,13 @@ namespace WarTable.Api.Migrations
 
                     b.Property<Guid>("ObjectiveId")
                         .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"))
+                        .HasJsonPropertyName("rowVersion");
 
                     b.Property<int>("SortOrder")
                         .HasColumnType("INTEGER");

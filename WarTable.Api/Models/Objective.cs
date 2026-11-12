@@ -4,9 +4,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 /// <summary>A durable outcome and the unit of planning within a campaign.</summary>
-public class Objective
+public class Objective : IConcurrencyGuarded
 {
 	public Guid Id { get; set; } = Guid.NewGuid();
+
+	/// <summary>Optimistic concurrency token. Exposed as <c>rowVersion</c> in JSON.</summary>
+	[JsonPropertyName("rowVersion")]
+	public Guid RowVersion { get; set; } = Guid.NewGuid();
+
 	public Guid CampaignId { get; set; }
 
 	/// <summary>Campaign-scoped identifier shown as <c>#N</c>. Never reused.</summary>

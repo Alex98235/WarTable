@@ -9,16 +9,25 @@ namespace WarTable.Api.Tests;
 public sealed class TestContext : IAsyncDisposable
 {
 	private readonly SqliteConnection _connection;
+	private readonly DbContextOptions<WarTableDbContext> _options;
 
 	public WarTableDbContext Db { get; }
 	public WarTableService Service { get; }
 
-	private TestContext(SqliteConnection connection, WarTableDbContext db)
+	private TestContext(SqliteConnection connection, DbContextOptions<WarTableDbContext> options, WarTableDbContext db)
 	{
 		_connection = connection;
+		_options = options;
 		Db = db;
 		Service = new WarTableService(db);
 	}
+
+	/// <summary>
+	/// A second unit of work over the same database, standing in for a second
+	/// client. It has its own change tracker, so it holds its own copy of every
+	/// row version.
+	/// </summary>
+	public WarTableDbContext CreateSecondContext() => new(_options);
 
 	public static async Task<TestContext> CreateAsync()
 	{
@@ -32,7 +41,7 @@ public sealed class TestContext : IAsyncDisposable
 		var db = new WarTableDbContext(options);
 		await DatabaseInitializer.InitializeAsync(db);
 
-		return new TestContext(connection, db);
+		return new TestContext(connection, options, db);
 	}
 
 	public async ValueTask DisposeAsync()

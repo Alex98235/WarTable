@@ -9,6 +9,7 @@
 		apiPatch,
 		apiPost,
 		apiPut,
+		isConflict,
 		formatDate,
 		latestUpdate,
 		stepRef,
@@ -79,10 +80,21 @@
 		if (!status || status === step.status) return;
 		statusSaving = true;
 		try {
-			await apiPatch(`/api/steps/${step.id}/status`, { status, actor: ACTOR });
+			await apiPatch(`/api/steps/${step.id}/status`, {
+				status,
+				actor: ACTOR,
+				rowVersion: step.rowVersion
+			});
 			addToast(`${ref} marked ${status}.`, 'success');
 			onchanged();
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This step was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					() => onchanged()
+				);
+				return;
+			}
 			addToast(err.message || 'Could not update step status.', 'error');
 		} finally {
 			statusSaving = false;
@@ -123,12 +135,23 @@
 				assignee: editForm.assignee,
 				assigner: editForm.assigner,
 				dependsOn: editDeps,
-				actor: ACTOR
+				actor: ACTOR,
+				rowVersion: step.rowVersion
 			});
 			addToast(`${ref} updated.`, 'success');
 			editing = false;
 			onchanged();
 		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This step was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					() => {
+						editing = false;
+						onchanged();
+					}
+				);
+				return;
+			}
 			addToast(err.message || 'Could not save the step.', 'error');
 		} finally {
 			saving = false;
@@ -196,12 +219,21 @@
 		try {
 			await apiDelete(
 				`/api/steps/${step.id}`,
-				force ? { actor: ACTOR, force: true } : { actor: ACTOR }
+				force
+					? { actor: ACTOR, force: true, rowVersion: step.rowVersion }
+					: { actor: ACTOR, rowVersion: step.rowVersion }
 			);
 			addToast('Step deleted.', 'success');
 			onchanged();
 		} catch (err) {
 			const message = err.message || '';
+			if (isConflict(err)) {
+				showConfirm(
+					'This step was changed elsewhere. Reload to see the current state?',
+					() => onchanged()
+				);
+				return;
+			}
 			if (!force && /depend|force=true|required by/i.test(message)) {
 				showConfirm(
 					`${ref} is required by other steps. Delete it and remove those dependency edges?`,

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using WarTable.Api.Models;
 
 namespace WarTable.Api.Data;
@@ -28,6 +29,7 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.Charter).HasMaxLength(40000);
 			entity.Property(e => e.Tags).HasMaxLength(1000);
 			entity.Property(e => e.NextAliasNumber).HasDefaultValue(1);
+			entity.Property(e => e.RowVersion).IsConcurrencyToken().HasDefaultValue(Guid.Empty);
 
 			entity.HasMany(e => e.Objectives)
 				  .WithOne(o => o.Campaign)
@@ -48,6 +50,7 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.PlanState).HasConversion<string>().HasMaxLength(20);
 			entity.Property(e => e.Status).HasMaxLength(20);
 			entity.Property(e => e.NextStepNumber).HasDefaultValue(1);
+			entity.Property(e => e.RowVersion).IsConcurrencyToken().HasDefaultValue(Guid.Empty);
 
 			// Aliases are unique within a campaign and shared with Bunker notes.
 			entity.HasIndex(e => new { e.CampaignId, e.Alias }).IsUnique();
@@ -70,6 +73,7 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.Assignee).HasMaxLength(100);
 			entity.Property(e => e.Assigner).HasMaxLength(100);
 			entity.Property(e => e.Status).HasMaxLength(20);
+			entity.Property(e => e.RowVersion).IsConcurrencyToken().HasDefaultValue(Guid.Empty);
 
 			// Step numbers are unique within an objective and never reused.
 			entity.HasIndex(e => new { e.ObjectiveId, e.StepNumber }).IsUnique();
@@ -141,6 +145,7 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.Tags).HasMaxLength(1000);
 			entity.Property(e => e.CreatedBy).HasMaxLength(100);
 			entity.Property(e => e.Basis).HasMaxLength(500);
+			entity.Property(e => e.RowVersion).IsConcurrencyToken().HasDefaultValue(Guid.Empty);
 
 			entity.HasIndex(e => new { e.CampaignId, e.Alias }).IsUnique();
 			entity.HasIndex(e => new { e.CampaignId, e.Kind });
@@ -168,6 +173,7 @@ public class WarTableDbContext : DbContext
 			entity.Property(e => e.Rationale).HasMaxLength(5000);
 			entity.Property(e => e.Source).HasMaxLength(100);
 			entity.Property(e => e.Tags).HasMaxLength(1000);
+			entity.Property(e => e.RowVersion).IsConcurrencyToken().HasDefaultValue(Guid.Empty);
 
 			// No query filter: Active is a field and retired preferences stay visible on demand.
 		});
@@ -186,5 +192,49 @@ public class WarTableDbContext : DbContext
 
 			// Deliberately no FK to Campaign: events survive a hard-deleted campaign.
 		});
+	}
+
+	/// <summary>
+	/// Regenerates <see cref="IConcurrencyGuarded.RowVersion"/> on every entity
+	/// that implements <see cref="IConcurrencyGuarded"/> and is in the
+	/// <c>Added</c> or <c>Modified</c> state.
+	/// </summary>
+	public override int SaveChanges()
+	{
+		RegenerateRowVersions();
+		return base.SaveChanges();
+	}
+
+	/// <inheritdoc cref="SaveChanges()"/>
+	public override int SaveChanges(bool acceptAllChangesOnSuccess)
+	{
+		RegenerateRowVersions();
+		return base.SaveChanges(acceptAllChangesOnSuccess);
+	}
+
+	/// <inheritdoc cref="SaveChanges()"/>
+	public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+	{
+		RegenerateRowVersions();
+		return base.SaveChangesAsync(cancellationToken);
+	}
+
+	/// <inheritdoc cref="SaveChangesAsync(CancellationToken)"/>
+	public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+	{
+		RegenerateRowVersions();
+		return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+	}
+
+	private void RegenerateRowVersions()
+	{
+		foreach (var entry in ChangeTracker.Entries())
+		{
+			if (entry.Entity is IConcurrencyGuarded guarded &&
+				(entry.State == EntityState.Added || entry.State == EntityState.Modified))
+			{
+				guarded.RowVersion = Guid.NewGuid();
+			}
+		}
 	}
 }

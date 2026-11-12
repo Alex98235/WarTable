@@ -17,6 +17,7 @@ public record UpdateObjectiveRequest(
 	string? Description = null,
 	PlanState? PlanState = null,
 	int? SortOrder = null,
+	Guid? RowVersion = null,
 	string? Actor = null);
 
 /// <summary>Body for reordering objectives within a campaign.</summary>
@@ -83,30 +84,48 @@ public static class ObjectiveEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var patch = new ObjectivePatch(
 					request.Title,
 					request.Description,
 					request.PlanState,
 					request.SortOrder);
-				var updated = await service.UpdateObjectiveAsync(id, patch, Actor(request.Actor));
+				var updated = await service.UpdateObjectiveAsync(id, patch, Actor(request.Actor), request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 
-		group.MapDelete("/{id:guid}", async (Guid id, string? actor, WarTableService service) =>
+		group.MapDelete("/{id:guid}", async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
 		{
 			try
 			{
-				var deleted = await service.DeleteObjectiveAsync(id, Actor(actor));
+				var missing = ConcurrencyHelper.RequireRowVersion(rowVersion);
+				if (missing is not null)
+					return missing;
+
+				var deleted = await service.DeleteObjectiveAsync(id, Actor(actor), rowVersion);
 				return deleted ? Results.NoContent() : Results.NotFound();
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 	}

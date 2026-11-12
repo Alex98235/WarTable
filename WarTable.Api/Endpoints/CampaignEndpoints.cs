@@ -15,6 +15,7 @@ public record UpdateCampaignRequest(
 	string? Tags = null,
 	DateTime? ArchivedAt = null,
 	string? Charter = null,
+	Guid? RowVersion = null,
 	string? Actor = null);
 
 /// <summary>
@@ -62,30 +63,48 @@ public static class CampaignEndpoints
 		{
 			try
 			{
+				var missing = ConcurrencyHelper.RequireRowVersion(request.RowVersion);
+				if (missing is not null)
+					return missing;
+
 				var patch = new CampaignPatch(
 					request.Title,
 					request.Tags,
 					request.ArchivedAt,
 					request.Charter);
-				var updated = await service.UpdateCampaignAsync(id, patch, Actor(request.Actor));
+				var updated = await service.UpdateCampaignAsync(id, patch, Actor(request.Actor), request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 
-		group.MapDelete("/{id:guid}", async (Guid id, string? actor, WarTableService service) =>
+		group.MapDelete("/{id:guid}", async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
 		{
 			try
 			{
-				var deleted = await service.DeleteCampaignAsync(id, Actor(actor));
+				var missing = ConcurrencyHelper.RequireRowVersion(rowVersion);
+				if (missing is not null)
+					return missing;
+
+				var deleted = await service.DeleteCampaignAsync(id, Actor(actor), rowVersion);
 				return deleted ? Results.NoContent() : Results.NotFound();
 			}
-			catch (InvalidOperationException ex)
+			catch (Exception ex)
 			{
-				return Results.BadRequest(new { error = ex.Message });
+				var conflict = ConcurrencyHelper.HandleConflict(ex);
+				if (conflict is not null)
+					return conflict;
+				if (ex is InvalidOperationException)
+					return Results.BadRequest(new { error = ex.Message });
+				throw;
 			}
 		});
 	}

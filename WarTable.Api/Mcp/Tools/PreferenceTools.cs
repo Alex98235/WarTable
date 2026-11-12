@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using WarTable.Api.Services;
 
@@ -51,10 +52,13 @@ public static class PreferenceTools
 	}
 
 	[McpServerTool(Name = "update_preference")]
-	[Description("Update or retire an operator preference. Only the fields you include are changed.")]
+	[Description(
+		"Update or retire an operator preference. Only the fields you include are changed. " +
+		"Requires row_version (read with list_preferences) for optimistic concurrency.")]
 	public static async Task<object> UpdatePreferenceAsync(
 		WarTableService service,
 		string preference_id,
+		string row_version,
 		string? text = null,
 		string? rationale = null,
 		bool? active = null,
@@ -66,20 +70,36 @@ public static class PreferenceTools
 			if (id is null)
 				return McpResults.Error("preference_id is required");
 
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
 			var patch = new PreferencePatch(
 				Text: text,
 				Rationale: rationale,
 				Active: active,
 				Tags: tags);
 
-			var updated = await service.UpdatePreferenceAsync(id.Value, patch);
+			var updated = await service.UpdatePreferenceAsync(id.Value, patch, rv);
 			return updated is null
 				? McpResults.Error($"Preference not found: {id}")
 				: updated;
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
 		}
 		catch (Exception ex)
 		{
 			return McpResults.Error(ex.Message);
 		}
+	}
+
+	/// <summary>Builds the stale-rowVersion error envelope for MCP tools.</summary>
+	private static CallToolResult McpConflictResult(ConcurrencyConflictException ex)
+	{
+		var currentJson = System.Text.Json.JsonSerializer.Serialize(ex.Current, McpJson.Options);
+		return McpResults.Error(
+			$$"""{"error":"conflict","message":"{{ex.Message.Replace("\"", "\\\"")}}","current":{{currentJson}}}""");
 	}
 }
