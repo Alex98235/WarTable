@@ -43,7 +43,7 @@ procedure are all owned by [`deployment.md`](deployment.md):
 - [Compose contract and `.env`](deployment.md#52-compose)
 - [Data volume ownership](deployment.md#53-data-volume)
 - [Backups and restore](deployment.md#82-backups)
-- [Upgrading](updates.md)
+- [Upgrading](https://alex98235.github.io/WarTable/updating)
 - [LAN-only network boundary](deployment.md#7-network-and-security)
 
 Validate the file without starting anything:
@@ -52,9 +52,9 @@ Validate the file without starting anything:
 docker compose --env-file .env config
 ```
 
-The container runs `WarTable.Api` in serve mode with
-`--host 0.0.0.0 --port 5110 --db /data/wartable.db`, publishes `5110`,
-bind-mounts `./data` to `/data`, and restarts `unless-stopped`.
+The container runs `wartable` in serve mode with
+`--host 0.0.0.0 --port 5110 --db /data/wartable.db`, publishes `5110`, mounts
+the named volume `wartable-data` at `/data`, and restarts `unless-stopped`.
 
 ## Container operations
 
@@ -62,7 +62,7 @@ bind-mounts `./data` to `/data`, and restarts `unless-stopped`.
 docker compose logs -f --tail=200     # logs go to stdout/stderr
 docker compose restart
 docker compose stop
-docker compose down                   # keeps ./data
+docker compose down                   # keeps the wartable-data volume
 docker compose exec wartable id       # uid=10001 gid=10001
 docker compose exec wartable sh       # debugging shell
 curl -fsS http://localhost:5110/api/health
@@ -84,12 +84,11 @@ the same volume. Enabling or tuning it is a configuration concern; see
 ## Data ownership and persistence
 
 - The database is `/data/wartable.db` plus its `-wal` and `-shm` sidecars.
-- The container runs as UID/GID `10001`; a bind-mounted host directory must be
-  writable by that user. A named volume also works because Docker copies the
-  image's `/data` ownership into it.
+- The container runs as UID/GID `10001`. The named volume `wartable-data` is
+  owned by that user because Docker copies the image's `/data` ownership into a
+  fresh volume; a bind mount used instead must be writable by that user.
 - Do not store the database in the container's writable layer.
-- A recreated container keeps its data as long as the bind mount or named volume
-  is retained.
+- A recreated container keeps its data as long as the named volume is retained.
 - `/data` must be on a local disk. SQLite WAL/file locking is unsafe on NFS or
   SMB, and the live-update watcher relies on local filesystem notifications.
 
@@ -111,7 +110,7 @@ docker build --platform linux/amd64 -t wartable:local .
 ```
 
 The image has three stages: Node 22 builds the Svelte client, the .NET 10 SDK
-publishes `WarTable.Api`, and the ASP.NET 10 runtime image runs as non-root user
+publishes `wartable`, and the ASP.NET 10 runtime image runs as non-root user
 `10001:10001`. [`development.md#local-container-build`](development.md#local-container-build)
 covers the same build from the development loop's perspective.
 
@@ -138,7 +137,8 @@ container logs before the job exits.
 ## Upgrade procedure
 
 Upgrading the container — cold backup, image pull, tag pin, health check, and
-rollback — is documented in [`updates.md`](updates.md).
+rollback — is documented on the site:
+<https://alex98235.github.io/WarTable/updating>.
 
 ## Private fork or private package
 

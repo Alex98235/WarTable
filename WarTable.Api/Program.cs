@@ -287,7 +287,7 @@ public class Program
             WarTable — Human-AI planning workspace
 
             USAGE:
-              WarTable.Api [--mode <serve|mcp>] [--port <port>] [--db <path>] [--reset-db]
+              wartable [--mode <serve|mcp>] [--port <port>] [--db <path>] [--reset-db]
 
             OPTIONS:
               --mode, -m  serve | mcp
@@ -302,9 +302,9 @@ public class Program
               --help, -h  show this help
 
             EXAMPLES:
-              WarTable.Api                          # web UI on :5110, local only
-              WarTable.Api --host 0.0.0.0           # reachable from the LAN
-              WarTable.Api --mode mcp               # MCP stdio server
+              wartable                          # web UI on :5110, local only
+              wartable --host 0.0.0.0           # reachable from the LAN
+              wartable --mode mcp               # MCP stdio server
             """);
 	}
 }

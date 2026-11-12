@@ -130,8 +130,6 @@ image. Compose the build override to build from the checkout instead:
 
 ```bash
 cp .env.example .env
-mkdir -p data
-sudo chown -R 10001:10001 data   # Linux host; the container runs as UID/GID 10001
 docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
@@ -143,7 +141,7 @@ docker build --platform linux/amd64 -t wartable:local .
 ```
 
 The build has three stages: Node 22 builds the Svelte client, the .NET 10 SDK
-publishes `WarTable.Api`, and the ASP.NET 10 runtime image runs as non-root user
+publishes `wartable`, and the ASP.NET 10 runtime image runs as non-root user
 `10001:10001`. [`container.md#image-build`](container.md#image-build) is the
 container-side reference.
 
@@ -212,10 +210,10 @@ documented in [`container.md`](container.md#smoke-test-the-published-image).
 WarTable.Api/             ASP.NET minimal API, HTTP endpoints, MCP tools, EF Core/SQLite
 WarTable.Api.Tests/       xUnit test project
 WarTable.Client/          Svelte 5 + Vite frontend
-docs/                     Architecture, design, configuration, deployment, container, updates, this guide
+docs/                     Architecture, design, configuration, deployment, container, this guide
 scripts/                  release.mjs (tagging)
 .github/workflows/        CI, release, image smoke test
-docker-compose.yml        Production Compose: pinned image + bind mount
+docker-compose.yml        Production Compose: pinned image + named volume
 docker-compose.build.yml  Local-build override; use it with the base file
 Dockerfile                Three-stage frontend/backend/runtime image
 cliff.toml                git-cliff release-note configuration

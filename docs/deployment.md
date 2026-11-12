@@ -14,21 +14,13 @@ development ([`development.md`](development.md)). Start at
 
 ## First run
 
-Download only the root [`docker-compose.yml`](../docker-compose.yml) — no checkout,
-no `.env`, no `chown`:
-
-```bash
-curl -sSLO https://raw.githubusercontent.com/Alex98235/WarTable/main/docker-compose.yml
-docker compose up -d
-curl -fsS http://localhost:5110/api/health
-```
-
-Open <http://localhost:5110>. The container uses the named volume `wartable-data`
-by default, so recreating it keeps the database. `WARTABLE_TAG` defaults to `2`,
-which tracks non-breaking releases in the major. Production deployments pin an
-immutable `X.Y.Z` tag via `.env`; see [section 5.2](#52-compose).
-
-For upgrade instructions, see [`updates.md`](updates.md).
+You need a Linux `amd64` host with Docker Engine and Compose v2, port `5110`
+free, and a trusted LAN. The root [`docker-compose.yml`](../docker-compose.yml)
+is the whole deployment: download it, run `docker compose up -d`, and open
+<http://localhost:5110>. It uses the named volume `wartable-data` and defaults
+`WARTABLE_TAG` to `2`. The step-by-step first run, including pinning a release
+and connecting an agent, is on the site:
+<https://alex98235.github.io/WarTable/setup>.
 
 ---
 
@@ -41,7 +33,7 @@ For upgrade instructions, see [`updates.md`](updates.md).
 | Agent distribution | Self-contained standalone binary for local stdio |
 | Browser access | Thin clients on the same LAN; no offline writes |
 | Network | LAN-only HTTP on port `5110`; no public exposure |
-| Data | SQLite + WAL on a local disk, persisted through a bind mount |
+| Data | SQLite + WAL on a local disk, persisted in the named volume `wartable-data` |
 | MCP | Streamable HTTP at `/mcp` for remote agents; stdio for co-located agents |
 | Updates | Manual only; no auto-pull, no Watchtower, no self-update |
 | Versioning | Immutable semantic-version tags; `latest` is opt-in for testing |
@@ -52,7 +44,7 @@ For upgrade instructions, see [`updates.md`](updates.md).
 ## 2. Supported distributions
 
 WarTable has **two distribution forms**, not two products. Both run the same
-`WarTable.Api` binary and use the same SQLite schema.
+`wartable` binary and use the same SQLite schema.
 
 ### 2.1 Container image — the LAN server
 
@@ -70,21 +62,10 @@ package `ghcr.io/alex98235/wartable`; anonymous pulls work.
 ### 2.2 Standalone binary — local agents and bare-metal
 
 The standalone binary is the supported way for a co-located agent to use MCP
-stdio:
-
-```bash
-./wartable --mode mcp --db /path/to/wartable.db
-```
-
-It can also run serve mode without Docker:
-
-```bash
-./wartable --host 0.0.0.0 --port 5110 --db /path/to/wartable.db
-```
-
-Artifacts are self-contained (`linux-x64` and `win-x64`) and require no .NET
-runtime. The Windows binary is primarily for agents on the human's desktop or
-laptop. The Linux binary can also back a bare-metal server.
+stdio, and it can also run serve mode without Docker. It is self-contained
+(`linux-x64` and `win-x64`) and requires no .NET runtime. The Windows binary is
+primarily for agents on the human's desktop or laptop. The Linux binary can also
+back a bare-metal server.
 
 "Self-contained" removes the .NET runtime dependency, not the operating-system
 dependency. The Linux binary is still dynamically linked against glibc and the
@@ -96,6 +77,9 @@ Ubuntu 24.04. The Windows binary uses the ICU libraries that ship with Windows.
 A stdio MCP process and the containerized server may share the same database
 only when they run on the same host and the same local filesystem. That is the
 intended co-located setup; it is not a remote-filesystem deployment.
+
+Installation, the systemd units, and the run flags are on the site:
+<https://alex98235.github.io/WarTable/standalone>.
 
 ---
 
@@ -161,15 +145,15 @@ the service definition; this section explains the requirements behind it.
 
 - Base runtime: `mcr.microsoft.com/dotnet/aspnet:10.0` (or the current .NET 10
   runtime image).
-- Build stages: Node LTS for the Svelte client, .NET 10 SDK for `WarTable.Api`,
-  then the ASP.NET runtime stage.
+- Build stages: Node LTS for the Svelte client, .NET 10 SDK for the
+  `WarTable.Api` project, then the ASP.NET runtime stage.
 - Platform: `linux/amd64` only.
 - Runtime user: non-root.
 - Data directory: `/data`, writable by the runtime user.
 - Exposed port: `5110`.
 - Health check: `GET /api/health` must return HTTP 200 with
   `{"status":"ok"}`.
-- Entry point: run `WarTable.Api` in serve mode with
+- Entry point: run `wartable` in serve mode with
   `--host 0.0.0.0 --port 5110 --db /data/wartable.db`.
 - Logs: stdout/stderr only. The image must not require a log file.
 - No secrets or API keys are required for the core server. Optional embedding
@@ -187,12 +171,13 @@ into documentation or deployment notes; change the file and let this page
 describe the intent. It must keep these properties:
 
 - `platform: linux/amd64` and `image:
-  ghcr.io/alex98235/wartable:${WARTABLE_TAG:?set WARTABLE_TAG}`.
-- An immutable tag is required. Compose fails fast when `WARTABLE_TAG` is unset,
-  and the file never defaults to `latest`.
+  ghcr.io/alex98235/wartable:${WARTABLE_TAG:-2}`.
+- `WARTABLE_TAG` defaults to `2`, the newest non-breaking release in the major.
+  Production pins an immutable `X.Y.Z`; the file never defaults to `latest`.
 - `container_name: wartable`, `restart: unless-stopped`.
 - Port `5110` published on the host.
-- Bind mount `./data:/data` so the database and backups are host-visible.
+- Named volume `wartable-data:/data` so the database and backups survive
+  container recreation.
 - The serve-mode command line above with `--db /data/wartable.db`.
 - `Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning`
   so idle operation does not log every SQL statement.
@@ -218,10 +203,11 @@ testing only. Never document or deploy `latest` in production. Compose reads
 its defaults.
 
 For the no-checkout first run, download the root
-[`docker-compose.yml`](../docker-compose.yml); it defaults to the `2` tag and a
-named volume. Production deployments switch to a bind mount and an immutable
-`X.Y.Z` tag as described above. For upgrades, see [`updates.md`](updates.md); for
-backups, see [section 8.2](#82-backups).
+[`docker-compose.yml`](../docker-compose.yml); it defaults to the `2` tag and the
+named volume `wartable-data`. Production deployments pin an immutable `X.Y.Z`
+tag as described above. Upgrades are on the site:
+<https://alex98235.github.io/WarTable/updating>; backups are in
+[section 8.2](#82-backups).
 
 For a local build from the checkout, compose the build override with the base
 file. It adds the local `build` context and tags the image
@@ -237,20 +223,16 @@ image tags, and container operations.
 
 ### 5.3 Data volume
 
-- Default: bind mount `./data:/data`, so the database and backups are easy to
-  inspect and copy.
-- The host directory must be writable by the container's non-root user. Create
-  it before first start and set ownership to the image's runtime UID/GID:
+- The database lives in the named volume `wartable-data`, mounted at `/data`.
+  A recreated container keeps the same data; do not store the database in the
+  container's writable layer.
+- The volume is owned by the image's runtime UID/GID `10001:10001`. Docker
+  copies that ownership into a fresh named volume; a bind mount used instead
+  must be writable by that user.
+- `/data` must be on a local disk.
 
-```bash
-mkdir -p data
-sudo chown -R 10001:10001 data
-```
-
-- Do not store the database inside the container's writable layer. A recreated
-  container must keep the same data.
-- A named volume is acceptable if you prefer it, but the default Compose file
-  uses a bind mount.
+Volume creation, migration from an older bind-mounted `./data`, and inspection
+are on the site: <https://alex98235.github.io/WarTable/updating>.
 
 ### 5.4 Optional semantic search
 
@@ -265,14 +247,10 @@ Deployment-specific points:
 - `localhost` inside the container is the container itself. If Ollama runs as a
   Compose service, use its service name, for example
   `http://ollama:11434/v1`; otherwise use a reachable host or LAN address.
-- The disposable index is `/data/wartable.embeddings.db` and is covered by the
-  `./data` bind mount.
-- After changing `.env`, recreate the service and verify:
-
-```bash
-docker compose up -d
-curl -fsS http://localhost:5110/api/knowledge/status
-```
+- The disposable index is `/data/wartable.embeddings.db` and lives in the
+  `wartable-data` volume.
+- After changing `.env`, recreate the service; the site covers the commands:
+  <https://alex98235.github.io/WarTable/configuration>.
 
 If the service is unavailable or the index is still building, search falls back
 to keyword results with `degraded: true`. Semantic search does not change the
@@ -316,26 +294,31 @@ stdio rules:
 - The process exits cleanly on stdin EOF.
 - The agent client keeps stdin open for the lifetime of the session.
 
+The binary defaults to `serve` mode on `localhost:5110` with the database at
+`~/.wartable/wartable.db`. Serve mode:
+
+```bash
+./wartable --host 0.0.0.0 --port 5110 --db /var/lib/wartable/wartable.db
+```
+
+MCP stdio mode:
+
+```bash
+./wartable --mode mcp --db /var/lib/wartable/wartable.db
+```
+
+stdio rules:
+
+- stdout is reserved for MCP JSON-RPC. Logs go to stderr.
+- The process exits cleanly on stdin EOF.
+- The agent client keeps stdin open for the lifetime of the session.
+
 The Windows binary is the normal local-agent path. The Linux binary is for a
 Linux local agent or an optional bare-metal server. A bare-metal server is
 supported but is not the primary path; the container is.
 
-Optional systemd unit for a bare-metal server:
-
-```ini
-[Unit]
-Description=WarTable
-After=network.target
-
-[Service]
-User=wartable
-ExecStart=/opt/wartable/wartable --host 0.0.0.0 --port 5110 --db /var/lib/wartable/wartable.db
-Restart=on-failure
-WorkingDirectory=/var/lib/wartable
-
-[Install]
-WantedBy=multi-user.target
-```
+Installation, the systemd units, and the update procedure are on the site:
+<https://alex98235.github.io/WarTable/standalone>.
 
 Agent-side client configuration is in
 [`agent-instructions.md`](agent-instructions.md).
@@ -378,24 +361,10 @@ Report vulnerabilities as described in [`SECURITY.md`](../SECURITY.md).
 
 ### 8.2 Backups
 
-A **cold backup** is required before every update:
-
-```bash
-docker compose stop wartable
-tar -C data -czf "wartable-data-$(date +%Y%m%dT%H%M%S).tgz" .
-docker compose start wartable
-```
-
-For a bare-metal server, stop the process and archive the database directory
-the same way. The supported update script performs the cold backup
-automatically and writes `backups/wartable-<UTC>-from-<current>-to-<target>.tar.gz`
-before it changes the tag; see section 11.
-
-A hot backup is optional:
-
-```bash
-sqlite3 data/wartable.db ".backup 'data/backups/wartable-$(date +%Y%m%dT%H%M%S).db'"
-```
+A **cold backup** is required before every update: stop the service, archive the
+database directory, then start it again. For the container, archive the
+`wartable-data` volume; for a bare-metal server, archive the database directory.
+The site has the commands: <https://alex98235.github.io/WarTable/updating>.
 
 Requirements:
 
@@ -408,11 +377,10 @@ Requirements:
 
 ### 8.3 Restore
 
-1. Stop the service.
-2. Move the current `data/` contents aside; do not merge old and new WAL files.
-3. Extract the chosen backup into `data/`.
-4. Start the service.
-5. Check `/api/health`, then open the UI and confirm a known campaign.
+Stop the service, move the current database aside rather than merging old and
+new WAL files, extract the chosen backup in its place, start the service, and
+check `/api/health` and a known campaign. The site has the commands:
+<https://alex98235.github.io/WarTable/updating>.
 
 ### 8.4 Schema changes
 
@@ -440,7 +408,7 @@ Consequences:
 
 ---
 
-## 9. MCP and live updates
+## 9. MCP
 
 ### 9.1 Remote agents
 
@@ -460,29 +428,11 @@ The tool surface itself is described in [`design.md`](design.md) and
 
 - Use the standalone binary with `--mode mcp`.
 - Point `--db` at the same database path the server uses. In a container
-  deployment, that means the host path that is bind-mounted to `/data`, or a
+  deployment, that means the host path backing the `wartable-data` volume, or a
   binary running inside the same filesystem namespace. The normal setup is a
   stdio agent on the host against the host-side data directory.
 - Do not use `docker exec` as the normal agent path. The remote HTTP endpoint
   is the supported path for agents that are not on the server host.
-
-### 9.3 Live updates
-
-- UI: `GET /api/events?campaignId=<id>&since=<sequence>`
-- The server emits `id: <sequence>`, `event: activity`, and a JSON payload.
-- A short signal debounce (200 ms by default) lets the SQLite transaction commit
-  before the broadcaster drains `ActivityEvents`. The delay is triggered only by
-  a file signal; an idle feed issues no queries.
-- Reconnecting clients pass their last cursor as `since`.
-- A client with no cursor starts at the current head; it does not replay the
-  entire history.
-- Slow SSE subscribers may be dropped. They recover by reconnecting with
-  `since`.
-- If a notification is genuinely missed (for example, a watcher overflow), live
-  delivery waits for the next write; reconnecting with `since` recovers the
-  event from the database.
-- The file watcher is local-filesystem-only. A network-share database is not a
-  supported deployment.
 
 ---
 
@@ -534,10 +484,10 @@ The version-to-version update test is described in
 
 ## 11. Schema changes and rollback
 
-The full upgrade routine - cold backup, image pull, tag pin, health check, and
-rollback - is documented in [`updates.md`](updates.md). This section covers only
-what a deployer needs to know about the schema lifecycle, which is part of the
-deployment contract.
+The upgrade routine - cold backup, image pull, tag pin, health check, and
+rollback - is on the site: <https://alex98235.github.io/WarTable/updating>.
+This section covers only what a deployer needs to know about the schema
+lifecycle, which is part of the deployment contract.
 
 - WarTable applies EF Core migrations at startup. Before applying any pending
   migration it checkpoints the WAL and copies the database to
@@ -559,56 +509,17 @@ service. Updates are manual and deliberate.
 
 ## 12. Operations runbook
 
-### Start
+Start, stop, logs, upgrade, and uninstall commands are on the site:
+<https://alex98235.github.io/WarTable/setup> and
+<https://alex98235.github.io/WarTable/updating>. The contract points:
 
-```bash
-docker compose up -d
-docker compose ps
-curl -fsS http://localhost:5110/api/health
-```
-
-### Logs
-
-```bash
-docker compose logs -f --tail=200
-```
-
-The EF command log is set to `Warning` in the Compose contract to avoid noisy
-SQL output during idle operation.
-
-### Stop
-
-```bash
-docker compose stop
-```
-
-### Restart
-
-```bash
-docker compose restart
-```
-
-### Backup
-
-See section 8.2. Cold backup is the default.
-
-### Upgrade
-
-See [`updates.md`](updates.md).
-
-### Uninstall
-
-```bash
-docker compose down
-```
-
-`docker compose down` keeps the bind-mounted `./data` directory. Do not add
-`--volumes` unless you explicitly want to delete the data.
-
-### Bare-metal service
-
-If the standalone binary is used as a server, run it under systemd and use
-`systemctl stop|start|status wartable`. The same backup and update rules apply.
+- Data lives in the named volume `wartable-data` at `/data`, owned by UID/GID
+  `10001`. `docker compose down` keeps the volume; `--volumes` deletes it.
+- Health is `GET /api/health`, returning HTTP 200 with `{"status":"ok"}`.
+- The EF command log is set to `Warning` in the Compose contract to avoid noisy
+  SQL output during idle operation.
+- A bare-metal server runs the standalone binary under a service manager; the
+  same backup and update rules apply.
 
 ---
 
