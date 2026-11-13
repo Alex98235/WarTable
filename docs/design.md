@@ -276,7 +276,7 @@ Campaign knowledge and campaign directives.
 | `Title` | |
 | `Body` | Markdown. |
 | `Status` | `Active` or `Superseded`. Derived on read: a note is `Superseded` when another non-deleted note names it in `SupersedesId`. Not stored. |
-| `Basis` | Nullable. Where the claim can be checked: `#12`, `#12.3`, a commit sha, or a URL. |
+| `Basis` | Nullable. A pointer to where the claim can be checked: `#12`, `#12.3`, a 7-40 character commit sha, or an http(s) URL. Shape is checked at the MCP boundary, and `#N`/`#N.M` must resolve in the campaign. A sha or URL is accepted without being fetched. |
 | `ApprovedAt` | Nullable. Human confirmation of this exact body; any body edit clears it. |
 | `Pinned` | Directives are pinned and always injected. |
 | `Tags` | |
@@ -288,8 +288,11 @@ Each kind has a shape the agent must supply, enforced at the MCP boundary:
 `Decision` needs the chosen option, the rejected alternative, the reason, and a
 basis; `Gotcha` needs the trap and the escape; `Context` needs at least one
 objective or step link; `Directive` needs a body. The shape is a
-template written into the body, not a certificate — see principle 10. HTTP note
-writes stay free-form, because the human is not the unreliable narrator.
+template written into the body, not a certificate — see principle 10. A basis is
+checked for shape and, for `#N`/`#N.M`, for existence in the campaign; a commit
+sha or URL is accepted without being fetched, so it is a pointer the reader can
+follow, not proof the claim is true. HTTP note writes stay free-form, because
+the human is not the unreliable narrator.
 
 Links to objectives and steps are optional and many-to-many.
 
@@ -562,7 +565,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `add_decision` | `campaign_id`, `title`, `chosen`, `rejected`, `reason`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `chosen`/`rejected`/`reason`; sets `Basis` column to `basis`. |
+| `add_decision` | `campaign_id`, `title`, `chosen`, `rejected`, `reason`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `chosen`/`rejected`/`reason`; `basis` must be a pointer (`#N`, `#N.M`, commit sha, or URL) and is checked for shape and campaign existence. |
 | `add_gotcha` | `campaign_id`, `title`, `trap`, `escape`, `basis`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | Composes body from `trap`/`escape`. |
 | `add_context` | `campaign_id`, `title`, `links`, `body`, `basis`, `tags`, `pinned`, `supersedes_id`, `actor` | Must link at least one objective or step. |
 | `add_directive` | `campaign_id`, `title`, `body`, `tags`, `pinned`, `links`, `supersedes_id`, `actor` | |

@@ -1152,6 +1152,32 @@ public partial class WarTableService
 		return step;
 	}
 
+	/// <summary>Whether a basis points at something in this campaign.</summary>
+	public async Task<bool> BasisResolvesAsync(Guid campaignId, string basis)
+	{
+		var value = basis.Trim();
+
+		// A URL or commit is external ground truth; there is nothing local to check.
+		if (NoteBasis.IsUrl(value) || NoteBasis.IsCommit(value))
+			return true;
+
+		if (!NoteBasis.TryParseAlias(value, out var alias, out var step))
+			return false;
+
+		if (step is null)
+			return await ResolveAliasAsync(campaignId, alias) is not null;
+
+		// Aliases are permanent, so a basis may cite a step under a soft-deleted
+		// objective. GetStepByRefAsync applies the delete filter, so a citation to
+		// a step that existed would be rejected for having outlived its objective.
+		return await _db.Steps
+			.IgnoreQueryFilters()
+			.AnyAsync(
+				s => s.Objective!.CampaignId == campaignId &&
+					 s.Objective!.Alias == alias &&
+					 s.StepNumber == step.Value);
+	}
+
 	// ── Bunker ──
 
 	public async Task<List<BunkerNote>> GetNotesAsync(
