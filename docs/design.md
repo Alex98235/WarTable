@@ -58,12 +58,15 @@ Multiple devices see the same state; there are no accounts and no offline writes
     - This binds future surfaces, not just notes. The question for a new feature
       is not "can the agent be trusted with this?" but "what happens when it is
       wrong?"
-11. **Hard delete is a human action.** Deleting a campaign destroys its alias
-    counter, and with it every `#N` reference in that campaign. Agents get
-    archive and restore: no MCP tool hard-deletes a campaign. The HTTP route
-    stays because the human at the browser owns the data and must be able to
-    remove it. This governs the surface we offer, not what a caller holding the
-    URL can reach; a tool list is a contract, not a sandbox.
+11. **Irreversible actions are not on the agent surface.** A hard delete cannot
+    be undone, so no MCP tool exposes one: agents get archive and restore. The
+    HTTP route stays because the human at the browser owns the data and must be
+    able to remove it. The objection is not that deletion damages the record — a
+    campaign's aliases are scoped to it and die with it — but that an
+    irreversible act should not be one careless sentence away. This governs the
+    surface we offer, not what a caller holding the URL can reach; a tool list is
+    a contract, not a sandbox. See
+    [`known-limitations/agent-http-reach-around.md`](known-limitations/agent-http-reach-around.md).
 12. **The instruction block is a budget of attention.** Every agent reads it in
     every session, before it knows which tool it needs, so a clause costs
     attention rather than bytes. A clause earns its place by preventing a named
@@ -74,6 +77,12 @@ Multiple devices see the same state; there are no accounts and no offline writes
     committed, so no second copy exists to drift. Do not grow it casually, and
     do not defend a character count either; the thing being protected is what an
     agent notices.
+13. **A human is optional, not required.** WarTable runs unattended: an agent
+    with its configured instructions can plan, record, and complete work with
+    nobody present. Human presence is a deployment choice, never a server
+    precondition. Anything that needs someone watching — an approval prompt, a
+    confirmation window, a pause before an action lands — is something a client
+    may offer, never a property the server relies on for correctness.
 
 ### Deployment model
 
@@ -453,6 +462,11 @@ Every mutation records an actor and a timestamp. Actor format: `human`
 (optionally `human:<display name>`) or `agent:<name>`. `Assigner`, `CreatedBy`,
 and `Actor` all use the same convention. The event log is canonical; entity
 timestamps are caches.
+
+Actor is a claim, not an identity: the caller supplies it and nothing verifies
+it, so it records what was said rather than who said it. That is deliberate and
+documented in
+[`known-limitations/unverified-actor-identity.md`](known-limitations/unverified-actor-identity.md).
 
 ### Lifecycle
 

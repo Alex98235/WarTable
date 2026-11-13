@@ -7,7 +7,8 @@ the gates a change must pass, schema rules, releases, and which document owns
 which topic.
 
 If you only read one section, read [Commit messages](#commit-messages) and
-[Pull requests](#pull-requests).
+[Pull requests](#pull-requests). And to save yourself and others time, have a
+look at [Known limitations](./docs/known-limitations/README.md) first.
 
 ## Branch model
 
@@ -114,10 +115,12 @@ A breaking change is either `!` after the type/scope or a `BREAKING CHANGE:`
 footer, or both. `!` alone is easy to miss in a changelog, so state the impact
 in the footer as well when data or the API contract is affected.
 
-GitHub renders commit messages as Markdown and autolinks bare `#N` to an issue
-or pull request. Do not use `#N` in a commit message for a WarTable alias. Write
-`WarTable alias 3`, `WarTable object 3`, or `WarTable objective 3` instead. Use
-`GH-41` or a full URL for a GitHub issue reference.
+`#N` in GitHub text means a GitHub object. Commit messages, pull request and
+issue bodies, and review comments are rendered as Markdown, where a bare `#2`
+autolinks to issue or pull request 2. WarTable aliases are local numbers in the
+same shape, so a WarTable reference must not borrow it: write
+`WarTable alias 3`, `WarTable objective 3`, or `WarTable step 3.2`. GitHub
+references need no change — `#2`, `GH-41`, and full URLs all mean what they say.
 
 ## Pull requests
 

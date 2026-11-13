@@ -99,7 +99,8 @@ keeps the design and contributor references.
 | [`docs/deployment.md`](docs/deployment.md) | Supported production contract: pinned image, data, backup, updates |
 | [`docs/container.md`](docs/container.md) | Container tags, operations, volumes, smoke and update tests |
 | [`docs/development.md`](docs/development.md) | Build, test, frontend dev loop, local image, release workflow |
-| [`docs/agent-instructions.md`](docs/agent-instructions.md) | Where the fallback agent instruction lives and how to keep it in sync |
+| [`docs/agent-instructions.md`](docs/agent-instructions.md) | Where the canonical agent instruction lives |
+| [`docs/known-limitations/`](docs/known-limitations/README.md) | Accepted limitations, with the reason each one stays |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contribution workflow and review expectations |
 
 ## License and security
