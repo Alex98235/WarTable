@@ -70,9 +70,10 @@ Multiple devices see the same state; there are no accounts and no offline writes
     failure; a clause that restates a tool schema belongs in the tool
     description instead, where it is read at the call. The canonical text is
     `WarTable.Api/Mcp/instructions.txt` and nothing else: the server embeds that
-    file, the site fallback is generated from it, and no other copy is
-    authoritative. Do not grow it casually, and do not defend a character count
-    either; the thing being protected is what an agent notices.
+    file, and the site page imports a generated fragment of it that is not
+    committed, so no second copy exists to drift. Do not grow it casually, and
+    do not defend a character count either; the thing being protected is what an
+    agent notices.
 
 ### Deployment model
 

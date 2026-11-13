@@ -1,53 +1,37 @@
-// Copies the canonical MCP instruction text into the site's fallback block.
-//
-// The text lives in WarTable.Api/Mcp/instructions.txt and is embedded into the
-// server at build time. This script keeps site/docs/embedding.md byte-identical
-// to it, so the documented fallback cannot drift from what the server sends.
-//
-// Usage: node scripts/sync-instructions.mjs [--check]
-
+// Generates the instruction section of the embedding page from the canonical
+// text in WarTable.Api/Mcp/instructions.txt. The generated file is gitignored:
+// the page in version control carries only the import and the component, so an
+// instructions change never shows up as a docs diff. Wired as the site
+// prebuild and prestart; there is no in-repo copy to drift from.
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const SOURCE = new URL('../../WarTable.Api/Mcp/instructions.txt', import.meta.url);
-const TARGET = new URL('../docs/embedding.md', import.meta.url);
-const BEGIN = '<!-- instructions:begin';
-const END = '<!-- instructions:end -->';
+const PARTIAL = new URL('../docs/_instructions.generated.mdx', import.meta.url);
+const PAGE = new URL('../docs/embedding.md', import.meta.url);
 
-const text = readFileSync(SOURCE, 'utf8')
-	.replace(/\r\n/g, '\n')
-	.replace(/\n+$/, '');
+const IMPORT = "import Instructions from './_instructions.generated.mdx';";
+const COMPONENT = '<Instructions />';
 
-const page = readFileSync(TARGET, 'utf8');
-const start = page.indexOf(BEGIN);
-const end = page.indexOf(END);
+const text = readFileSync(SOURCE, 'utf8').replace(/\r\n/g, '\n').replace(/\n+$/, '');
 
-if (start === -1 || end === -1 || end < start) {
-	throw new Error(`embedding.md is missing the "${BEGIN}" ... "${END}" markers`);
-}
+if (text.length < 500)
+	throw new Error(
+		`WarTable.Api/Mcp/instructions.txt is only ${text.length} characters; refusing to generate a truncated page`,
+	);
 
-const from = page.lastIndexOf('\n', start) + 1;
-const to = page.indexOf('\n', end) + 1;
+const page = readFileSync(PAGE, 'utf8').replace(/\r\n/g, '\n');
 
-const block = [
-	'<!-- instructions:begin — generated from WarTable.Api/Mcp/instructions.txt; do not edit by hand -->',
-	'',
-	'```text',
-	text,
-	'```',
-	'',
-	'<!-- instructions:end -->',
-	'',
-].join('\n');
+if (!page.includes(IMPORT) || !page.includes(COMPONENT))
+	throw new Error(
+		`site/docs/embedding.md must contain ${IMPORT} and ${COMPONENT}; the instructions have nowhere to land`,
+	);
 
-const next = page.slice(0, from) + block + page.slice(to);
+const partial = `{/* Generated from WarTable.Api/Mcp/instructions.txt by site/scripts/sync-instructions.mjs. Do not edit. */}
 
-if (process.argv.includes('--check')) {
-	if (next !== page) {
-		console.error('site/docs/embedding.md is out of date; run: npm run sync:instructions');
-		process.exit(1);
-	}
-	console.log('site/docs/embedding.md matches WarTable.Api/Mcp/instructions.txt');
-} else {
-	writeFileSync(TARGET, next);
-	console.log(`Synced ${text.length} characters into site/docs/embedding.md`);
-}
+\`\`\`text
+${text}
+\`\`\`
+`;
+
+writeFileSync(PARTIAL, partial.replace(/\r\n/g, '\n'));
+console.log(`Synced ${text.length} characters into site/docs/_instructions.generated.mdx`);
