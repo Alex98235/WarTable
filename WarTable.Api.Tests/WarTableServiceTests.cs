@@ -204,6 +204,92 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
+	public async Task Archive_HidesTheCampaignAndKeepsItsAliasCounter()
+	{
+		var (ctx, campaign, firstObjective) = await ArrangeAsync();
+		await using var _ = ctx;
+
+		var archived = await ctx.Service.SetCampaignArchivedAsync(campaign.Id, true, Human);
+		Assert.NotNull(archived?.ArchivedAt);
+		Assert.Empty(await ctx.Service.GetCampaignsAsync());
+		Assert.Single(await ctx.Service.GetCampaignsAsync(includeArchived: true));
+
+		var restored = await ctx.Service.SetCampaignArchivedAsync(campaign.Id, false, Human);
+		Assert.Null(restored?.ArchivedAt);
+		Assert.Single(await ctx.Service.GetCampaignsAsync());
+
+		// The alias counter is campaign state, and archiving keeps it: the next
+		// objective continues the sequence instead of reusing #1.
+		var second = await ctx.Service.CreateObjectiveAsync(
+			campaign.Id, "Second", "Description", PlanState.Ready, Human);
+		Assert.Equal(firstObjective.Alias + 1, second.Alias);
+	}
+
+	[Fact]
+	public async Task Attention_HidesArchivedCampaigns()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("Parked", "", "", Human);
+
+		var blocked = await ctx.Service.CreateObjectiveAsync(
+			campaign.Id, "Blocked", "Description", PlanState.Ready, Human);
+		var step = await ctx.Service.CreateStepAsync(
+			blocked.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.Blocked, Human);
+		await ctx.Service.CreateObjectiveAsync(campaign.Id, "Thought", "", PlanState.Seed, Human);
+
+		// Before archiving the campaign is live work, so its items must be there.
+		var before = await ctx.Service.GetAttentionAsync();
+		Assert.Single(before.BlockedObjectives);
+		Assert.Single(before.SeedObjectives);
+
+		await ctx.Service.SetCampaignArchivedAsync(campaign.Id, true, Human);
+
+		// A cross-campaign inbox is an aggregate: an archived campaign is out of
+		// the way and must not keep asking for things.
+		var after = await ctx.Service.GetAttentionAsync();
+		Assert.Empty(after.FlaggedSteps);
+		Assert.Empty(after.BlockedObjectives);
+		Assert.Empty(after.StaleInProgressSteps);
+		Assert.Empty(after.BacklogObjectives);
+		Assert.Empty(after.SeedObjectives);
+
+		// Asking for that campaign explicitly still shows its contents.
+		var scoped = await ctx.Service.GetAttentionAsync(campaign.Id);
+		Assert.Single(scoped.BlockedObjectives);
+		Assert.Single(scoped.SeedObjectives);
+	}
+
+	[Fact]
+	public async Task Notes_GlobalList_HidesArchivedCampaigns()
+	{
+		await using var ctx = await TestContext.CreateAsync();
+		var campaign = await ctx.Service.CreateCampaignAsync("Parked", "", "", Human);
+		var objective = await ctx.Service.CreateObjectiveAsync(
+			campaign.Id, "Objective", "Description", PlanState.Ready, Human);
+		await ctx.Service.CreateNoteAsync(
+			campaign.Id,
+			BunkerNoteKind.Decision,
+			"Measured, not assumed",
+			"Chosen: sample. Rejected: guess. Reason: it can be checked.",
+			"",
+			false,
+			Human,
+			new[] { objective.Id },
+			Array.Empty<Guid>(),
+			null);
+
+		Assert.Single(await ctx.Service.GetNotesAsync(null, null, null, null));
+
+		await ctx.Service.SetCampaignArchivedAsync(campaign.Id, true, Human);
+
+		// The global list is an aggregate over every campaign, so a note in an
+		// archived campaign is reachable only by asking for that campaign.
+		Assert.Empty(await ctx.Service.GetNotesAsync(null, null, null, null));
+		Assert.Single(await ctx.Service.GetNotesAsync(campaign.Id, null, null, null));
+	}
+
+	[Fact]
 	public async Task CreateNote_RejectsSecondCharter()
 	{
 		await using var ctx = await TestContext.CreateAsync();

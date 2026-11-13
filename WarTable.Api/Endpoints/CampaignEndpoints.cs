@@ -13,7 +13,6 @@ public record CreateCampaignRequest(
 public record UpdateCampaignRequest(
 	string? Title = null,
 	string? Tags = null,
-	DateTime? ArchivedAt = null,
 	string? Charter = null,
 	Guid? RowVersion = null,
 	string? Actor = null);
@@ -70,7 +69,6 @@ public static class CampaignEndpoints
 				var patch = new CampaignPatch(
 					request.Title,
 					request.Tags,
-					request.ArchivedAt,
 					request.Charter);
 				var updated = await service.UpdateCampaignAsync(id, patch, Actor(request.Actor), request.RowVersion);
 				return updated is null ? Results.NotFound() : Results.Ok(updated);
@@ -85,6 +83,37 @@ public static class CampaignEndpoints
 				throw;
 			}
 		});
+
+		// Archive state has one writer: these two routes. It is not part of the
+		// patch payload because a nullable field can set the flag but never clear
+		// it, and an archive that cannot be undone is a delete with extra steps.
+		void MapArchivedRoute(string pattern, bool archived)
+		{
+			group.MapPost(pattern, async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+			{
+				try
+				{
+					var missing = ConcurrencyHelper.RequireRowVersion(rowVersion);
+					if (missing is not null)
+						return missing;
+
+					var updated = await service.SetCampaignArchivedAsync(id, archived, Actor(actor), rowVersion);
+					return updated is null ? Results.NotFound() : Results.Ok(updated);
+				}
+				catch (Exception ex)
+				{
+					var conflict = ConcurrencyHelper.HandleConflict(ex);
+					if (conflict is not null)
+						return conflict;
+					if (ex is InvalidOperationException)
+						return Results.BadRequest(new { error = ex.Message });
+					throw;
+				}
+			});
+		}
+
+		MapArchivedRoute("/{id:guid}/archive", archived: true);
+		MapArchivedRoute("/{id:guid}/unarchive", archived: false);
 
 		group.MapDelete("/{id:guid}", async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
 		{

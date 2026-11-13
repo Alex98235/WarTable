@@ -5,6 +5,7 @@
 		apiGet,
 		apiPatch,
 		apiPost,
+		apiPostAction,
 		apiPut,
 		isConflict,
 		parseTags,
@@ -298,9 +299,42 @@
 		}
 	}
 
+	function count(n, word) {
+		return `${n} ${word}${n === 1 ? '' : 's'}`;
+	}
+
+	async function setArchived(archived) {
+		campaignSaving = true;
+		try {
+			await apiPostAction(
+				`/api/campaigns/${campaignId}/${archived ? 'archive' : 'unarchive'}`,
+				{
+					actor: ACTOR,
+					rowVersion: campaign?.rowVersion
+				}
+			);
+			addToast(archived ? 'Campaign archived.' : 'Campaign restored.', 'success');
+			editingCampaign = false;
+			await load({ silent: true });
+		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This campaign was changed elsewhere. Reopen the editor and try again.',
+					'error'
+				);
+				return;
+			}
+			addToast(err.message || 'Could not change the campaign archive state.', 'error');
+		} finally {
+			campaignSaving = false;
+		}
+	}
+
 	function deleteCampaign() {
+		const stepCount = objectives.reduce((n, o) => n + (o.steps?.length ?? 0), 0);
+		const scale = `${count(objectives.length, 'objective')}, ${count(stepCount, 'step')} and ${count(notes.length, 'note')}`;
 		showConfirm(
-			`Delete the campaign "${campaign?.title}" and all of its objectives, steps, and notes? This cannot be undone.`,
+			`Delete "${campaign?.title}" and everything in it — ${scale}? This cannot be undone. If you only want it out of the way, archive it instead: archiving keeps all of it and can be reversed.`,
 			async () => {
 				try {
 					await apiDelete(`/api/campaigns/${campaignId}`, {
@@ -319,7 +353,8 @@
 					}
 					addToast(err.message || 'Could not delete the campaign.', 'error');
 				}
-			}
+			},
+			{ confirmLabel: 'Delete permanently', holdMs: 6000 }
 		);
 	}
 
@@ -638,6 +673,23 @@
 {:else}
 	<div class="campaign-hero reveal" style="--i: 0">
 		<a class="back-link" href="#/campaigns">← All campaigns</a>
+		{#if campaign.archivedAt}
+			<div class="hero-archived">
+				<div class="hero-archived-copy">
+					<p class="eyebrow">Archived</p>
+					<p>
+						Hidden from the campaign list, and every objective, step and note inside is
+						kept.
+					</p>
+				</div>
+				<button
+					type="button"
+					class="btn btn-secondary btn-sm"
+					disabled={campaignSaving}
+					onclick={() => setArchived(false)}>Restore campaign</button
+				>
+			</div>
+		{/if}
 		<div class="hero-main">
 			<div class="hero-copy">
 				<p class="eyebrow">Campaign</p>
@@ -1271,9 +1323,19 @@
 					</div>
 				</div>
 				<div class="modal-actions spread">
-					<button type="button" class="btn btn-danger" onclick={deleteCampaign}
-						>Delete campaign</button
-					>
+					<span class="modal-actions-group">
+						<button type="button" class="btn btn-danger" onclick={deleteCampaign}
+							>Delete campaign</button
+						>
+						<button
+							type="button"
+							class="btn btn-ghost"
+							disabled={campaignSaving}
+							onclick={() => setArchived(!campaign?.archivedAt)}
+						>
+							{campaign?.archivedAt ? 'Restore campaign' : 'Archive campaign'}
+						</button>
+					</span>
 					<span class="modal-actions-group">
 						<button
 							type="button"

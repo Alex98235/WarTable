@@ -36,7 +36,11 @@ public class Campaign : IConcurrencyGuarded
 	[NotMapped]
 	public string? CharterExcerpt { get; set; }
 
-	/// <summary>Nullable archive marker. Archive semantics are deferred.</summary>
+	/// <summary>
+	/// Nullable archive marker. Archiving hides the campaign from the default
+	/// list and keeps everything, including <see cref="NextAliasNumber"/>, so a
+	/// restore leaves every #N reference in the campaign resolvable again.
+	/// </summary>
 	public DateTime? ArchivedAt { get; set; }
 
 	/// <summary>
