@@ -22,11 +22,11 @@ public class Objective : IConcurrencyGuarded
 	/// <summary>Markdown. Outcome and constraints.</summary>
 	public string Description { get; set; } = "";
 
-	/// <summary>Seed and draft objectives are visible but not actionable.</summary>
-	public PlanState PlanState { get; set; } = PlanState.Draft;
+	/// <summary>Seed and backlog objectives are visible but not actionable.</summary>
+	public PlanState PlanState { get; set; } = PlanState.Backlog;
 
 	/// <summary>Derived cache computed from the child steps.</summary>
-	public string Status { get; set; } = "planned";
+	public string Status { get; set; } = "not-started";
 
 	/// <summary>Position within the campaign (0-based).</summary>
 	public int SortOrder { get; set; }
@@ -54,12 +54,13 @@ public class Objective : IConcurrencyGuarded
 }
 
 /// <summary>
-/// Plan state: a seed is a captured unfinished thought, a draft is a shaped park,
-/// and active objectives are being worked.
+/// Plan state names permission, not shape. A seed is a captured unfinished
+/// thought and is never worked; a backlog objective is a shaped plan that is
+/// deliberately not released; a ready objective's steps may be taken.
 /// </summary>
 public enum PlanState
 {
 	Seed,
-	Draft,
-	Active,
+	Backlog,
+	Ready,
 }

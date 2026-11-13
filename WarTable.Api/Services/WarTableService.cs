@@ -78,7 +78,7 @@ public static class StepStatuses
 /// <summary>Derived objective statuses (computed from child steps, stored as cache).</summary>
 public static class ObjectiveStatuses
 {
-	public const string Planned = "planned";
+	public const string NotStarted = "not-started";
 	public const string InProgress = "in-progress";
 	public const string NeedsReview = "needs-review";
 	public const string Blocked = "blocked";
@@ -205,13 +205,13 @@ public partial class WarTableService
 
 	/// <summary>
 	/// Computes the derived objective status from its child steps.
-	/// Priority: flagged > blocked > in-progress > completed > partial > planned.
+	/// Priority: flagged > blocked > in-progress > completed > partial > not-started.
 	/// </summary>
 	private static string DeriveObjectiveStatus(IEnumerable<Step> steps)
 	{
 		var list = steps?.ToList();
 		if (list is null || list.Count == 0)
-			return ObjectiveStatuses.Planned;
+			return ObjectiveStatuses.NotStarted;
 
 		var statuses = list.Select(s => s.Status).ToHashSet();
 
@@ -226,7 +226,7 @@ public partial class WarTableService
 		if (statuses.Any(s => s != StepStatuses.Open))
 			return ObjectiveStatuses.InProgress; // partial
 
-		return ObjectiveStatuses.Planned;
+		return ObjectiveStatuses.NotStarted;
 	}
 
 	/// <summary>
@@ -477,15 +477,15 @@ public partial class WarTableService
 
 	// ── Objectives ──
 
-	public async Task<List<Objective>> GetObjectivesAsync(Guid? campaignId = null, bool includeDrafts = true)
+	public async Task<List<Objective>> GetObjectivesAsync(Guid? campaignId = null, bool includeNotReady = true)
 	{
 		var query = _db.Objectives.AsNoTracking().AsQueryable();
 
 		if (campaignId.HasValue)
 			query = query.Where(o => o.CampaignId == campaignId.Value);
 
-		if (!includeDrafts)
-			query = query.Where(o => o.PlanState == PlanState.Active);
+		if (!includeNotReady)
+			query = query.Where(o => o.PlanState == PlanState.Ready);
 
 		return await query
 			.OrderBy(o => o.SortOrder)
@@ -539,7 +539,7 @@ public partial class WarTableService
 			Title = title,
 			Description = description,
 			PlanState = planState,
-			Status = ObjectiveStatuses.Planned,
+			Status = ObjectiveStatuses.NotStarted,
 			SortOrder = maxSort + 1,
 			NextStepNumber = 1,
 			CreatedAt = now,
@@ -1072,13 +1072,13 @@ public partial class WarTableService
 
 	// ── Plans, briefing, aliases ──
 
-	public async Task<List<Objective>> GetPlanAsync(Guid campaignId, bool includeDrafts = true)
+	public async Task<List<Objective>> GetPlanAsync(Guid campaignId, bool includeNotReady = true)
 	{
 		var query = _db.Objectives.AsNoTracking()
 			.Where(o => o.CampaignId == campaignId);
 
-		if (!includeDrafts)
-			query = query.Where(o => o.PlanState == PlanState.Active);
+		if (!includeNotReady)
+			query = query.Where(o => o.PlanState == PlanState.Ready);
 
 		var objectives = await query
 			.Include(o => o.Steps)
@@ -1638,7 +1638,7 @@ public partial class WarTableService
 				if (step.Status == StepStatuses.Blocked)
 					blocked.Add(item);
 
-				if (objective.PlanState == PlanState.Active &&
+				if (objective.PlanState == PlanState.Ready &&
 					step.Status == StepStatuses.Open &&
 					step.Dependencies.All(d => d.DependsOnStep is not null &&
 											   d.DependsOnStep.Status == StepStatuses.Done))
@@ -1735,15 +1735,15 @@ public partial class WarTableService
 									 .Take(AttentionLimit)
 									 .ToListAsync();
 
-		var draftObjectives = await (from o in _db.Objectives.AsNoTracking()
-									 join c in _db.Campaigns.AsNoTracking() on o.CampaignId equals c.Id
-									 where o.PlanState == PlanState.Draft &&
-										   (!hasCampaign || o.CampaignId == cid)
-									 orderby o.UpdatedAt descending
-									 select new AttentionItem(
-										 "DraftObjective", o.CampaignId, c.Title, o.Id, o.Title,
-										 "Draft objective (parked)", o.CreatedAt,
-										 o.Id, o.Alias, null, "Draft"))
+		var backlogObjectives = await (from o in _db.Objectives.AsNoTracking()
+									   join c in _db.Campaigns.AsNoTracking() on o.CampaignId equals c.Id
+									   where o.PlanState == PlanState.Backlog &&
+											 (!hasCampaign || o.CampaignId == cid)
+									   orderby o.UpdatedAt descending
+									   select new AttentionItem(
+										   "BacklogObjective", o.CampaignId, c.Title, o.Id, o.Title,
+										   "Backlog objective (parked)", o.CreatedAt,
+										   o.Id, o.Alias, null, "Backlog"))
 									 .Take(AttentionLimit)
 									 .ToListAsync();
 
@@ -1754,12 +1754,12 @@ public partial class WarTableService
 									orderby o.UpdatedAt descending
 									select new AttentionItem(
 										"SeedObjective", o.CampaignId, c.Title, o.Id, o.Title,
-										"Unshaped thought (needs drafting)", o.CreatedAt,
+										"Unshaped thought (needs shaping)", o.CreatedAt,
 										o.Id, o.Alias, null, "Seed"))
 									.Take(AttentionLimit)
 									.ToListAsync();
 
-		return new Attention(flagged, blockedObjectives, staleInProgress, draftObjectives, seedObjectives);
+		return new Attention(flagged, blockedObjectives, staleInProgress, backlogObjectives, seedObjectives);
 	}
 
 	// ── Helpers ──

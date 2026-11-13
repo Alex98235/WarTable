@@ -78,17 +78,17 @@ Bunker notes; it does not execute work.
   framing, never a record of what happened: do not write history, upgrades, or
   deletions into it. Update it with update_campaign; campaigns have no separate
   intent field.
-- When you propose a multi-step plan, offer to import it with import_plan. Draft
-  objectives are visible but not actionable until activated.
+- When you propose a multi-step plan, offer to import it with import_plan. Backlog
+  objectives are visible but not actionable until released.
 - Seeds are unfinished human thoughts captured before planning. When the
   briefing lists seeds and no ready work is queued, discuss a seed with the human,
   then promote it with update_objective; do not execute it as-is.
 - Refer to objectives and Bunker notes by their campaign-scoped alias (#N) and
   steps by #N.M. Never refer to work by title or count.
 - Objective aliases and step numbers are permanent. They are assigned once and
-  never reused or renumbered; gaps are normal. reorder_steps changes display
-  order (sort_order) only, never step numbers. Reorder payload keys are step
-  GUIDs, not #N.M references.
+  never reused or renumbered; gaps are normal. reorder_steps changes sort_order
+  only, never step numbers. Reorder payload keys are step GUIDs, not #N.M
+  references.
 - get_plan returns a JSON array of objectives, not an object with an objectives
   property.
 - Opening a step with get_step returns a bounded knowledge context: linked,
@@ -110,9 +110,9 @@ Bunker notes; it does not execute work.
   note; if the human said it and changes a default, use add_preference — never
   infer one; they are injected into every session; if it is current state or the
   next thing to do, it is a seed objective; if it is true only of one objective's
-  implementation, it belongs in that objective's description or the step's
-  context. If an agent six months hence would decide the same without it, write
-  nothing. A decision needs the alternative rejected and why; if that alternative
+  implementation: the step's context if it dies with the step, a Context note if
+  it outlives the objective. If an agent six months hence would decide the same
+  without it, write nothing. A decision needs the alternative rejected and why; if that alternative
   is no longer selectable, it is history, not a decision — the log holds it. A
   claim this ladder rejects is not relocated into the charter, an objective, or a
   step; say nothing.

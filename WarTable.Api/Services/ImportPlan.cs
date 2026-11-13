@@ -52,7 +52,7 @@ public partial class WarTableService
 {
 	/// <summary>
 	/// Imports a campaign/objective/step tree in one transaction. Objectives default
-	/// to <see cref="PlanState.Draft"/>; step dependencies are resolved from the
+	/// to <see cref="PlanState.Backlog"/>; step dependencies are resolved from the
 	/// client-side keys only after all steps exist, so forward references work.
 	/// </summary>
 	public async Task<ImportPlanResult> ImportPlanAsync(ImportPlanRequest request, string actor)
@@ -97,7 +97,7 @@ public partial class WarTableService
 					campaign.Id,
 					importedObjective.Title,
 					importedObjective.Description ?? "",
-					importedObjective.PlanState ?? PlanState.Draft,
+					importedObjective.PlanState ?? PlanState.Backlog,
 					actor);
 
 				if (!string.IsNullOrWhiteSpace(importedObjective.Key))

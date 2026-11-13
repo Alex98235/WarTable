@@ -58,7 +58,7 @@
 		steps.filter(
 			(step) =>
 				step.status === 'open' &&
-				objective?.planState === 'Active' &&
+				objective?.planState === 'Ready' &&
 				(step.dependsOn || []).every((dep) => dep.status === 'done')
 		)
 	);
@@ -161,11 +161,11 @@
 				rowVersion: objective.rowVersion
 			});
 			addToast(
-				planState === 'Active'
-					? 'Objective activated.'
+				planState === 'Ready'
+					? 'Objective released.'
 					: planState === 'Seed'
 						? 'Objective moved back to a seed.'
-						: 'Objective parked as a draft.',
+						: 'Objective moved to the backlog.',
 				'success'
 			);
 			await load({ silent: true });
@@ -360,29 +360,29 @@
 					<button
 						type="button"
 						class="seg-btn"
-						class:is-active={objective.planState === 'Draft'}
-						onclick={() => setPlanState('Draft')}>Draft</button
+						class:is-active={objective.planState === 'Backlog'}
+						onclick={() => setPlanState('Backlog')}>Backlog</button
 					>
 					<button
 						type="button"
 						class="seg-btn"
-						class:is-active={objective.planState === 'Active'}
-						onclick={() => setPlanState('Active')}>Active</button
+						class:is-active={objective.planState === 'Ready'}
+						onclick={() => setPlanState('Ready')}>Ready</button
 					>
 				</div>
 				<p class="control-hint">
 					{objective.planState === 'Seed'
-						? 'Seed: an unfinished thought. Shape it into a draft when it is ready.'
-						: objective.planState === 'Draft'
-							? 'Parked: visible, but not in the ready set.'
-							: 'Active: open, unblocked steps are ready to pull.'}
+						? 'Seed: an unfinished thought. Shape it into a plan when it is ready.'
+						: objective.planState === 'Backlog'
+							? 'Backlog: a plan, visible but deliberately not released.'
+							: 'Ready: open, unblocked steps may be taken.'}
 				</p>
 			</div>
 
 			<div class="control-block">
 				<p class="zone-label">Derived status</p>
 				<div class="control-line">
-					<StatusBadge status={objective.status || 'planned'} />
+					<StatusBadge status={objective.status || 'not-started'} />
 					<span class="control-hint">computed from steps, not edited by hand</span>
 				</div>
 			</div>

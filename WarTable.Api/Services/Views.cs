@@ -103,10 +103,10 @@ public record AttentionItem(
 	string? Status = null,
 	int? NoteAlias = null);
 
-/// <summary>Cross-campaign inbox. Draft plans are separated so they are not urgent.</summary>
+/// <summary>Cross-campaign inbox. Backlog plans are separated so they are not urgent.</summary>
 public record Attention(
 	List<AttentionItem> FlaggedSteps,
 	List<AttentionItem> BlockedObjectives,
 	List<AttentionItem> StaleInProgressSteps,
-	List<AttentionItem> DraftObjectives,
+	List<AttentionItem> BacklogObjectives,
 	List<AttentionItem> SeedObjectives);

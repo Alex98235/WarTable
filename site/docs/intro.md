@@ -16,7 +16,7 @@ The plan is made of three things:
 - **Campaigns** are folders for a body of work. A campaign has a charter but no
   status.
 - **Objectives** are durable outcomes inside a campaign. Each one has a
-  campaign-scoped alias such as `#4` and a plan state: seed, draft, or active.
+  campaign-scoped alias such as `#4` and a plan state: seed, backlog, or ready.
 - **Steps** are atomic, verifiable work with a stable reference such as `#4.2`,
   explicit dependencies, and an open, in-progress, or done status.
 

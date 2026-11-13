@@ -38,7 +38,7 @@
 	]);
 
 	let urgentCount = $derived(groups.reduce((sum, group) => sum + group.items.length, 0));
-	let drafts = $derived(attention?.draftObjectives ?? []);
+	let backlog = $derived(attention?.backlogObjectives ?? []);
 	let seeds = $derived(attention?.seedObjectives ?? []);
 
 	let recentCampaigns = $derived(
@@ -111,8 +111,8 @@
 					campaign.id,
 					{
 						total: planList.length,
-						active: planList.filter((o) => o.planState === 'Active').length,
-						draft: planList.filter((o) => o.planState === 'Draft').length,
+						ready: planList.filter((o) => o.planState === 'Ready').length,
+						backlog: planList.filter((o) => o.planState === 'Backlog').length,
 						completed: planList.filter((o) => o.status === 'completed').length,
 						seeds: objectiveList.filter((o) => o.planState === 'Seed').length,
 						lastActivity:
@@ -222,26 +222,27 @@
 				</div>
 			{/if}
 
-			{#if drafts.length > 0}
+			{#if backlog.length > 0}
 				<div class="parked-zone">
 					<div class="parked-head">
 						<div>
 							<p class="eyebrow">Parked</p>
-							<h3>Draft plans</h3>
+							<h3>Backlog</h3>
 						</div>
-						<span class="parked-count">{drafts.length}</span>
+						<span class="parked-count">{backlog.length}</span>
 					</div>
 					<p class="parked-hint">
-						Drafts are visible but not actionable. Activate one when it is time to work.
+						Backlog plans are visible but not actionable. Release one when it is time to
+						work.
 					</p>
 					<div class="parked-list">
-						{#each drafts.slice(0, 3) as item (item.entityId)}
+						{#each backlog.slice(0, 3) as item (item.entityId)}
 							<AttentionItem {item} />
 						{/each}
 					</div>
-					{#if drafts.length > 3}
+					{#if backlog.length > 3}
 						<a class="more-link" href="#/attention"
-							>+{drafts.length - 3} more parked plans</a
+							>+{backlog.length - 3} more parked plans</a
 						>
 					{/if}
 				</div>
@@ -257,7 +258,7 @@
 						<span class="parked-count">{seeds.length}</span>
 					</div>
 					<p class="parked-hint">
-						Unfinished thoughts. Shape one into a draft when it is ready.
+						Unfinished thoughts. Shape one into a plan; it lands in the backlog.
 					</p>
 					<div class="parked-list">
 						{#each seeds.slice(0, 3) as item (item.entityId)}

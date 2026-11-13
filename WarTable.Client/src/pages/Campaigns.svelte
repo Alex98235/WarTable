@@ -63,8 +63,8 @@
 					campaign.id,
 					{
 						total: planList.length,
-						active: planList.filter((o) => o.planState === 'Active').length,
-						draft: planList.filter((o) => o.planState === 'Draft').length,
+						ready: planList.filter((o) => o.planState === 'Ready').length,
+						backlog: planList.filter((o) => o.planState === 'Backlog').length,
 						completed: planList.filter((o) => o.status === 'completed').length,
 						seeds: objectiveList.filter((o) => o.planState === 'Seed').length,
 						lastActivity:

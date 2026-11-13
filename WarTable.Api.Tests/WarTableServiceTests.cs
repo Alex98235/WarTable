@@ -58,7 +58,7 @@ public class WarTableServiceTests
 	private const string Human = "human";
 
 	private static async Task<(TestContext Ctx, Campaign Campaign, Objective Objective)> ArrangeAsync(
-		PlanState planState = PlanState.Active)
+		PlanState planState = PlanState.Ready)
 	{
 		var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("Test Campaign", "", "test", Human);
@@ -73,14 +73,14 @@ public class WarTableServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 
 		var a = await ctx.Service.CreateStepAsync(
 			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 		var b = await ctx.Service.CreateStepAsync(
 			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
-		Assert.Equal(ObjectiveStatuses.Planned, (await ctx.Service.GetObjectiveAsync(objective.Id))!.Status);
+		Assert.Equal(ObjectiveStatuses.NotStarted, (await ctx.Service.GetObjectiveAsync(objective.Id))!.Status);
 
 		await ctx.Service.UpdateStepStatusAsync(a.Id, StepStatuses.InProgress, Human);
 		Assert.Equal(ObjectiveStatuses.InProgress, (await ctx.Service.GetObjectiveAsync(objective.Id))!.Status);
@@ -119,9 +119,9 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task ReadySet_ExcludesDraftsAndWaitsForDependencies()
+	public async Task ReadySet_ExcludesBacklogAndWaitsForDependencies()
 	{
-		var (ctx, campaign, objective) = await ArrangeAsync(PlanState.Draft);
+		var (ctx, campaign, objective) = await ArrangeAsync(PlanState.Backlog);
 		await using var _ctx = ctx;
 
 		var a = await ctx.Service.CreateStepAsync(
@@ -131,7 +131,7 @@ public class WarTableServiceTests
 		Assert.Empty(briefing.ReadySteps);
 
 		await ctx.Service.UpdateObjectiveAsync(
-			objective.Id, new ObjectivePatch(PlanState: PlanState.Active), Human);
+			objective.Id, new ObjectivePatch(PlanState: PlanState.Ready), Human);
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 		Assert.Contains(briefing.ReadySteps, s => s.Id == a.Id);
@@ -182,7 +182,7 @@ public class WarTableServiceTests
 		Assert.True(deletedResolution!.Deleted);
 
 		var next = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "Next", "", PlanState.Draft, Human);
+			campaign.Id, "Next", "", PlanState.Backlog, Human);
 		Assert.Equal(3, next.Alias);
 	}
 
@@ -318,7 +318,7 @@ public class WarTableServiceTests
 				new ImportPlanObjective(
 					Key: "objective",
 					Title: "Objective",
-					PlanState: PlanState.Active,
+					PlanState: PlanState.Ready,
 					Steps:
 					[
 						new ImportPlanStep(Key: "second", Title: "Second", DependsOn: ["first"]),
@@ -441,7 +441,7 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task Seed_IsVisibleButNotActionable_UntilDrafted()
+	public async Task Seed_IsVisibleButNotActionable_UntilBacklogged()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
@@ -460,17 +460,17 @@ public class WarTableServiceTests
 		var attentionSeed = Assert.Single(attention.SeedObjectives);
 		Assert.Equal("SeedObjective", attentionSeed.Kind);
 		Assert.Equal(seed.Id, attentionSeed.EntityId);
-		Assert.Empty(attention.DraftObjectives);
+		Assert.Empty(attention.BacklogObjectives);
 
 		await ctx.Service.UpdateObjectiveAsync(
-			seed.Id, new ObjectivePatch(PlanState: PlanState.Draft), Human);
+			seed.Id, new ObjectivePatch(PlanState: PlanState.Backlog), Human);
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 		attention = await ctx.Service.GetAttentionAsync(campaign.Id);
 		Assert.Empty(briefing.Seeds);
 		Assert.Empty(briefing.ReadySteps);
-		var draftItem = Assert.Single(attention.DraftObjectives);
-		Assert.Equal(seed.Id, draftItem.EntityId);
+		var backlogItem = Assert.Single(attention.BacklogObjectives);
+		Assert.Equal(seed.Id, backlogItem.EntityId);
 		Assert.Empty(attention.SeedObjectives);
 	}
 

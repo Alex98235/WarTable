@@ -3,7 +3,7 @@
 
 	/**
 	 * Campaign card used on the dashboard and campaigns list.
-	 * stats: { total, active, draft, completed, lastActivity }
+	 * stats: { total, ready, backlog, completed, lastActivity }
 	 */
 	let { campaign, stats = {} } = $props();
 
@@ -11,8 +11,8 @@
 	let excerpt = $derived(plainText(campaign.charterExcerpt, 170));
 	let total = $derived(stats.total ?? 0);
 	let completed = $derived(stats.completed ?? 0);
-	let active = $derived(stats.active ?? 0);
-	let draft = $derived(stats.draft ?? 0);
+	let ready = $derived(stats.ready ?? 0);
+	let backlog = $derived(stats.backlog ?? 0);
 	let seeds = $derived(stats.seeds ?? 0);
 	let pct = $derived(total ? Math.round((completed / total) * 100) : 0);
 	let lastActivity = $derived(stats.lastActivity || campaign.updatedAt || campaign.createdAt);
@@ -46,8 +46,8 @@
 					{/if}
 				</span>
 				<span class="progress-counts">
-					{#if active > 0}<span>{active} active</span>{/if}
-					{#if draft > 0}<span>{draft} draft</span>{/if}
+					{#if ready > 0}<span>{ready} ready</span>{/if}
+					{#if backlog > 0}<span>{backlog} backlog</span>{/if}
 					{#if seeds > 0}<span>{seeds} seed{seeds === 1 ? '' : 's'}</span>{/if}
 				</span>
 			</div>

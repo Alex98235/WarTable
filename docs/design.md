@@ -107,8 +107,8 @@ scope, provenance, retire/edit, always injected.
 
 Planning finishes in chat. The agent asks whether to move the plan to WarTable.
 On approval it calls `import_plan` once: campaign (or existing campaign),
-objectives, steps, dependencies. The plan lands as `Draft` or `Active` depending
-on the requested `plan_state`. The agent activates it and starts work. If the
+objectives, steps, dependencies. The plan lands as `Backlog` or `Ready` depending
+on the requested `plan_state`. The agent releases it and starts work. If the
 agent's instructions require human approval first, it asks; the tool does not
 force it.
 
@@ -137,16 +137,16 @@ activity log.
 ### F. Parked plan
 
 The human and agent sketch a plan that will not be executed yet. It is imported
-with objectives in `Draft`. Draft objectives do not pollute the ready set or the
-urgent attention queue. They sit in the plan tree with a calm badge until either
-party activates them.
+with objectives in `Backlog`. Backlog objectives do not pollute the ready set or
+the urgent attention queue. They sit in the plan tree with a calm badge until
+either party releases them.
 
 Before that, a passing idea can be captured as a `Seed`: a one-line unfinished
 thought with an alias. Seeds appear in the briefing and attention so the idea is
-not lost, but they never produce ready steps. Drafting a seed promotes it to
-`Draft`.
+not lost, but they never produce ready steps. Shaping a seed promotes it to
+`Backlog`.
 
-**Requirements:** objective-level `PlanState`, seed and draft filtering in
+**Requirements:** objective-level `PlanState`, seed and backlog filtering in
 briefing and attention.
 
 ### G. Project close
@@ -204,13 +204,13 @@ A durable outcome. The unit of planning.
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
 | `Description` | Markdown. Outcome and constraints. |
-| `PlanState` | `Seed`, `Draft`, or `Active`. Objective-level. A seed is a captured unfinished thought. |
-| `Status` | Derived cache: `planned`, `in-progress`, `needs-review`, `blocked`, `completed`. |
+| `PlanState` | `Seed`, `Backlog`, or `Ready`. Objective-level. The names state permission, not shape: a seed is a captured unfinished thought and is never worked; a backlog objective is a shaped plan deliberately not released; a ready objective's steps may be taken. |
+| `Status` | Derived cache: `not-started`, `in-progress`, `needs-review`, `blocked`, `completed`. |
 | `SortOrder` | Display order. |
 | `NextStepNumber` | Per-objective counter for step numbers. |
 | `CreatedAt`, `UpdatedAt`, `DeletedAt` | Soft delete. |
 
-Steps drive `Status`. A seed or draft objective is visible but not actionable.
+Steps drive `Status`. A seed or backlog objective is visible but not actionable.
 
 ### Step
 
@@ -237,7 +237,7 @@ Relationships: `DependsOn` (many-to-many to steps), updates, evidence.
 encouraged, not enforced.
 
 Parallelism is derived from the dependency graph. Ready = step is `open`, its
-objective is `Active`, and all dependencies are `done`.
+objective is `Ready`, and all dependencies are `done`.
 
 ### StepUpdate
 
@@ -412,7 +412,7 @@ These are not tables.
   flagged steps, active directives, active preferences, recent decisions, seeds,
   and recent activity. Bounded and token-aware.
 - **Attention** — cross-campaign inbox: flagged steps, blocked objectives, and
-  stale in-progress steps. Draft plans and seeds get a calm separate section.
+  stale in-progress steps. Backlog plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
 
 ### Aliases and addressing
@@ -435,9 +435,9 @@ timestamps are caches.
 ### Lifecycle
 
 - **Campaign:** no status. Created as a folder; archived by setting `ArchivedAt`.
-- **Objective:** `Seed` → `Draft` → `Active` → completed (derived from steps).
+- **Objective:** `Seed` → `Backlog` → `Ready` → completed (derived from steps).
   Either actor can change `PlanState`. There is no separate "abandoned" state;
-  delete or leave it Draft.
+  delete or leave it in `Backlog`.
 - **Step:** `open` → `in-progress` → `done`. `flagged` and `blocked` can occur at
   any time. A blocked step should carry a `Blocker` update explaining why.
 - **Note:** A note is `Superseded` when another non-deleted note names it in
@@ -517,8 +517,8 @@ negotiated by the SDK.
 
 | Tool | Parameters | Notes |
 |---|---|---|
-| `import_plan` | `campaign_id?`, `campaign?`, `objectives[]`, `actor` | Atomic bulk import. Per-objective `plan_state` defaults to `Draft`. Returns aliases and step refs. |
-| `get_plan` | `campaign_id`, `include_drafts?` | JSON array of objectives with steps and explicit note-link `knowledge` counts. |
+| `import_plan` | `campaign_id?`, `campaign?`, `objectives[]`, `actor` | Atomic bulk import. Per-objective `plan_state` defaults to `Backlog`. Returns aliases and step refs. |
+| `get_plan` | `campaign_id`, `include_not_ready?` | JSON array of objectives with steps and explicit note-link `knowledge` counts. |
 | `get_briefing` | `campaign_id`, `since?` | Bounded context for starting work. |
 | `get_attention` | `campaign_id?` | Cross-campaign or scoped inbox. |
 | `get_activity` | `campaign_id?`, `since?`, `limit?` | Internal activity log query. |
@@ -532,7 +532,7 @@ negotiated by the SDK.
     {
       "key": "schema",
       "title": "Design the new auth schema",
-      "plan_state": "Active",
+      "plan_state": "Ready",
       "steps": [
         { "key": "model", "title": "Model users and sessions", "assignee": "fixer" },
         { "key": "migrate", "title": "Write the migration", "assignee": "fixer", "depends_on": ["model"] }
@@ -619,8 +619,8 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 - Read the campaign Charter before proposing work. The charter is the durable why,
   scope, and architecture; `update_campaign` writes it. Component-level design
   detail belongs in the relevant objective description and its steps.
-- When a planning phase finishes, offer to import the plan. Import as `Draft` if
-  it will not be executed immediately; activate when starting.
+- When a planning phase finishes, offer to import the plan. Import as `Backlog`
+  if it will not be executed immediately; release when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
 - Record durable decisions, gotchas, and context notes in the Bunker
@@ -659,7 +659,7 @@ are JSON with camelCase properties and string enum values.
 | `/api/health` | `GET` | Liveness check. |
 | `/api/campaigns` | `GET`, `POST` | List (`search`, `includeArchived`) or create a campaign. |
 | `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or hard-delete a campaign (`rowVersion` required). |
-| `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeDrafts`) or create an objective. |
+| `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeNotReady`) or create an objective. |
 | `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete an objective (`rowVersion` required). |
 | `/api/objectives/reorder` | `PUT` | Reorder objectives; keys are objective GUIDs. |
 | `/api/steps` | `GET`, `POST` | List by `objectiveId` or create a step. |
@@ -697,9 +697,9 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
   questions, and stale in-progress work. Each group caps its visible rows and
   links to the full inbox.
-- **Parked sections** below the urgent groups: draft plans and seeds, styled as
-  calm work rather than urgent items.
-- **Campaign folders** below: title, charter excerpt, active/draft objective
+- **Parked sections** below the urgent groups: backlog plans and seeds, styled
+  as calm work rather than urgent items.
+- **Campaign folders** below: title, charter excerpt, ready/backlog objective
   counts, last activity, tags. No status badges and no status counts.
 - **Recent decisions and preferences** as small secondary panels.
 
@@ -724,7 +724,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   capped at four.
 - **Seed capture strip:** one input above the plan to park a thought — title plus
   optional detail, no steps.
-- **Plan tiers:** `In play` (active, unfinished), `Parked` (seeds, then drafts),
+- **Plan tiers:** `In play` (ready, unfinished), `Parked` (seeds, then backlog),
   and `Finished` (completed objectives, collapsed by default; auto-opened only
   when there is no open work). Finished rows are one line, with no progress,
   reorder, or state controls; `updatedAt` is shown as last activity, never as a
@@ -760,7 +760,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 ### Attention
 
 - Cross-campaign inbox with filters by kind, campaign, and age.
-- Draft plans and seeds appear in calm separate sections, not as urgent items.
+- Backlog plans and seeds appear in calm separate sections, not as urgent items.
 
 ## 9. Non-goals
 
