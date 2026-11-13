@@ -7,7 +7,8 @@ the gates a change must pass, schema rules, releases, and which document owns
 which topic.
 
 If you only read one section, read [Commit messages](#commit-messages) and
-[Pull requests](#pull-requests).
+[Pull requests](#pull-requests). And to save yourself and others time, have a
+look at [Known limitations](./docs/known-limitations/README.md) first.
 
 ## Branch model
 

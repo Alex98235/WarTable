@@ -9,8 +9,14 @@ here says *we have decided not to, and here is what that costs*, so that the
 next person — human or agent — reads the reasoning instead of rediscovering the
 problem and proposing the idea we already rejected.
 
-Distinct from [`../designs/`](../designs/): those are working notes for work not
-yet shipped, and they are deleted when it lands.
+Not the same as [`../designs/`](../designs/), which holds long-form arguments
+for the *current* design: each file expands a section of `../design.md` and
+describes what WarTable is. A limitation entry describes something WarTable does
+badly and will keep doing badly. One argues for the design, the other argues
+about its cost.
+
+The temporary counterpart to both is `.designs/` at the repository root, which
+is gitignored and holds notes for work that has not shipped yet.
 
 ## What belongs here
 
@@ -18,9 +24,9 @@ yet shipped, and they are deleted when it lands.
 - A risk we accept knowingly, where the alternative was considered and refused.
 - A property a reader will assume holds and be surprised to find does not.
 
-What does not belong here: a bug with a fix (fix it), a missing feature
-(write it down as a seed in WarTable), or a limitation that exists only because
-nobody has looked yet.
+What does not belong here: a bug with a fix (fix it), a missing feature (write
+it down as a GitHub issue, or as a seed in WarTable if you already work there),
+or a limitation that exists only because nobody has looked yet.
 
 ## Format
 
