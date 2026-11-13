@@ -169,14 +169,20 @@ A namespace and folder. It is not a work item and has no status.
 | `Id` | GUID |
 | `RowVersion` | GUID. Optimistic concurrency token; regenerated on every write. Exposed as `rowVersion`. |
 | `Title` | |
-| `Charter` | Markdown. The durable why, scope, and architecture. Nullable. |
+| `Charter` | Markdown. The stated purpose and scope. Framing, never a record of the past. Nullable. |
 | `Tags` | Comma-separated labels. |
 | `NextAliasNumber` | Campaign-scoped monotonic counter for objectives and notes. |
 | `CreatedAt`, `UpdatedAt` | |
 | `ArchivedAt` | Nullable. Set when the campaign is archived. |
 
 The campaign charter is a campaign column, not a note. It is framing rather than
-knowledge: it has no alias, no status, and nothing supersedes it. Campaign
+knowledge: it has no alias, no status, and nothing supersedes it. Because a
+charter excerpt is pushed into every briefing, it is the highest-reach text in
+the system, so it holds stated intent only — never history. An agent may write
+it, but a claim about what happened belongs in the activity log or a note with a
+basis, not in the campaign's framing. A probe on this repository found a database
+wipe recorded there in past tense: a claim the note ladder had just rejected,
+relocated into the one surface with no alias, no basis, and no status. Campaign
 creation and `update_campaign` write it; campaign responses add `CharterExcerpt`
 derived from the column. A kind that only shadowed a campaign field (`Charter`)
 or a briefing section (`DesignDoc`) does not belong in the note taxonomy —

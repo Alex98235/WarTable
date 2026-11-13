@@ -13,8 +13,8 @@ public static class WarTableMcpInstructions
 
 		- Start with get_briefing for the campaign, or get_attention across campaigns. Use get_plan when you need the complete objective and step structure.
 		- Resolve the campaign before planning or recording work. Prefer an explicit campaign id or title. Otherwise call list_campaigns and match on title, tags, Charter text, repository/project name, and recent notes. A similar title does not prove a match: if one campaign matches, say which one you are using; if several match, show their titles and ids and ask; never silently pick one.
-		- If no campaign exists, do not invent one or proceed as if one exists. Ask whether to create one, propose the repository or directory name as the title plus a short charter from the project README/AGENTS, and proceed without WarTable if declined. Do not duplicate a campaign that already exists under a different or more generic title; use it and propose updating its charter, tags, or title instead.
-		- Read the campaign Charter before proposing work. The charter is the durable why, scope, and architecture.
+		- If no campaign exists, do not invent one. Ask whether to create one — repository or directory name as the title, a short charter from README/AGENTS — and proceed without WarTable if declined. Never duplicate a campaign that exists under a different or more generic title; use it and propose updating its charter, tags, or title.
+		- Read the campaign charter first: it states the purpose and scope, and is framing, never a record of what happened. Do not write history, upgrades, or deletions into it.
 		- Refer to objectives and Bunker notes as #N and steps as #N.M. Never refer to work by title or count.
 		- Objective aliases and step numbers are permanent: assigned once, never reused or renumbered; gaps are normal. reorder_steps changes display order (sort_order) only, never step numbers. Reorder payload keys are step GUIDs, not #N.M references.
 		- get_plan returns a JSON array of objectives, not an object with an objectives property.
