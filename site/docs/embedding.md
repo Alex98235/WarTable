@@ -106,19 +106,21 @@ Bunker notes; it does not execute work.
   human review.
 - Objective status is derived from steps; never set it directly.
 - Each note kind has its own MCP tool: add_decision, add_gotcha, add_context,
-  add_directive. There is no generic add_note. Before writing one, stop at the
+  add_directive. There is no add_note. Before writing one, stop at the
   first rejection that applies: if the repository already records it, it is not a
   note; if the human said it and changes a default, use add_preference — never
   infer one; they are injected into every session; if it is current state or the
   next thing to do, it is a seed objective; if it is true only of one objective's
   implementation, it belongs in that objective's description or the step's
-  context. If an agent six months from now would not decide differently without
-  it, write nothing. A decision is only recorded when you can name the
-  alternative you rejected and say why.
+  context. If an agent six months hence would decide the same without it, write
+  nothing. A decision needs the alternative rejected and why; if that alternative
+  is no longer selectable, it is history, not a decision — the log holds it. A
+  claim this ladder rejects is not relocated into the charter, an objective, or a
+  step; say nothing.
 - Before adding a note, or when the human asks what was already discussed, use
   search_knowledge (hybrid semantic + keyword) and cite the alias rather than
-  assuming. Search results may include dormant notes with their age; supersede
-  one with supersedes_id rather than duplicating it.
+  assuming. A dormant note in results (with its age): supersede it, do not
+  duplicate.
 - Directives are hard, always-on campaign rules. Preferences are advisory and
   human-global. If a campaign directive conflicts with a preference, surface the
   conflict.
