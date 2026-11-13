@@ -11,7 +11,7 @@ namespace WarTable.Api.Mcp.Tools;
 public static class ObjectiveTools
 {
 	[McpServerTool(Name = "create_objective")]
-	[Description("Create a new objective under a campaign. plan_state is Seed (unfinished thought), Draft (default), or Active. Objective aliases (#N) are permanent and never reused.")]
+	[Description("Create a new objective under a campaign. plan_state is Seed (unfinished thought), Backlog (default), or Ready. Objective aliases (#N) are permanent and never reused.")]
 	public static async Task<object> CreateObjectiveAsync(
 		WarTableService service,
 		string campaign_id,
@@ -28,12 +28,12 @@ public static class ObjectiveTools
 			if (string.IsNullOrWhiteSpace(title))
 				return McpResults.Error("title is required");
 
-			var planState = PlanState.Draft;
+			var planState = PlanState.Backlog;
 			if (!string.IsNullOrWhiteSpace(plan_state) &&
 				!Enum.TryParse(plan_state, ignoreCase: true, out planState))
 			{
 				return McpResults.Error(
-					$"Invalid plan_state: {plan_state}. Valid values: Seed, Draft, Active");
+					$"Invalid plan_state: {plan_state}. Valid values: Seed, Backlog, Ready");
 			}
 
 			var objective = await service.CreateObjectiveAsync(
@@ -53,7 +53,7 @@ public static class ObjectiveTools
 
 	[McpServerTool(Name = "update_objective")]
 	[Description(
-		"Update objective fields. Only the fields you include are changed. plan_state is Seed (unfinished thought), Draft, or Active. " +
+		"Update objective fields. Only the fields you include are changed. plan_state is Seed (unfinished thought), Backlog, or Ready. " +
 		"Requires row_version (read with get_object or get_plan) for optimistic concurrency.")]
 	public static async Task<object> UpdateObjectiveAsync(
 		WarTableService service,
@@ -79,7 +79,7 @@ public static class ObjectiveTools
 			{
 				if (!Enum.TryParse<PlanState>(plan_state, ignoreCase: true, out var parsed))
 					return McpResults.Error(
-						$"Invalid plan_state: {plan_state}. Valid values: Seed, Draft, Active");
+						$"Invalid plan_state: {plan_state}. Valid values: Seed, Backlog, Ready");
 				planState = parsed;
 			}
 

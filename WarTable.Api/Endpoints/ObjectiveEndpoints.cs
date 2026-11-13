@@ -3,7 +3,7 @@ using WarTable.Api.Services;
 
 namespace WarTable.Api.Endpoints;
 
-/// <summary>Body for creating an objective. Plan state defaults to Draft.</summary>
+/// <summary>Body for creating an objective. Plan state defaults to Backlog.</summary>
 public record CreateObjectiveRequest(
 	Guid CampaignId,
 	string Title,
@@ -50,9 +50,9 @@ public static class ObjectiveEndpoints
 				: Results.BadRequest(new { error = "No objectives to reorder" });
 		});
 
-		group.MapGet("/", async (Guid? campaignId, bool? includeDrafts, WarTableService service) =>
+		group.MapGet("/", async (Guid? campaignId, bool? includeNotReady, WarTableService service) =>
 		{
-			var objectives = await service.GetObjectivesAsync(campaignId, includeDrafts ?? true);
+			var objectives = await service.GetObjectivesAsync(campaignId, includeNotReady ?? true);
 			return Results.Ok(objectives);
 		});
 
@@ -70,7 +70,7 @@ public static class ObjectiveEndpoints
 					request.CampaignId,
 					request.Title,
 					request.Description,
-					request.PlanState ?? PlanState.Draft,
+					request.PlanState ?? PlanState.Backlog,
 					Actor(request.Actor));
 				return Results.Created($"/api/objectives/{created.Id}", created);
 			}

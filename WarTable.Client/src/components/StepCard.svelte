@@ -42,7 +42,7 @@
 	let deps = $derived(Array.isArray(step.dependsOn) ? step.dependsOn : []);
 	let unmet = $derived(deps.filter((d) => d.status !== 'done'));
 	let ready = $derived(
-		objective?.planState === 'Active' && step.status === 'open' && unmet.length === 0
+		objective?.planState === 'Ready' && step.status === 'open' && unmet.length === 0
 	);
 	let updates = $derived(
 		[...(step.updates || [])].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))

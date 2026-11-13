@@ -19,7 +19,7 @@
 		{ value: 'flagged', label: 'Flagged' },
 		{ value: 'blocked', label: 'Blocked' },
 		{ value: 'stale', label: 'Stale' },
-		{ value: 'drafts', label: 'Drafts' },
+		{ value: 'backlog', label: 'Backlog' },
 		{ value: 'seeds', label: 'Seeds' }
 	];
 
@@ -51,7 +51,7 @@
 		}
 	]);
 
-	let drafts = $derived(attention?.draftObjectives ?? []);
+	let backlog = $derived(attention?.backlogObjectives ?? []);
 	let seeds = $derived(attention?.seedObjectives ?? []);
 
 	function ageInDays(since) {
@@ -78,8 +78,8 @@
 			.filter((group) => group.items.length > 0)
 	);
 
-	let filteredDrafts = $derived(
-		kindFilter === 'all' || kindFilter === 'drafts' ? drafts.filter(matchesFilters) : []
+	let filteredBacklog = $derived(
+		kindFilter === 'all' || kindFilter === 'backlog' ? backlog.filter(matchesFilters) : []
 	);
 
 	let filteredSeeds = $derived(
@@ -89,7 +89,7 @@
 	let urgentCount = $derived(baseGroups.reduce((sum, group) => sum + group.items.length, 0));
 	let visibleCount = $derived(
 		filteredGroups.reduce((sum, group) => sum + group.items.length, 0) +
-			filteredDrafts.length +
+			filteredBacklog.length +
 			filteredSeeds.length
 	);
 	let hasFilters = $derived(kindFilter !== 'all' || campaignFilter !== '' || ageFilter !== 'any');
@@ -141,14 +141,14 @@
 		<p class="eyebrow">Cross-campaign inbox</p>
 		<h1 class="page-title">What needs a human</h1>
 		<p class="lede">
-			Flagged steps come first, then blockers, and work that has gone quiet. Draft plans and
+			Flagged steps come first, then blockers, and work that has gone quiet. Backlog plans and
 			seeds are parked separately so they never masquerade as urgent.
 		</p>
 	</div>
 	<div class="page-actions">
 		{#if refreshing}<span class="sync-note">Syncing…</span>{/if}
 		<span class="stat-inline"><strong>{urgentCount}</strong> urgent</span>
-		<span class="stat-inline"><strong>{drafts.length}</strong> parked</span>
+		<span class="stat-inline"><strong>{backlog.length}</strong> parked</span>
 		<span class="stat-inline"><strong>{seeds.length}</strong> seeds</span>
 	</div>
 </div>
@@ -206,7 +206,7 @@
 		<p class="lede">{error}</p>
 		<button type="button" class="btn btn-primary" onclick={() => load()}>Try again</button>
 	</div>
-{:else if filteredGroups.length === 0 && filteredDrafts.length === 0 && filteredSeeds.length === 0}
+{:else if filteredGroups.length === 0 && filteredBacklog.length === 0 && filteredSeeds.length === 0}
 	<div class="empty-state">
 		<h3>{hasFilters ? 'Nothing matches those filters' : 'The inbox is clear'}</h3>
 		<p>
@@ -242,20 +242,20 @@
 			</section>
 		{/each}
 
-		{#if filteredDrafts.length > 0}
+		{#if filteredBacklog.length > 0}
 			<section class="panel parked-panel">
 				<header class="attention-group-head">
 					<div>
 						<p class="eyebrow">Parked · calm by design</p>
-						<h2 class="panel-title">Draft plans</h2>
+						<h2 class="panel-title">Backlog</h2>
 						<p class="panel-subtitle">
-							Visible but not actionable until someone activates the objective.
+							Visible but not actionable until someone releases the objective.
 						</p>
 					</div>
-					<span class="inbox-count big">{filteredDrafts.length}</span>
+					<span class="inbox-count big">{filteredBacklog.length}</span>
 				</header>
 				<div class="attention-list">
-					{#each filteredDrafts as item (item.entityId)}
+					{#each filteredBacklog as item (item.entityId)}
 						<AttentionItem {item} />
 					{/each}
 				</div>
@@ -269,7 +269,7 @@
 						<p class="eyebrow">Unfinished thoughts · calm by design</p>
 						<h2 class="panel-title">Seeds to shape</h2>
 						<p class="panel-subtitle">
-							Seeds are visible to agents in the briefing. Shape one into a draft when
+							Seeds are visible to agents in the briefing. Shape one into a plan when
 							it is ready.
 						</p>
 					</div>

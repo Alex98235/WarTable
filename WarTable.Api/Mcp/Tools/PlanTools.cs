@@ -39,7 +39,7 @@ public static class PlanTools
 				{
 					if (!Enum.TryParse<PlanState>(rawPlanState, ignoreCase: true, out var parsed))
 						return McpResults.Error(
-							$"Invalid plan_state: {rawPlanState}. Valid values: Draft, Active");
+							$"Invalid plan_state: {rawPlanState}. Valid values: Seed, Backlog, Ready");
 					planState = parsed;
 				}
 
@@ -102,7 +102,7 @@ public static class PlanTools
 		WarTableService service,
 		KnowledgeContextService context,
 		string campaign_id,
-		bool? include_drafts = null)
+		bool? include_not_ready = null)
 	{
 		try
 		{
@@ -110,7 +110,7 @@ public static class PlanTools
 			if (id is null)
 				return McpResults.Error("campaign_id is required");
 
-			var objectives = await service.GetPlanAsync(id.Value, include_drafts ?? true);
+			var objectives = await service.GetPlanAsync(id.Value, include_not_ready ?? true);
 			try
 			{
 				var counts = await context.GetCountsForObjectivesAsync(id.Value, objectives);
@@ -209,7 +209,7 @@ public sealed class ImportPlanObjectiveInput
 	public string Title { get; set; } = "";
 	public string? Description { get; set; }
 
-	/// <summary>Draft or Active, parsed case-insensitively.</summary>
+	/// <summary>Seed, Backlog, or Ready, parsed case-insensitively.</summary>
 	public string? PlanState { get; set; }
 
 	public List<ImportPlanStepInput>? Steps { get; set; }

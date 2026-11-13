@@ -19,7 +19,7 @@ public class KnowledgeContextTests
 			await using var ctx = await TestContext.CreateAsync();
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "release", Human);
 			var objective = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Ship the release", "Coordinate the launch steps.", PlanState.Active, Human);
+				campaign.Id, "Ship the release", "Coordinate the launch steps.", PlanState.Ready, Human);
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Alpha deployment", "Wire the alpha deployment pipeline.",
 				"", "orchestrator", Array.Empty<Guid>(), Human);
@@ -104,7 +104,7 @@ public class KnowledgeContextTests
 			var campaign = await ctx.Service.CreateCampaignAsync(
 				"Campaign", "The durable why and scope.", "", Human);
 			var objective = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Objective", "", PlanState.Active, Human);
+				campaign.Id, "Objective", "", PlanState.Ready, Human);
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
@@ -134,7 +134,7 @@ public class KnowledgeContextTests
 			await using var ctx = await TestContext.CreateAsync();
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
 			var objective = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Objective", "", PlanState.Active, Human);
+				campaign.Id, "Objective", "", PlanState.Ready, Human);
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Quota probe", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
@@ -172,7 +172,7 @@ public class KnowledgeContextTests
 			await using var ctx = await TestContext.CreateAsync();
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
 			var objective = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Objective", "", PlanState.Active, Human);
+				campaign.Id, "Objective", "", PlanState.Ready, Human);
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Alpha step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
@@ -219,7 +219,7 @@ public class KnowledgeContextTests
 			await using var ctx = await TestContext.CreateAsync();
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
 			var objective = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Objective", "", PlanState.Active, Human);
+				campaign.Id, "Objective", "", PlanState.Ready, Human);
 			var step = await ctx.Service.CreateStepAsync(
 				objective.Id, "Probe", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
@@ -272,9 +272,9 @@ public class KnowledgeContextTests
 			await using var ctx = await TestContext.CreateAsync();
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
 			var linked = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Linked", "", PlanState.Active, Human);
+				campaign.Id, "Linked", "", PlanState.Ready, Human);
 			var unlinked = await ctx.Service.CreateObjectiveAsync(
-				campaign.Id, "Unlinked", "", PlanState.Active, Human);
+				campaign.Id, "Unlinked", "", PlanState.Ready, Human);
 			var linkedStep = await ctx.Service.CreateStepAsync(
 				linked.Id, "Linked step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
@@ -333,7 +333,7 @@ public class KnowledgeContextTests
 			var campaign = await ctx.Service.CreateCampaignAsync("Campaign", "", "", Human);
 			var otherCampaign = await ctx.Service.CreateCampaignAsync("Other", "", "", Human);
 			var otherObjective = await ctx.Service.CreateObjectiveAsync(
-				otherCampaign.Id, "Other objective", "", PlanState.Active, Human);
+				otherCampaign.Id, "Other objective", "", PlanState.Ready, Human);
 
 			var alpha = await ctx.Service.CreateNoteAsync(
 				campaign.Id, BunkerNoteKind.Context, "Alpha note",

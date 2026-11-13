@@ -92,7 +92,7 @@ public sealed class AliasAllocationTests : IAsyncLifetime
 					await gate.Task;
 
 					var objective = await service.CreateObjectiveAsync(
-						campaignId, $"Objective {index}", "", PlanState.Active, Human);
+						campaignId, $"Objective {index}", "", PlanState.Ready, Human);
 					return objective.Alias;
 				}
 			}));
@@ -166,7 +166,7 @@ public sealed class AliasAllocationTests : IAsyncLifetime
 		await using (sequentialDb)
 		{
 			var next = await sequentialService.CreateObjectiveAsync(
-				campaignId, "After Burst", "", PlanState.Draft, Human);
+				campaignId, "After Burst", "", PlanState.Backlog, Human);
 			Assert.Equal(concurrentCount + 1, next.Alias);
 		}
 
@@ -187,7 +187,7 @@ public sealed class AliasAllocationTests : IAsyncLifetime
 			Assert.True(resolution!.Deleted);
 
 			var next = await afterDeleteService.CreateObjectiveAsync(
-				campaignId, "After Delete", "", PlanState.Draft, Human);
+				campaignId, "After Delete", "", PlanState.Backlog, Human);
 			Assert.Equal(concurrentCount + 2, next.Alias);
 		}
 	}

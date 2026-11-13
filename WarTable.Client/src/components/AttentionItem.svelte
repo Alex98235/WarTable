@@ -8,7 +8,7 @@
 		FlaggedStep: { label: 'Flagged step', mark: '!', tone: 'flag' },
 		BlockedObjective: { label: 'Blocked objective', mark: '×', tone: 'blocked' },
 		StaleStep: { label: 'Stale work', mark: '◷', tone: 'stale' },
-		DraftObjective: { label: 'Parked draft', mark: '◇', tone: 'draft' },
+		BacklogObjective: { label: 'Parked', mark: '◇', tone: 'backlog' },
 		SeedObjective: { label: 'Seed · needs shaping', mark: '◌', tone: 'seed' }
 	};
 

@@ -10,7 +10,7 @@
 	let { status = '', label = undefined, sm = false, tone = null } = $props();
 
 	const toneByKey = {
-		planned: 'planned',
+		'not-started': 'not-started',
 		'in-progress': 'progress',
 		inprogress: 'progress',
 		'needs-review': 'review',
@@ -19,9 +19,9 @@
 		open: 'open',
 		done: 'done',
 		flagged: 'flagged',
-		draft: 'draft',
+		backlog: 'backlog',
 		seed: 'seed',
-		active: 'active',
+		ready: 'ready',
 		superseded: 'muted',
 		// Bunker note kinds
 		directive: 'directive',
@@ -39,6 +39,7 @@
 	};
 
 	const labelByKey = {
+		'not-started': 'Not started',
 		'in-progress': 'In progress',
 		'needs-review': 'Needs review',
 		inprogress: 'In progress',

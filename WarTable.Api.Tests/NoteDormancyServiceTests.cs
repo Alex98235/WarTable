@@ -26,7 +26,7 @@ public class NoteDormancyServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 
 		var live = await ctx.Service.CreateNoteAsync(
 			campaign.Id, BunkerNoteKind.Gotcha, "Live gotcha", "Body", "", false, Human,
@@ -55,7 +55,7 @@ public class NoteDormancyServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 
 		var note = await ctx.Service.CreateNoteAsync(
 			campaign.Id, BunkerNoteKind.Gotcha, "Old but linked", "Body", "", false, Human,
@@ -73,7 +73,7 @@ public class NoteDormancyServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 		var step = await ctx.Service.CreateStepAsync(
 			objective.Id, "S", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 		await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.Done, Human);
@@ -97,7 +97,7 @@ public class NoteDormancyServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 		var step = await ctx.Service.CreateStepAsync(
 			objective.Id, "S", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 		await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.Done, Human);
@@ -118,7 +118,7 @@ public class NoteDormancyServiceTests
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync("C", "", "", Human);
 		var objective = await ctx.Service.CreateObjectiveAsync(
-			campaign.Id, "O", "", PlanState.Active, Human);
+			campaign.Id, "O", "", PlanState.Ready, Human);
 
 		var note = await ctx.Service.CreateNoteAsync(
 			campaign.Id, BunkerNoteKind.Context, "Old context", "Body", "", false, Human,

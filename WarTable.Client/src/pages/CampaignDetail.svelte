@@ -55,7 +55,7 @@
 	let objectiveForm = $state({
 		title: '',
 		description: '',
-		planState: 'Draft'
+		planState: 'Backlog'
 	});
 	let objectiveSaving = $state(false);
 
@@ -63,7 +63,7 @@
 	let objectiveEditForm = $state({
 		title: '',
 		description: '',
-		planState: 'Draft'
+		planState: 'Backlog'
 	});
 	let objectiveEditSaving = $state(false);
 	let shapingSeed = $state(false);
@@ -88,20 +88,20 @@
 
 	// The plan is split into ranked tiers so the reader sees live work before
 	// parked captures and finished outcomes. A completed objective always lands
-	// in Finished, even if it was parked as a draft when it finished.
+	// in Finished, even if it was parked as backlog when it finished.
 	let finishedObjectives = $derived(
 		planObjectives.filter((objective) => objective.status === 'completed')
 	);
 
 	let inPlayObjectives = $derived(
 		planObjectives.filter(
-			(objective) => objective.status !== 'completed' && objective.planState === 'Active'
+			(objective) => objective.status !== 'completed' && objective.planState === 'Ready'
 		)
 	);
 
-	let draftObjectives = $derived(
+	let backlogObjectives = $derived(
 		planObjectives.filter(
-			(objective) => objective.status !== 'completed' && objective.planState === 'Draft'
+			(objective) => objective.status !== 'completed' && objective.planState === 'Backlog'
 		)
 	);
 
@@ -310,7 +310,7 @@
 	}
 
 	function openObjectiveModal() {
-		objectiveForm = { title: '', description: '', planState: 'Draft' };
+		objectiveForm = { title: '', description: '', planState: 'Backlog' };
 		showObjectiveModal = true;
 	}
 
@@ -320,7 +320,7 @@
 		objectiveEditForm = {
 			title: objective.title || '',
 			description: objective.description || '',
-			planState: objective.planState || 'Draft'
+			planState: objective.planState || 'Backlog'
 		};
 	}
 
@@ -330,7 +330,7 @@
 		objectiveEditForm = {
 			title: seed.title || '',
 			description: seed.description || '',
-			planState: 'Draft'
+			planState: 'Backlog'
 		};
 	}
 
@@ -454,7 +454,7 @@
 				rowVersion: objective.rowVersion
 			});
 			addToast(
-				planState === 'Active' ? 'Objective activated.' : 'Objective parked as draft.',
+				planState === 'Ready' ? 'Objective released.' : 'Objective moved to the backlog.',
 				'success'
 			);
 			await load({ silent: true });
@@ -711,7 +711,7 @@
 						{@const isOpen = !!expanded[objective.id]}
 						<article
 							class="objective-node"
-							class:is-draft={objective.planState === 'Draft'}
+							class:is-backlog={objective.planState === 'Backlog'}
 						>
 							<div class="objective-node-line" aria-hidden="true">
 								<span class="node-dot"></span>
@@ -727,8 +727,8 @@
 									</div>
 									<div class="objective-badges">
 										<StatusBadge
-											status={objective.planState === 'Active'
-												? objective.status || 'planned'
+											status={objective.planState === 'Ready'
+												? objective.status || 'not-started'
 												: objective.planState}
 											sm
 										/>
@@ -742,7 +742,7 @@
 												>{progress.blocked} blocked</span
 											>
 										{/if}
-										{#if objective.planState === 'Draft'}
+										{#if objective.planState === 'Backlog'}
 											<span class="calm-note"
 												>Parked · not in the ready set</span
 											>
@@ -776,19 +776,19 @@
 										title="Edit objective"
 										aria-label="Edit objective">✎</button
 									>
-									{#if objective.planState === 'Draft'}
+									{#if objective.planState === 'Backlog'}
 										<button
 											type="button"
 											class="btn btn-secondary btn-sm"
-											onclick={() => setPlanState(objective, 'Active')}
+											onclick={() => setPlanState(objective, 'Ready')}
 										>
-											Activate
+											Release
 										</button>
 									{:else}
 										<button
 											type="button"
 											class="btn btn-ghost btn-sm"
-											onclick={() => setPlanState(objective, 'Draft')}
+											onclick={() => setPlanState(objective, 'Backlog')}
 										>
 											Park
 										</button>
@@ -875,7 +875,7 @@
 																>
 															{/each}
 														</span>
-													{:else if step.status === 'open' && objective.planState === 'Active'}
+													{:else if step.status === 'open' && objective.planState === 'Ready'}
 														<span class="chip chip-ready">ready</span>
 													{/if}
 													{#if step.updatedAt}<span title={step.updatedAt}
@@ -917,8 +917,8 @@
 						</header>
 						{#if inPlayObjectives.length === 0}
 							<p class="tier-empty">
-								Nothing in play. Shape a seed or activate a draft below, or add an
-								objective.
+								Nothing in play. Shape a seed or release a backlog objective below,
+								or add an objective.
 							</p>
 						{:else}
 							<div class="plan-tree">
@@ -932,15 +932,15 @@
 					<section class="plan-tier parked-tier">
 						<header class="tier-head">
 							<h3 class="tier-title">Parked</h3>
-							{#if seedObjectives.length + draftObjectives.length > 0}
+							{#if seedObjectives.length + backlogObjectives.length > 0}
 								<span class="tier-count"
-									>{seedObjectives.length + draftObjectives.length}</span
+									>{seedObjectives.length + backlogObjectives.length}</span
 								>
 							{/if}
-							<span class="tier-hint">Drafts and seeds — not in the ready set</span>
+							<span class="tier-hint">Backlog and seeds — not in the ready set</span>
 						</header>
 
-						{#if seedObjectives.length === 0 && draftObjectives.length === 0}
+						{#if seedObjectives.length === 0 && backlogObjectives.length === 0}
 							<p class="tier-empty">
 								Nothing parked. A thought captured above waits here until it is
 								shaped.
@@ -997,9 +997,9 @@
 							</div>
 						{/if}
 
-						{#if draftObjectives.length > 0}
+						{#if backlogObjectives.length > 0}
 							<div class="plan-tree">
-								{#each draftObjectives as objective, index (objective.id)}
+								{#each backlogObjectives as objective, index (objective.id)}
 									{@render objectiveRow(objective, index, false)}
 								{/each}
 							</div>
@@ -1318,8 +1318,8 @@
 							class="form-select"
 							bind:value={objectiveForm.planState}
 						>
-							<option value="Draft">Draft — parked, not actionable</option>
-							<option value="Active">Active — included in the ready set</option>
+							<option value="Backlog">Backlog — parked, not released</option>
+							<option value="Ready">Ready — included in the ready set</option>
 						</select>
 					</div>
 				</div>
@@ -1409,8 +1409,8 @@
 							class="form-select"
 							bind:value={objectiveEditForm.planState}
 						>
-							<option value="Draft">Draft — parked, not actionable</option>
-							<option value="Active">Active — included in the ready set</option>
+							<option value="Backlog">Backlog — parked, not released</option>
+							<option value="Ready">Ready — included in the ready set</option>
 						</select>
 					</div>
 				</div>
