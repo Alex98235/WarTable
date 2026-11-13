@@ -78,11 +78,9 @@ public static class BunkerTools
 
 	[McpServerTool(Name = "add_decision")]
 	[Description(
-		"Record a decision: a choice between named alternatives. Only call this " +
-		"when you can name the alternative you rejected and say why. If there was " +
-		"no alternative, there is no decision to record. `basis` points at where " +
-		"the claim can be checked (`#12`, `#12.3`, a commit sha, or a URL); it " +
-		"makes the claim cheap to disprove, not true.")]
+		"Record a decision: a choice between named alternatives. `basis` points at " +
+		"where the claim can be checked — `#12`, `#12.3`, a commit sha, or a URL — " +
+		"which makes it cheap to disprove, not true.")]
 	public static async Task<object> AddDecisionAsync(
 		WarTableService service,
 		string campaign_id,
@@ -106,8 +104,7 @@ public static class BunkerTools
 	[McpServerTool(Name = "add_gotcha")]
 	[Description(
 		"Record a trap: something that can go wrong, and how to avoid or recover " +
-		"from it. Only if someone could reasonably do the wrong thing. If the code " +
-		"already makes it obvious, it is not a note.")]
+		"from it. Only if someone could reasonably do the wrong thing.")]
 	public static async Task<object> AddGotchaAsync(
 		WarTableService service,
 		string campaign_id,

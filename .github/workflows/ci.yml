@@ -17,12 +17,16 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             WarTable.Client/package-lock.json
+            site/package-lock.json
 
       - name: Install root tooling
         run: npm ci
 
       - name: Install frontend dependencies
         run: npm ci --prefix WarTable.Client
+
+      - name: Install site dependencies
+        run: npm ci --prefix site
 
       # The frontend build writes into WarTable.Api/wwwroot, which the backend
       # project embeds. It must run before the backend compiles.
@@ -48,6 +52,12 @@ jobs:
 
       - name: Validate frontend (format, lint, html)
         run: npm run validate
+
+      # The embedding page imports the instruction text from a fragment that is
+      # generated at build time and not committed, so the only way to know the
+      # page still renders is to build it.
+      - name: Build site
+        run: npm run --prefix site build
 
       - name: Test backend
         run: dotnet test WarTable.slnx -c Release --nologo --no-build

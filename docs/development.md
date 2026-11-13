@@ -106,6 +106,28 @@ currently passes `format-check:backend`; if the formatter produces changes, run
 it deliberately and commit formatting separately from behavior changes.
 `format:frontend/backend` includes it.
 
+## Agent instructions
+
+`WarTable.Api/Mcp/instructions.txt` is the only canonical copy of the text an
+agent receives at initialize. The server embeds the file. `site/docs/embedding.md`
+holds no copy of its own: the page imports `_instructions.generated.mdx`, which
+the sync script writes from that file and which is gitignored, so editing the
+instructions produces no docs diff.
+
+```bash
+npm run --prefix site sync:instructions         # write the generated fragment
+```
+
+The sync runs as the site's `prestart` and `prebuild`, so a page is never built
+without text. It fails loudly if the source is implausibly short or if the page
+has lost its import or `<Instructions />` — the failure mode is a page missing
+its instructions, not two copies disagreeing. There is nothing to check at
+commit time because there is no committed copy.
+
+When deciding whether a clause earns its place, measure both surfaces: the tool
+descriptions carry more text than the block does, so trimming only the block
+optimises the smaller half.
+
 ## Frontend dev loop
 
 ```bash

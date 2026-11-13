@@ -216,6 +216,9 @@ vite.config.ts.timestamp-*
 # Docusaurus site build output
 /site/build/
 
+# Instruction page fragment, generated from WarTable.Api/Mcp/instructions.txt
+/site/docs/_instructions.generated.mdx
+
 # WarTable build output and runtime data
 /WarTable.Api/wwwroot/
 backups/
