@@ -48,7 +48,9 @@ serves whatever `wwwroot` already contains.
   else. Do not grow them casually: a clause must prevent a named failure, and
   anything that restates a tool schema belongs in that tool's description.
   See [`docs/design.md`](docs/design.md) §2, principle 12.
-- Conventional Commits drive the changelog and semantic version.
+- Conventional Commits drive the changelog and semantic version. A bare `#N`
+  means a GitHub issue or pull request, never a WarTable alias: write
+  `WarTable alias 3` in commit messages, PR bodies and issues.
 - Backend formatting is clean under `dotnet format`. `npm run format-check:backend`
   verifies it; `format:backend` writes, so commit formatting separately from
   behavior changes.
