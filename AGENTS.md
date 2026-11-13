@@ -42,7 +42,7 @@ serves whatever `wwwroot` already contains.
   derivation is possible, and never treat a filled field as evidence. See
   [`docs/design.md`](docs/design.md) §2, principle 10.
 - Hard delete is a human action. No MCP tool may hard-delete a campaign or any
-  other object whose deletion destroys aliases; agents get archive and restore.
+  other object whose deletion cannot be undone; agents get archive and restore.
   See [`docs/design.md`](docs/design.md) §2, principle 11.
 - The agent instructions are `WarTable.Api/Mcp/instructions.txt` and nothing
   else. Do not grow them casually: a clause must prevent a named failure, and

@@ -9,7 +9,8 @@ your role, then use the authority table when two pages seem to disagree.
   — Docker Compose on a trusted LAN.
 - **Connect an agent:** the
   [site embedding page](https://alex98235.github.io/WarTable/embedding), then
-  [`agent-instructions.md`](agent-instructions.md) for the repo-side sync note.
+  [`agent-instructions.md`](agent-instructions.md) for where the canonical text
+  lives.
 - **Configure it:** [`configuration.md`](configuration.md) — the configuration
   contract for `.env`, environment keys, and Compose substitution. The
   [site configuration page](https://alex98235.github.io/WarTable/configuration)
@@ -29,8 +30,9 @@ your role, then use the authority table when two pages seem to disagree.
 | Container upgrades | [Site updating page](https://alex98235.github.io/WarTable/updating) |
 | First run, Compose option, everyday commands | [Site setup page](https://alex98235.github.io/WarTable/setup) + [`deployment.md`](deployment.md) |
 | Configuration precedence, `.env`, `Embeddings__*`, `Logging__*`, Compose substitution | [`configuration.md`](configuration.md) |
-| MCP usage behavior and where the fallback instruction is kept in sync | [`agent-instructions.md`](agent-instructions.md) |
+| MCP usage behavior and where the canonical instruction lives | [`agent-instructions.md`](agent-instructions.md) |
 | Product intent, domain model, scenarios, screen and MCP surface design | [`design.md`](design.md) |
+| Limitations we accept knowingly, and the design goal that forces each | [`known-limitations/`](known-limitations/README.md) |
 | Long-form argument for the current design | [`designs/`](designs/README.md) |
 | Codebase structure, request flow, HTTP API, live-update internals | [`architecture.md`](architecture.md) |
 | Supported production contract: pinned image, named volume, backup, updates, network and security | [`deployment.md`](deployment.md) |

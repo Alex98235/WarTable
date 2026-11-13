@@ -473,7 +473,9 @@ public partial class WarTableService
 	/// <summary>
 	/// Hard delete. Dependencies are removed explicitly; the rest cascade.
 	/// Human-only: this is reachable over HTTP and never exposed as an MCP tool,
-	/// because an agent must not be able to destroy a campaign's alias counter.
+	/// because an agent must not be able to perform an irreversible act on a
+	/// careless prompt. The alias counter dies with the campaign, and its aliases
+	/// are scoped to it, so nothing outside dangles.
 	/// </summary>
 	public async Task<bool> DeleteCampaignAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
