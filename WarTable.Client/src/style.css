@@ -1812,6 +1812,49 @@ img {
 	white-space: nowrap;
 }
 
+.hero-stat-attention {
+	color: var(--flag);
+	text-decoration: none;
+}
+
+.hero-stat-attention:hover {
+	color: var(--brass-deep);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.hero-rules {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 10px;
+}
+
+.hero-rules-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-muted);
+}
+
+.hero-rules-mark {
+	color: var(--brass);
+}
+
+.hero-rules .pref-chip {
+	max-width: 34ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	display: inline-block;
+	line-height: 1.5;
+}
+
 .hero-actions {
 	display: flex;
 	align-items: center;
@@ -1979,212 +2022,26 @@ img {
 	color: var(--ink-muted);
 }
 
-/* ==========================================================================
-   Briefing
-   ========================================================================== */
-
-.briefing-panel {
-	border-left: 3px solid var(--brass);
+.rail-directives {
+	padding-bottom: 14px;
+	border-bottom: 1px solid var(--line);
 }
 
-.briefing-head {
-	align-items: flex-start;
+.rail-directives .zone-label {
+	color: var(--brass-deep);
 }
 
-.briefing-calm {
-	padding: 16px;
-	border: 1px dashed var(--line-strong);
-	border-radius: var(--radius-sm);
-	font-size: 0.84rem;
-	color: var(--ink-muted);
-	background: var(--paper-tint);
-}
-
-.zone-label .live-dot {
-	display: inline-block;
-	margin-right: 6px;
-	vertical-align: 1px;
-}
-
-.live-dot.tone-ready {
-	background: var(--olive);
-}
-.live-dot.tone-flag {
-	background: var(--flag);
-}
-.live-dot.tone-blocked {
-	background: var(--danger);
-}
-.live-dot.tone-question {
-	background: var(--brass);
-}
-
-.brief-grid {
-	display: grid;
-	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 16px 22px;
-}
-
-.brief-group {
-	min-width: 0;
-}
-
-.brief-group-head {
-	display: flex;
-	align-items: center;
-	gap: 7px;
-	margin-bottom: 6px;
-}
-
-.brief-group-head .zone-label {
-	margin: 0;
-}
-
-.brief-group-count {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 24px;
-	padding: 0 6px;
-	border: 1px solid var(--line);
-	border-radius: 999px;
-	background: var(--paper-tint);
-	font-family: var(--font-mono);
-	font-size: 0.78rem;
-	font-weight: 700;
-	line-height: 1.55;
-	color: var(--ink-muted);
-}
-
-.brief-list {
-	display: flex;
-	flex-direction: column;
-	gap: 5px;
-}
-
-.brief-row {
-	display: flex;
-	align-items: center;
-	gap: 7px;
-	padding: 8px 10px;
-	border: 1px solid var(--line);
-	border-radius: var(--radius-xs);
-	background: var(--paper-tint);
-	color: var(--ink);
-	font-size: 0.84rem;
-	line-height: 1.45;
-	transition: all 0.13s var(--ease-out);
-}
-
-.brief-row:hover {
-	border-color: var(--line-strong);
-	background: var(--paper-raised);
-	color: var(--ink);
-}
-
-.brief-row.tone-flag {
-	border-color: color-mix(in srgb, var(--flag) 34%, var(--line));
-	background: color-mix(in srgb, var(--flag) 8%, var(--paper-raised));
-}
-
-.brief-row.tone-blocked {
-	border-color: color-mix(in srgb, var(--danger) 26%, var(--line));
-}
-
-.brief-row.tone-question {
-	border-color: color-mix(in srgb, var(--brass) 28%, var(--line));
-}
-
-.brief-row-title {
-	flex: 1 1 auto;
-	font-weight: 600;
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.brief-row-context {
-	flex: 0 1 45%;
-	margin-left: auto;
-	font-size: 0.78rem;
-	color: var(--ink-muted);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.brief-more {
+.rail-more {
 	display: inline-block;
 	margin-top: 7px;
-	font-size: 0.82rem;
-	font-weight: 650;
-	color: var(--olive-deep);
-	text-decoration: none;
-}
-
-.brief-more:hover {
-	text-decoration: underline;
-	text-underline-offset: 3px;
-}
-
-.brief-more.is-quiet {
-	color: var(--ink-muted);
-	font-weight: 600;
-}
-
-.brief-context {
-	margin-top: 16px;
-	padding-top: 12px;
-	border-top: 1px solid var(--line);
-}
-
-.brief-chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 6px;
-}
-
-.brief-chip {
-	display: inline-flex;
-	align-items: center;
-	gap: 5px;
-	max-width: 100%;
-	padding: 4px 10px;
-	border: 1px solid var(--line);
-	border-radius: 999px;
-	background: var(--paper-tint);
 	font-size: 0.8rem;
-	line-height: 1.5;
-	color: var(--ink-soft);
-	text-decoration: none;
-}
-
-.brief-chip:hover {
-	border-color: var(--line-strong);
-	color: var(--ink);
-}
-
-.brief-chip.is-decision {
-	border-style: dashed;
-}
-
-.brief-chip.is-more {
-	background: transparent;
-	border-style: dashed;
-	color: var(--ink-muted);
+	font-weight: 650;
 }
 
 .assignee {
 	font-size: 0.76rem;
 	color: var(--brass-deep);
 	white-space: nowrap;
-}
-
-.briefing-prefs {
-	margin-top: 18px;
-	padding-top: 14px;
-	border-top: 1px solid var(--line);
 }
 
 .micro-empty {
@@ -2430,24 +2287,76 @@ img {
 
 .tier-toggle {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: nowrap;
 	width: 100%;
-	padding: 0;
-	border: 0;
-	background: none;
-	color: inherit;
+	min-height: 44px;
+	margin: 0;
+	padding: 11px 16px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--paper-tint);
+	color: var(--ink-soft);
 	text-align: left;
 	cursor: pointer;
+	transition:
+		background 0.15s var(--ease-out),
+		border-color 0.15s var(--ease-out),
+		color 0.15s var(--ease-out);
 }
 
-.tier-toggle:hover .tier-title {
+.tier-toggle:hover {
+	background: var(--paper-raised);
+	border-color: var(--line-strong);
 	color: var(--ink);
 }
 
+.tier-toggle:focus-visible {
+	outline: 2px solid var(--olive);
+	outline-offset: 2px;
+}
+
+/* The word, not the eyebrow recipe. Scoped so the static tier headings keep
+   their uppercase caption treatment. */
+.finished-tier .tier-title {
+	font-family: var(--font-body);
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: none;
+	color: inherit;
+}
+
+/* The pill's own tint is the band's tint; lift it so the count stays legible
+   in the collapsed state. */
+.finished-tier .tier-count {
+	background: var(--paper-raised);
+}
+
 .tier-caret {
-	font-size: 0.86rem;
-	line-height: 1;
+	flex-shrink: 0;
 	color: var(--ink-muted);
+	transition: transform 0.15s var(--ease-out);
+}
+
+.tier-toggle[aria-expanded='true'] .tier-caret {
+	transform: rotate(90deg);
+}
+
+/* Open state continues the band into the list rather than becoming another
+   design. Rows inside are untouched. */
+.finished-tier .tier-toggle[aria-expanded='true'] {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.finished-tier .tier-toggle[aria-expanded='true'] + .finished-list {
+	padding: 4px 0;
+	border: 1px solid var(--line);
+	border-top: 0;
+	border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+	background: var(--paper-raised);
 }
 
 .tier-empty {
@@ -4984,11 +4893,6 @@ a.evidence-value:hover {
 
 	.panel-head {
 		flex-wrap: wrap;
-	}
-
-	.brief-grid {
-		grid-template-columns: 1fr;
-		gap: 14px;
 	}
 
 	.finished-link {

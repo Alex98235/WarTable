@@ -20,7 +20,6 @@
 	import Markdown from '../components/Markdown.svelte';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
-	import BriefingPanel from '../components/BriefingPanel.svelte';
 	import SeedPreview from '../components/SeedPreview.svelte';
 
 	let { route } = $props();
@@ -29,8 +28,8 @@
 	let campaign = $state(null);
 	let objectives = $state([]);
 	let objectiveDetails = $state({});
-	let briefing = $state(null);
 	let notes = $state([]);
+	let preferences = $state([]);
 
 	let loading = $state(true);
 	let refreshing = $state(false);
@@ -124,7 +123,7 @@
 
 	let railNotes = $derived(
 		notes
-			.filter((note) => note.status === 'Active')
+			.filter((note) => note.status === 'Active' && note.kind !== 'Directive')
 			.filter((note) => {
 				const query = railSearch.trim().toLowerCase();
 				if (!query) return true;
@@ -149,6 +148,20 @@
 		)
 	);
 
+	let attentionCount = $derived(
+		planObjectives.reduce((sum, obj) => {
+			return (
+				sum +
+				(obj.steps || []).filter((s) => s.status === 'flagged' || s.status === 'blocked')
+					.length
+			);
+		}, 0)
+	);
+
+	let allActiveNotes = $derived(notes.filter((n) => n.status === 'Active'));
+	let directiveCount = $derived(allActiveNotes.filter((n) => n.kind === 'Directive').length);
+	let railDirectives = $derived(allActiveNotes.filter((n) => n.kind === 'Directive').slice(0, 2));
+
 	async function load({ silent = false } = {}) {
 		if (silent) refreshing = true;
 		else loading = true;
@@ -156,19 +169,19 @@
 		const token = ++loadToken;
 
 		try {
-			const [campaignData, objectiveData, briefingData, noteData] = await Promise.all([
+			const [campaignData, objectiveData, noteData, prefData] = await Promise.all([
 				apiGet(`/api/campaigns/${campaignId}`),
 				apiGet('/api/objectives', { campaignId }),
-				apiGet('/api/briefing', { campaignId }),
-				apiGet('/api/notes', { campaignId })
+				apiGet('/api/notes', { campaignId }),
+				apiGet('/api/preferences').catch(() => [])
 			]);
 
 			if (token !== loadToken) return;
 
 			campaign = campaignData;
-			briefing = briefingData;
 			notes = Array.isArray(noteData) ? noteData : [];
 			objectives = Array.isArray(objectiveData) ? objectiveData : [];
+			preferences = Array.isArray(prefData) ? prefData.filter((p) => p.active) : [];
 
 			const details = await Promise.all(
 				objectives.map((objective) =>
@@ -704,7 +717,29 @@
 						<span class="hero-stat">{completedSteps}/{totalSteps} steps done</span>
 					{/if}
 					<span class="hero-stat">updated {timeAgo(campaign.updatedAt)}</span>
+					{#if attentionCount > 0}
+						<a class="hero-stat hero-stat-attention" href="#/attention"
+							>{attentionCount} need{attentionCount === 1 ? 's' : ''} you</a
+						>
+					{/if}
 				</div>
+				{#if preferences.length > 0}
+					<div class="hero-rules">
+						<span class="hero-rules-label"
+							><span class="hero-rules-mark" aria-hidden="true">✦</span> Preferences</span
+						>
+						{#each preferences.slice(0, 3) as pref (pref.id)}
+							<span class="pref-chip" title={pref.text} aria-label={pref.text}
+								>{pref.text}</span
+							>
+						{/each}
+						{#if preferences.length > 3}
+							<a class="pref-chip pref-more" href="#/preferences"
+								>+{preferences.length - 3} more</a
+							>
+						{/if}
+					</div>
+				{/if}
 			</div>
 
 			<div class="hero-actions">
@@ -759,11 +794,7 @@
 
 	<div class="campaign-layout">
 		<div class="campaign-main">
-			{#if briefing}
-				<BriefingPanel {briefing} {campaignId} />
-			{/if}
-
-			<form class="capture-strip" onsubmit={parkSeed}>
+			<form class="capture-strip reveal" style="--i: 1" onsubmit={parkSeed}>
 				<div class="capture-strip-row">
 					<label class="capture-strip-label" for="seed-thought">Park a thought</label>
 					<input
@@ -816,7 +847,7 @@
 				{/if}
 			</form>
 
-			<section class="panel plan-panel reveal" style="--i: 1">
+			<section class="panel plan-panel reveal" style="--i: 2">
 				<header class="panel-head">
 					<div class="panel-heading">
 						<p class="eyebrow">The plan</p>
@@ -1166,22 +1197,33 @@
 
 					{#if finishedObjectives.length > 0}
 						<section class="plan-tier finished-tier">
-							<h3 class="sr-only">Finished</h3>
+							<h3 class="sr-only">Completed</h3>
 							<button
 								type="button"
 								class="tier-head tier-toggle"
 								aria-expanded={finishedOpen}
+								aria-controls="finished-list"
 								onclick={() => (finishedOpen = !finishedOpen)}
 							>
-								<span class="tier-caret" aria-hidden="true"
-									>{finishedOpen ? '▾' : '▸'}</span
+								<svg
+									class="tier-caret"
+									viewBox="0 0 16 16"
+									width="14"
+									height="14"
+									aria-hidden="true"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									stroke-linecap="round"
+									stroke-linejoin="round"
 								>
-								<span class="tier-title">Finished</span>
+									<path d="M6 3.5 10.5 8 6 12.5" />
+								</svg>
+								<span class="tier-title">Completed</span>
 								<span class="tier-count">{finishedObjectives.length}</span>
-								<span class="tier-hint">Closed out. Still readable.</span>
 							</button>
 							{#if finishedOpen}
-								<ul class="finished-list">
+								<ul class="finished-list" id="finished-list">
 									{#each finishedObjectives as objective (objective.id)}
 										<li class="finished-row">
 											<a
@@ -1213,7 +1255,7 @@
 		</div>
 
 		<aside class="campaign-rail">
-			<section class="panel rail-panel">
+			<section class="panel rail-panel reveal" style="--i: 3">
 				<header class="panel-head compact">
 					<div class="panel-heading">
 						<p class="eyebrow">Knowledge</p>
@@ -1221,6 +1263,30 @@
 					</div>
 					<a class="text-link" href="#/campaign/{campaignId}/bunker">Open →</a>
 				</header>
+
+				{#if railDirectives.length > 0}
+					<div class="rail-zone rail-directives">
+						<p class="zone-label">Directives</p>
+						<ul class="rail-list">
+							{#each railDirectives as note (note.id)}
+								<li>
+									<a class="rail-item" href={noteHref(note)}>
+										<span class="rail-item-top">
+											<span class="ref-chip">#{note.alias}</span>
+											<StatusBadge status="directive" sm />
+										</span>
+										<span class="rail-item-title">{note.title}</span>
+									</a>
+								</li>
+							{/each}
+						</ul>
+						{#if directiveCount > railDirectives.length}
+							<a class="text-link rail-more" href="#/campaign/{campaignId}/bunker"
+								>+{directiveCount - railDirectives.length} more</a
+							>
+						{/if}
+					</div>
+				{/if}
 
 				<label class="search-field compact">
 					<span class="search-glyph" aria-hidden="true">⌕</span>

@@ -733,15 +733,23 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 
 ### Campaign detail
 
+The human view has no briefing. The briefing is the agent's bounded context
+(`get_briefing`); the human surface is the UI itself, and it does not restate
+the agent's picture. Everything the page shows is derived from the campaign
+payload — charter, seeds, plan, and notes — with no separate briefing request.
+
 - **Hero:** title, tags, compact stats (`in play`, `finished`, steps done, last
   update), and the primary actions (`Edit campaign`, `Bunker`, `+ Objective`).
+  When any step is flagged or blocked, one attention stat (`N need you`) links to
+  the attention view; at zero it is absent, not `0 need you`.
+- **Preferences:** a single line under the hero stats, opened by `✦` and the
+  `Preferences` label. Each active preference is a chip clamped to 34ch with the
+  full text in its tooltip and accessible name; at most three show, then `+N
+  more`. Preferences are prose, not counts, so they stay out of the stat row.
+  With no active preferences the line is absent.
 - **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
   / `Show less` and an edit action that writes the campaign. An empty charter is a
   compact inline invitation, not an empty panel.
-- **Bounded brief:** "What matters now" with `Needs you` (flagged and blocked) and
-  `Ready`, capped at two rows per group plus `+N` counts. Directives and recent
-  decisions collapse into one context chip row; preferences appear only here,
-  capped at four.
 - **Seed capture strip:** one input above the plan to park a thought — title plus
   optional detail, no steps.
 - **Plan tiers:** `In play` (ready, unfinished), `Parked` (seeds, then backlog),
@@ -749,9 +757,13 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   when there is no open work). Finished rows are one line, with no progress,
   reorder, or state controls; `updatedAt` is shown as last activity, never as a
   completion timestamp. Reorder applies only within `In play`.
-- **Knowledge rail:** sticky on desktop and stacked on narrow screens. Bunker
-  search with recent notes. The charter is not repeated in recent notes.
-- The page is organized around the plan, not by object type.
+- **Knowledge rail:** sticky on desktop and stacked on narrow screens. Active
+  directives sit in their own zone at the top, above the search and recent notes,
+  because they are standing rules rather than recent activity; with none, the
+  zone is absent. Below it, Bunker search with recent notes (directives are not
+  repeated there). The charter is not repeated in recent notes.
+- The page is organized around the plan, not by object type, and reveals in
+  reading order: hero, charter, capture, plan, rail.
 
 ### Objective detail
 
