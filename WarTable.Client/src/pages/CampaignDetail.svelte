@@ -20,6 +20,7 @@
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
 	import BriefingPanel from '../components/BriefingPanel.svelte';
+	import SeedPreview from '../components/SeedPreview.svelte';
 
 	let { route } = $props();
 	let campaignId = $derived(route.params.id);
@@ -71,6 +72,19 @@
 	let seedForm = $state({ title: '', description: '' });
 	let seedDetailOpen = $state(false);
 	let seedSaving = $state(false);
+	let seedInputEl = $state(null);
+
+	// Capture feedback. `parkedSeed` drives the inline confirmation in the strip;
+	// `highlightSeedId` drives the row flash. Both are set only by a park from
+	// this client, never derived from updatedAt, so a live update from another
+	// device cannot make an old seed look new.
+	let parkedSeed = $state(null);
+	let highlightSeedId = $state(null);
+	let parkedTimer = null;
+	let highlightTimer = null;
+
+	let previewSeed = $state(null);
+	let seedOpener = null;
 
 	let seedObjectives = $derived(
 		objectives
@@ -371,28 +385,91 @@
 
 	async function parkSeed(event) {
 		event.preventDefault();
-		if (!seedForm.title.trim()) {
-			addToast('A thought needs a few words.', 'warning');
-			return;
-		}
 		seedSaving = true;
 		try {
-			await apiPost('/api/objectives', {
+			const created = await apiPost('/api/objectives', {
 				campaignId,
 				title: seedForm.title.trim(),
 				description: seedForm.description,
 				planState: 'Seed',
 				actor: ACTOR
 			});
-			addToast('Thought parked as a seed.', 'success');
 			seedForm = { title: '', description: '' };
 			seedDetailOpen = false;
 			await load({ silent: true });
+			announceParked(created);
+			seedInputEl?.focus();
 		} catch (err) {
 			addToast(err.message || 'Could not park the thought.', 'error');
 		} finally {
 			seedSaving = false;
 		}
+	}
+
+	/**
+	 * The confirmation names the alias and the destination, because the seed
+	 * lands in Parked, which is often below the fold. It replaces the success
+	 * toast: a toast 400px above the list cannot answer "did that work?".
+	 */
+	function announceParked(seed) {
+		parkedSeed = { id: seed.id, alias: seed.alias };
+		clearTimeout(parkedTimer);
+		parkedTimer = setTimeout(() => (parkedSeed = null), 8000);
+		highlightSeed(seed.id);
+	}
+
+	function highlightSeed(id) {
+		highlightSeedId = id;
+		clearTimeout(highlightTimer);
+		highlightTimer = setTimeout(() => (highlightSeedId = null), 2400);
+	}
+
+	function dismissParked() {
+		if (!parkedSeed) return;
+		clearTimeout(parkedTimer);
+		parkedSeed = null;
+	}
+
+	// No auto-scroll on park: it would yank a reader past the work they were
+	// looking at. The confirmation offers the jump instead.
+	function showParked() {
+		if (!parkedSeed) return;
+		const row = document.getElementById(`seed-${parkedSeed.id}`);
+		if (!row) return;
+		row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+		highlightSeed(parkedSeed.id);
+	}
+
+	function focusCapture() {
+		seedInputEl?.focus();
+	}
+
+	function openSeedPreview(seed, opener) {
+		seedOpener = opener || null;
+		previewSeed = seed;
+	}
+
+	function closeSeedPreview() {
+		previewSeed = null;
+		const opener = seedOpener;
+		seedOpener = null;
+		if (opener) requestAnimationFrame(() => opener.focus());
+	}
+
+	// Shaping and deleting both leave the preview for another surface, so they
+	// drop the opener instead of restoring focus to a row that is about to move.
+	function shapeFromPreview() {
+		const seed = previewSeed;
+		previewSeed = null;
+		seedOpener = null;
+		if (seed) shapeSeed(seed);
+	}
+
+	function deleteFromPreview() {
+		const seed = previewSeed;
+		previewSeed = null;
+		seedOpener = null;
+		if (seed) deleteSeed(seed);
 	}
 
 	function deleteSeed(seed) {
@@ -642,7 +719,9 @@
 						class="capture-input"
 						type="text"
 						placeholder="Something unfinished…"
+						bind:this={seedInputEl}
 						bind:value={seedForm.title}
+						oninput={dismissParked}
 						required
 					/>
 					<div class="capture-strip-actions">
@@ -658,6 +737,15 @@
 						</button>
 					</div>
 				</div>
+				{#if parkedSeed}
+					<p class="capture-confirm" role="status">
+						<span class="capture-confirm-mark" aria-hidden="true">✓</span>
+						<span>Parked as #{parkedSeed.alias} — in Parked below</span>
+						<button type="button" class="text-toggle" onclick={showParked}
+							>Show it</button
+						>
+					</p>
+				{/if}
 				{#if seedDetailOpen}
 					<div class="capture-detail-wrap">
 						<label class="sr-only" for="seed-thought-detail">Detail</label>
@@ -668,6 +756,11 @@
 							placeholder="Context, links, half-formed angles…"
 							bind:value={seedForm.description}></textarea>
 					</div>
+				{/if}
+				{#if seedObjectives.length === 0}
+					<p class="capture-hint">
+						A seed is a thought you are not ready to shape. It waits in Parked.
+					</p>
 				{/if}
 			</form>
 
@@ -942,15 +1035,22 @@
 
 						{#if seedObjectives.length === 0 && backlogObjectives.length === 0}
 							<p class="tier-empty">
-								Nothing parked. A thought captured above waits here until it is
-								shaped.
+								Nothing parked. A thought captured
+								<button type="button" class="text-toggle" onclick={focusCapture}
+									>above</button
+								>
+								waits here until it is shaped.
 							</p>
 						{/if}
 
 						{#if seedObjectives.length > 0}
 							<div class="plan-tree">
 								{#each seedObjectives as seed (seed.id)}
-									<article class="objective-node is-seed">
+									<article
+										id={`seed-${seed.id}`}
+										class="objective-node is-seed"
+										class:is-new={highlightSeedId === seed.id}
+									>
 										<div class="objective-node-line" aria-hidden="true">
 											<span class="node-dot"></span>
 										</div>
@@ -959,8 +1059,14 @@
 												<div class="objective-title-line">
 													<span class="ref-chip large">#{seed.alias}</span
 													>
-													<span class="objective-title is-static"
-														>{seed.title}</span
+													<button
+														type="button"
+														class="objective-title is-link"
+														onclick={(event) =>
+															openSeedPreview(
+																seed,
+																event.currentTarget
+															)}>{seed.title}</button
 													>
 												</div>
 												<div class="objective-badges">
@@ -1427,4 +1533,14 @@
 			</form>
 		</div>
 	</div>
+{/if}
+
+{#if previewSeed}
+	<SeedPreview
+		seed={previewSeed}
+		{campaignId}
+		onShape={shapeFromPreview}
+		onDelete={deleteFromPreview}
+		onClose={closeSeedPreview}
+	/>
 {/if}
