@@ -287,6 +287,13 @@ public class WarTableServiceTests
 		// archived campaign is reachable only by asking for that campaign.
 		Assert.Empty(await ctx.Service.GetNotesAsync(null, null, null, null));
 		Assert.Single(await ctx.Service.GetNotesAsync(campaign.Id, null, null, null));
+
+		// Semantic search resolves each hit through this exact call
+		// (KnowledgeSearchService.SearchSemanticAsync), so a chunk left in the
+		// sidecar for an archived campaign cannot surface: the note is missing
+		// from the lookup and the hit is dropped. includeDormant is true there.
+		Assert.Empty(await ctx.Service.GetNotesAsync(null, null, null, null, includeDormant: true));
+		Assert.Single(await ctx.Service.GetNotesAsync(campaign.Id, null, null, null, includeDormant: true));
 	}
 
 	[Fact]
