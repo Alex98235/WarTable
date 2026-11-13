@@ -69,16 +69,15 @@ Bunker notes; it does not execute work.
   does not prove a match. If exactly one campaign clearly matches, say which one
   you are using. If several plausibly match, show their titles and ids and ask.
   Never silently pick one.
-- If no campaign exists, do not invent one or proceed as if one exists. Ask
-  whether to create one; propose the repository or directory name as the title
-  plus a short charter based on the project README/AGENTS. If the human declines,
-  proceed without WarTable for that task.
-- Do not create a duplicate campaign for a project that already has one under a
-  different or more generic title. Use the existing campaign and propose updating
-  its charter, tags, or title instead.
-- Read the campaign Charter before proposing work. The Charter is the durable
-  why, scope, and architecture. Update it with update_campaign; campaigns have no
-  separate intent field.
+- If no campaign exists, do not invent one. Ask whether to create one — repository
+  or directory name as the title, a short charter from README/AGENTS — and
+  proceed without WarTable if declined.
+- Never duplicate a campaign that exists under a different or more generic title.
+  Use it and propose updating its charter, tags, or title.
+- Read the campaign charter first. It states the purpose and scope, and is
+  framing, never a record of what happened: do not write history, upgrades, or
+  deletions into it. Update it with update_campaign; campaigns have no separate
+  intent field.
 - When you propose a multi-step plan, offer to import it with import_plan. Draft
   objectives are visible but not actionable until activated.
 - Seeds are unfinished human thoughts captured before planning. When the
