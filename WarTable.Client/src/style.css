@@ -2287,24 +2287,76 @@ img {
 
 .tier-toggle {
 	display: flex;
-	align-items: baseline;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: nowrap;
 	width: 100%;
-	padding: 0;
-	border: 0;
-	background: none;
-	color: inherit;
+	min-height: 44px;
+	margin: 0;
+	padding: 11px 16px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--paper-tint);
+	color: var(--ink-soft);
 	text-align: left;
 	cursor: pointer;
+	transition:
+		background 0.15s var(--ease-out),
+		border-color 0.15s var(--ease-out),
+		color 0.15s var(--ease-out);
 }
 
-.tier-toggle:hover .tier-title {
+.tier-toggle:hover {
+	background: var(--paper-raised);
+	border-color: var(--line-strong);
 	color: var(--ink);
 }
 
+.tier-toggle:focus-visible {
+	outline: 2px solid var(--olive);
+	outline-offset: 2px;
+}
+
+/* The word, not the eyebrow recipe. Scoped so the static tier headings keep
+   their uppercase caption treatment. */
+.finished-tier .tier-title {
+	font-family: var(--font-body);
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: none;
+	color: inherit;
+}
+
+/* The pill's own tint is the band's tint; lift it so the count stays legible
+   in the collapsed state. */
+.finished-tier .tier-count {
+	background: var(--paper-raised);
+}
+
 .tier-caret {
-	font-size: 0.86rem;
-	line-height: 1;
+	flex-shrink: 0;
 	color: var(--ink-muted);
+	transition: transform 0.15s var(--ease-out);
+}
+
+.tier-toggle[aria-expanded='true'] .tier-caret {
+	transform: rotate(90deg);
+}
+
+/* Open state continues the band into the list rather than becoming another
+   design. Rows inside are untouched. */
+.finished-tier .tier-toggle[aria-expanded='true'] {
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0;
+}
+
+.finished-tier .tier-toggle[aria-expanded='true'] + .finished-list {
+	padding: 4px 0;
+	border: 1px solid var(--line);
+	border-top: 0;
+	border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+	background: var(--paper-raised);
 }
 
 .tier-empty {

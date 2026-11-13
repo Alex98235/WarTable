@@ -1197,22 +1197,33 @@
 
 					{#if finishedObjectives.length > 0}
 						<section class="plan-tier finished-tier">
-							<h3 class="sr-only">Finished</h3>
+							<h3 class="sr-only">Completed</h3>
 							<button
 								type="button"
 								class="tier-head tier-toggle"
 								aria-expanded={finishedOpen}
+								aria-controls="finished-list"
 								onclick={() => (finishedOpen = !finishedOpen)}
 							>
-								<span class="tier-caret" aria-hidden="true"
-									>{finishedOpen ? '▾' : '▸'}</span
+								<svg
+									class="tier-caret"
+									viewBox="0 0 16 16"
+									width="14"
+									height="14"
+									aria-hidden="true"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									stroke-linecap="round"
+									stroke-linejoin="round"
 								>
-								<span class="tier-title">Finished</span>
+									<path d="M6 3.5 10.5 8 6 12.5" />
+								</svg>
+								<span class="tier-title">Completed</span>
 								<span class="tier-count">{finishedObjectives.length}</span>
-								<span class="tier-hint">Closed out. Still readable.</span>
 							</button>
 							{#if finishedOpen}
-								<ul class="finished-list">
+								<ul class="finished-list" id="finished-list">
 									{#each finishedObjectives as objective (objective.id)}
 										<li class="finished-row">
 											<a
