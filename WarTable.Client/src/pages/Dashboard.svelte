@@ -258,7 +258,7 @@
 						<span class="parked-count">{seeds.length}</span>
 					</div>
 					<p class="parked-hint">
-						Unfinished thoughts. Shape one into a draft when it is ready.
+						Unfinished thoughts. Shape one into a plan; it lands in the backlog.
 					</p>
 					<div class="parked-list">
 						{#each seeds.slice(0, 3) as item (item.entityId)}

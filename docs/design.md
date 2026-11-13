@@ -697,9 +697,9 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
   questions, and stale in-progress work. Each group caps its visible rows and
   links to the full inbox.
-- **Parked sections** below the urgent groups: draft plans and seeds, styled as
-  calm work rather than urgent items.
-- **Campaign folders** below: title, charter excerpt, active/draft objective
+- **Parked sections** below the urgent groups: backlog plans and seeds, styled
+  as calm work rather than urgent items.
+- **Campaign folders** below: title, charter excerpt, ready/backlog objective
   counts, last activity, tags. No status badges and no status counts.
 - **Recent decisions and preferences** as small secondary panels.
 
@@ -724,7 +724,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
   capped at four.
 - **Seed capture strip:** one input above the plan to park a thought — title plus
   optional detail, no steps.
-- **Plan tiers:** `In play` (active, unfinished), `Parked` (seeds, then drafts),
+- **Plan tiers:** `In play` (ready, unfinished), `Parked` (seeds, then backlog),
   and `Finished` (completed objectives, collapsed by default; auto-opened only
   when there is no open work). Finished rows are one line, with no progress,
   reorder, or state controls; `updatedAt` is shown as last activity, never as a

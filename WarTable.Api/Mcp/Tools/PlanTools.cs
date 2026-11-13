@@ -157,7 +157,7 @@ public static class PlanTools
 	}
 
 	[McpServerTool(Name = "get_attention")]
-	[Description("Get the cross-campaign attention inbox: flagged steps, blocked objectives, open questions, stale steps and drafts.")]
+	[Description("Get the cross-campaign attention inbox: flagged steps, blocked objectives, open questions, stale steps, backlog plans and seeds.")]
 	public static async Task<object> GetAttentionAsync(
 		WarTableService service,
 		string? campaign_id = null)

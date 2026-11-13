@@ -269,8 +269,8 @@
 						<p class="eyebrow">Unfinished thoughts · calm by design</p>
 						<h2 class="panel-title">Seeds to shape</h2>
 						<p class="panel-subtitle">
-							Seeds are visible to agents in the briefing. Shape one into a plan when
-							it is ready.
+							Seeds are visible to agents in the briefing. Shape one into a plan; it
+							lands in the backlog until someone releases it.
 						</p>
 					</div>
 					<span class="inbox-count big">{filteredSeeds.length}</span>
