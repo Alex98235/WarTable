@@ -111,6 +111,25 @@ export async function apiDelete(path, params = {}) {
 	}
 }
 
+/** POST with no body: parameters travel in the query string, like apiDelete. */
+export async function apiPostAction(path, params = {}) {
+	const qs = buildQuery(params);
+	const url = qs ? `${path}?${qs}` : path;
+	const res = await fetch(url, { method: 'POST' });
+	if (!res.ok) {
+		const body = await parseErrorBody(res);
+		throw new ApiError(res.status, `POST ${url} ${res.status}`, body);
+	}
+	if (res.status === 204) return null;
+	const text = await res.text();
+	if (!text) return null;
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
 /** Parse a comma-separated tag string (or an array) into an array. */
 export function parseTags(tags) {
 	if (!tags) return [];

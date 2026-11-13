@@ -83,8 +83,9 @@ public static class CampaignTools
 
 	[McpServerTool(Name = "update_campaign")]
 	[Description(
-		"Update campaign metadata (title, tags, charter, archived_at). " +
-		"Requires row_version (read with get_campaign) for optimistic concurrency.")]
+		"Update campaign metadata (title, tags, charter). " +
+		"Requires row_version (read with get_campaign) for optimistic concurrency. " +
+		"Archive state is not part of this call: use archive_campaign or unarchive_campaign.")]
 	public static async Task<object> UpdateCampaignAsync(
 		WarTableService service,
 		string campaign_id,
@@ -92,7 +93,6 @@ public static class CampaignTools
 		string? title = null,
 		string? tags = null,
 		string? charter = null,
-		DateTime? archived_at = null,
 		string? actor = null)
 	{
 		try
@@ -108,7 +108,6 @@ public static class CampaignTools
 			var patch = new CampaignPatch(
 				Title: title,
 				Tags: tags,
-				ArchivedAt: archived_at,
 				Charter: charter);
 
 			var updated = await service.UpdateCampaignAsync(id.Value, patch, McpArgs.Actor(actor), rv);
@@ -126,15 +125,34 @@ public static class CampaignTools
 		}
 	}
 
-	[McpServerTool(Name = "delete_campaign")]
+	[McpServerTool(Name = "archive_campaign")]
 	[Description(
-		"Delete a campaign and its objectives, steps and notes. " +
-		"Requires row_version (read with get_campaign) for optimistic concurrency.")]
-	public static async Task<object> DeleteCampaignAsync(
+		"Archive a campaign: it leaves the default list but keeps every objective, step, note and alias. " +
+		"Reversible with unarchive_campaign. Requires row_version (read with get_campaign). " +
+		"There is no tool that deletes a campaign; if asked to delete one, archive it and say so.")]
+	public static async Task<object> ArchiveCampaignAsync(
 		WarTableService service,
 		string campaign_id,
 		string row_version,
 		string? actor = null)
+		=> await SetArchivedAsync(service, campaign_id, row_version, actor, archived: true);
+
+	[McpServerTool(Name = "unarchive_campaign")]
+	[Description(
+		"Restore an archived campaign to the default list. Requires row_version (read with get_campaign).")]
+	public static async Task<object> UnarchiveCampaignAsync(
+		WarTableService service,
+		string campaign_id,
+		string row_version,
+		string? actor = null)
+		=> await SetArchivedAsync(service, campaign_id, row_version, actor, archived: false);
+
+	private static async Task<object> SetArchivedAsync(
+		WarTableService service,
+		string campaign_id,
+		string row_version,
+		string? actor,
+		bool archived)
 	{
 		try
 		{
@@ -146,10 +164,10 @@ public static class CampaignTools
 			if (rvError is not null)
 				return McpResults.Error(rvError);
 
-			var deleted = await service.DeleteCampaignAsync(id.Value, McpArgs.Actor(actor), rv);
-			return deleted
-				? new { ok = true }
-				: McpResults.Error($"Campaign not found: {id}");
+			var updated = await service.SetCampaignArchivedAsync(id.Value, archived, McpArgs.Actor(actor), rv);
+			return updated is null
+				? McpResults.Error($"Campaign not found: {id}")
+				: updated;
 		}
 		catch (ConcurrencyConflictException ex)
 		{
@@ -160,6 +178,11 @@ public static class CampaignTools
 			return McpResults.Error(ex.Message);
 		}
 	}
+
+	// There is deliberately no MCP tool that hard-deletes a campaign. Deleting one
+	// destroys its NextAliasNumber, so every #N reference in it stops resolving,
+	// and no agent should be able to do that. archive_campaign is the destructive
+	// action an agent gets; the HTTP DELETE route stays human-only.
 
 	/// <summary>Builds the stale-rowVersion error envelope for MCP tools.</summary>
 	private static CallToolResult McpConflictResult(ConcurrencyConflictException ex)

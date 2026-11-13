@@ -16,11 +16,14 @@ public record ObjectivePatch(
 	PlanState? PlanState = null,
 	int? SortOrder = null);
 
-/// <summary>Partial update payload for a campaign. Same semantics as <see cref="ObjectivePatch"/>.</summary>
+/// <summary>
+/// Partial update payload for a campaign. Same semantics as <see cref="ObjectivePatch"/>.
+/// Archive state is deliberately absent: it has its own operation so it can be
+/// set and cleared, which a nullable field cannot express.
+/// </summary>
 public record CampaignPatch(
 	string? Title = null,
 	string? Tags = null,
-	DateTime? ArchivedAt = null,
 	string? Charter = null);
 
 /// <summary>Partial update payload for a step. A null member means "leave unchanged".</summary>
@@ -422,7 +425,6 @@ public partial class WarTableService
 
 		if (patch.Title is not null) campaign.Title = patch.Title;
 		if (patch.Tags is not null) campaign.Tags = patch.Tags;
-		if (patch.ArchivedAt is not null) campaign.ArchivedAt = patch.ArchivedAt;
 		if (patch.Charter is not null) { campaign.Charter = patch.Charter; }
 		campaign.UpdatedAt = DateTime.UtcNow;
 
@@ -437,7 +439,42 @@ public partial class WarTableService
 		return campaign;
 	}
 
-	/// <summary>Hard delete for now. Dependencies are removed explicitly; the rest cascade.</summary>
+	/// <summary>
+	/// Sets or clears a campaign's archive flag. Archiving hides a campaign from
+	/// the default list without destroying anything, including its alias counter,
+	/// so a restore leaves every #N reference in the campaign resolvable again.
+	/// Unarchiving is the only way to clear the flag; the patch type cannot express
+	/// it, which is why this is a separate operation.
+	/// </summary>
+	public async Task<Campaign?> SetCampaignArchivedAsync(Guid id, bool archived, string actor, Guid? rowVersion = null)
+	{
+		var campaign = await _db.Campaigns.FirstOrDefaultAsync(c => c.Id == id);
+		if (campaign is null)
+			return null;
+
+		ApplyConcurrencyToken(campaign, rowVersion);
+
+		if (archived)
+			campaign.ArchivedAt ??= DateTime.UtcNow;
+		else
+			campaign.ArchivedAt = null;
+
+		campaign.UpdatedAt = DateTime.UtcNow;
+
+		await RecordEventAsync(
+			campaign.Id, actor, ActivityEntityType.Campaign, campaign.Id,
+			archived ? "Archived" : "Restored",
+			archived ? $"Archived campaign \"{campaign.Title}\"" : $"Restored campaign \"{campaign.Title}\"",
+			new { campaign_id = campaign.Id, archived_at = campaign.ArchivedAt });
+
+		return campaign;
+	}
+
+	/// <summary>
+	/// Hard delete. Dependencies are removed explicitly; the rest cascade.
+	/// Human-only: this is reachable over HTTP and never exposed as an MCP tool,
+	/// because an agent must not be able to destroy a campaign's alias counter.
+	/// </summary>
 	public async Task<bool> DeleteCampaignAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
 		var campaign = await _db.Campaigns.FirstOrDefaultAsync(c => c.Id == id);

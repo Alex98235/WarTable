@@ -31,7 +31,7 @@ The tools are grouped by what they change.
 
 | Family | Tools | Use |
 | --- | --- | --- |
-| Campaign | `list_campaigns`, `get_campaign`, `create_campaign`, `update_campaign`, `delete_campaign` | Find the project folder, read or update its charter. |
+| Campaign | `list_campaigns`, `get_campaign`, `create_campaign`, `update_campaign`, `archive_campaign`, `unarchive_campaign` | Find the project folder, read or update its charter, archive or restore it. |
 | Objective | `get_plan`, `create_objective`, `update_objective`, `delete_objective`, `reorder_objectives`, `import_plan` | Shape durable outcomes and import a proposed plan. |
 | Step | `get_step`, `create_step`, `update_step`, `update_step_status`, `reorder_steps`, `add_step_update`, `add_evidence`, `delete_evidence`, `delete_step` | Move atomic work through open, in progress, and done. |
 | Notes | `add_decision`, `add_gotcha`, `add_context`, `add_directive`, `update_note`, `delete_note`, `get_note` | Record knowledge. Each note kind has its own add tool; there is no generic `add_note`. |
@@ -97,7 +97,8 @@ Bunker notes; it does not execute work.
   shaping a new objective that touches existing code. get_note is the only
   full-body read.
 - Deleting a step removes dependency edges. If another step depends on it, the
-  tool refuses unless force=true; review the affected refs before forcing.
+  tool refuses unless force=true; review the affected refs before forcing. No
+  tool deletes a campaign: archive it and say so; hard delete is human-only.
 - Move steps Open -> InProgress -> Done as you work. Use add_step_update for
   notes, blockers, results, and handoffs. When a step is finished, prefer a step
   update saying what changed and how it was checked; add evidence only for proof

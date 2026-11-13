@@ -58,6 +58,12 @@ Multiple devices see the same state; there are no accounts and no offline writes
     - This binds future surfaces, not just notes. The question for a new feature
       is not "can the agent be trusted with this?" but "what happens when it is
       wrong?"
+11. **Hard delete is a human action.** Deleting a campaign destroys its alias
+    counter, and with it every `#N` reference in that campaign. Agents get
+    archive and restore: no MCP tool hard-deletes a campaign. The HTTP route
+    stays because the human at the browser owns the data and must be able to
+    remove it. This governs the surface we offer, not what a caller holding the
+    URL can reach; a tool list is a contract, not a sandbox.
 
 ### Deployment model
 
@@ -156,7 +162,13 @@ hidden from list views by default, remain reachable by id, and keep resolving
 their aliases. Its knowledge remains searchable; human preferences survive
 independently.
 
-**Requirements:** archive marker, list filtering, alias resolution for history.
+Deletion is not archiving. It removes the campaign row, cascades to its
+objectives, steps and notes, and destroys the alias counter with it, so every
+`#N` reference in that campaign stops resolving. It is a human action: there is
+no MCP tool for it, and the UI requires a deliberate hold before it runs.
+
+**Requirements:** archive marker, list filtering, alias resolution for history,
+archive and unarchive routes and tools, and no agent-facing delete.
 
 ## 4. Domain model
 
@@ -510,8 +522,14 @@ negotiated by the SDK.
 | `create_campaign` | `title`, `charter`, `tags`, `actor` | Folder, no status. A non-empty charter is stored in the campaign's `Charter` column. |
 | `get_campaign` | `campaign_id` | Campaign with its objectives and Bunker notes; steps are not included. Prefer `get_briefing` for a bounded start. |
 | `list_campaigns` | `search`, `include_archived` | Archived campaigns are hidden by default. |
-| `update_campaign` | `campaign_id`, `title`, `charter`, `tags`, `archived_at`, `actor` | Omitted members are left unchanged. |
-| `delete_campaign` | `campaign_id`, `actor` | Hard delete. |
+| `update_campaign` | `campaign_id`, `title`, `charter`, `tags`, `actor` | Omitted members are left unchanged. Archive state is not part of this call. |
+| `archive_campaign` | `campaign_id`, `actor` | Hides the campaign from the default list; keeps every objective, step, note and alias. |
+| `unarchive_campaign` | `campaign_id`, `actor` | Restores an archived campaign to the default list. |
+
+There is no `delete_campaign`. Deleting a campaign destroys its alias counter, so
+every `#N` reference in it stops resolving, and an agent must not be able to do
+that. Archive is the destructive action an agent gets; the hard delete stays on
+the HTTP surface, where a human can reach it.
 
 ### Plans and briefing
 
@@ -658,7 +676,9 @@ are JSON with camelCase properties and string enum values.
 |---|---|---|
 | `/api/health` | `GET` | Liveness check. |
 | `/api/campaigns` | `GET`, `POST` | List (`search`, `includeArchived`) or create a campaign. |
-| `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or hard-delete a campaign (`rowVersion` required). |
+| `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or hard-delete a campaign (`rowVersion` required). Hard delete is human-only and has no MCP counterpart. |
+| `/api/campaigns/{id}/archive` | `POST` | Archive a campaign (`rowVersion` required). Reversible; keeps all children and the alias counter. |
+| `/api/campaigns/{id}/unarchive` | `POST` | Restore an archived campaign (`rowVersion` required). |
 | `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeNotReady`) or create an objective. |
 | `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete an objective (`rowVersion` required). |
 | `/api/objectives/reorder` | `PUT` | Reorder objectives; keys are objective GUIDs. |

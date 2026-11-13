@@ -41,6 +41,9 @@ serves whatever `wwwroot` already contains.
   reasoned or post-hoc justified. Never accept agent self-report where a
   derivation is possible, and never treat a filled field as evidence. See
   [`docs/design.md`](docs/design.md) §2, principle 10.
+- Hard delete is a human action. No MCP tool may hard-delete a campaign or any
+  other object whose deletion destroys aliases; agents get archive and restore.
+  See [`docs/design.md`](docs/design.md) §2, principle 11.
 - Conventional Commits drive the changelog and semantic version.
 - Backend formatting is clean under `dotnet format`. `npm run format-check:backend`
   verifies it; `format:backend` writes, so commit formatting separately from

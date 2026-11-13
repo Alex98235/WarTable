@@ -204,6 +204,28 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
+	public async Task Archive_HidesTheCampaignAndKeepsItsAliasCounter()
+	{
+		var (ctx, campaign, firstObjective) = await ArrangeAsync();
+		await using var _ = ctx;
+
+		var archived = await ctx.Service.SetCampaignArchivedAsync(campaign.Id, true, Human);
+		Assert.NotNull(archived?.ArchivedAt);
+		Assert.Empty(await ctx.Service.GetCampaignsAsync());
+		Assert.Single(await ctx.Service.GetCampaignsAsync(includeArchived: true));
+
+		var restored = await ctx.Service.SetCampaignArchivedAsync(campaign.Id, false, Human);
+		Assert.Null(restored?.ArchivedAt);
+		Assert.Single(await ctx.Service.GetCampaignsAsync());
+
+		// The alias counter is campaign state, and archiving keeps it: the next
+		// objective continues the sequence instead of reusing #1.
+		var second = await ctx.Service.CreateObjectiveAsync(
+			campaign.Id, "Second", "Description", PlanState.Ready, Human);
+		Assert.Equal(firstObjective.Alias + 1, second.Alias);
+	}
+
+	[Fact]
 	public async Task CreateNote_RejectsSecondCharter()
 	{
 		await using var ctx = await TestContext.CreateAsync();

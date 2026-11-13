@@ -21,8 +21,11 @@ export function removeToast(id) {
 // Confirm dialog
 export const confirmState = writable(null);
 
-export function showConfirm(message, onConfirm) {
-	confirmState.set({ message, onConfirm });
+// Confirm dialog. `options` adds: confirmLabel (button text), tone ('danger' |
+// 'primary'), and holdMs (a countdown that keeps the button disabled, for
+// actions whose whole cost is that they cannot be undone).
+export function showConfirm(message, onConfirm, options = {}) {
+	confirmState.set({ message, onConfirm, openedAt: Date.now(), ...options });
 }
 
 export function closeConfirm() {

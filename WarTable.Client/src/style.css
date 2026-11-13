@@ -1820,6 +1820,34 @@ img {
 	flex-shrink: 0;
 }
 
+.hero-archived {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 14px;
+	padding: 10px 14px;
+	border: 1px solid var(--line);
+	border-left: 3px solid var(--brass-deep);
+	border-radius: var(--radius-xs);
+	background: var(--brass-tint);
+}
+
+.hero-archived-copy {
+	min-width: 0;
+}
+
+.hero-archived-copy .eyebrow {
+	margin-bottom: 2px;
+	color: var(--brass-deep);
+}
+
+.hero-archived-copy p:last-child {
+	font-size: 0.85rem;
+	line-height: 1.5;
+	color: var(--ink-soft);
+}
+
 .hero-charter {
 	margin-top: 16px;
 	padding-top: 13px;

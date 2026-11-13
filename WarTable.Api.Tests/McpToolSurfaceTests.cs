@@ -89,7 +89,7 @@ public class McpToolSurfaceTests
 			.Where(x => x.Parameter is not null)
 			.ToList();
 
-		Assert.Equal(10, toolsWithToken.Count);
+		Assert.Equal(11, toolsWithToken.Count);
 
 		foreach (var (name, parameter) in toolsWithToken)
 		{
@@ -97,6 +97,25 @@ public class McpToolSurfaceTests
 			var nullability = new NullabilityInfoContext().Create(parameter);
 			Assert.Equal(NullabilityState.NotNull, nullability.WriteState);
 		}
+	}
+
+	/// <summary>
+	/// Hard delete is a human action: the MCP surface offers archive and restore
+	/// and no way to destroy a campaign, because deletion takes the campaign's
+	/// alias counter with it.
+	/// </summary>
+	[Fact]
+	public void Campaign_HasArchiveButNoHardDelete()
+	{
+		var names = ToolTypes()
+			.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+			.Select(method => method.GetCustomAttribute<McpServerToolAttribute>()?.Name)
+			.Where(name => name is not null)
+			.ToList();
+
+		Assert.DoesNotContain("delete_campaign", names);
+		Assert.Contains("archive_campaign", names);
+		Assert.Contains("unarchive_campaign", names);
 	}
 
 	/// <summary>Every type in the MCP tools namespace, so a new tool cannot escape the scan.</summary>
