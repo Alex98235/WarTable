@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
+using WarTable.Api.Mcp;
 using WarTable.Api.Mcp.Tools;
 using WarTable.Api.Services;
 using WarTable.Api.Services.Embeddings;
@@ -116,6 +117,19 @@ public class McpToolSurfaceTests
 		Assert.DoesNotContain("delete_campaign", names);
 		Assert.Contains("archive_campaign", names);
 		Assert.Contains("unarchive_campaign", names);
+	}
+
+	/// <summary>
+	/// The instruction block is loaded from the embedded canonical text file, so the
+	/// file must exist in the assembly and not be empty. An empty or missing file
+	/// would otherwise ship as silence.
+	/// </summary>
+	[Fact]
+	public void Instructions_LoadFromTheCanonicalFile()
+	{
+		Assert.True(WarTableMcpInstructions.Text.Length > 1000);
+		Assert.StartsWith("WarTable is the shared planning", WarTableMcpInstructions.Text);
+		Assert.DoesNotContain("\r\n", WarTableMcpInstructions.Text);
 	}
 
 	/// <summary>Every type in the MCP tools namespace, so a new tool cannot escape the scan.</summary>

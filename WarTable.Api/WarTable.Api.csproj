@@ -46,4 +46,14 @@
     <Content Update="wwwroot/**" CopyToPublishDirectory="Never" />
   </ItemGroup>
 
+  <!--
+    The instruction block is embedded rather than compiled, so the published
+    single-file binary carries it and the site's sync script can read the same
+    file. instructions.txt is the canonical copy; WarTableMcpInstructions only
+    loads it.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Mcp/instructions.txt" />
+  </ItemGroup>
+
 </Project>

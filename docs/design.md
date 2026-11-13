@@ -64,6 +64,15 @@ Multiple devices see the same state; there are no accounts and no offline writes
     stays because the human at the browser owns the data and must be able to
     remove it. This governs the surface we offer, not what a caller holding the
     URL can reach; a tool list is a contract, not a sandbox.
+12. **The instruction block is a budget of attention.** Every agent reads it in
+    every session, before it knows which tool it needs, so a clause costs
+    attention rather than bytes. A clause earns its place by preventing a named
+    failure; a clause that restates a tool schema belongs in the tool
+    description instead, where it is read at the call. The canonical text is
+    `WarTable.Api/Mcp/instructions.txt` and nothing else: the server embeds that
+    file, the site fallback is generated from it, and no other copy is
+    authoritative. Do not grow it casually, and do not defend a character count
+    either; the thing being protected is what an agent notices.
 
 ### Deployment model
 
@@ -510,7 +519,11 @@ server. Agents on a desktop or laptop connect to the server over the LAN via MCP
 Streamable HTTP at `/mcp`. Both transports share the same tool classes, the
 official `ModelContextProtocol.AspNetCore` 2.4.0 SDK, and the same database. The
 initialize response includes baseline usage instructions; clients may treat them
-as system context, but the README prompt remains the explicit fallback. The HTTP
+as system context, but the README prompt remains the explicit fallback. Those
+instructions live in `WarTable.Api/Mcp/instructions.txt`, which is the only
+canonical copy: the server embeds it as a resource and `site/docs/embedding.md`
+regenerates its fallback block from it, so editing either copy instead of the
+file is a bug the site build catches. The HTTP
 transport is stateless: `POST /mcp` handles one JSON-RPC message per request,
 `GET`/`DELETE` return 405, and no `Mcp-Session-Id` is minted. Protocol version is
 negotiated by the SDK.

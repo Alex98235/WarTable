@@ -5,6 +5,9 @@
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
+    "sync:instructions": "node scripts/sync-instructions.mjs",
+    "check:instructions": "node scripts/sync-instructions.mjs --check",
+    "prebuild": "node scripts/sync-instructions.mjs",
     "build": "docusaurus build",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",

@@ -106,6 +106,22 @@ currently passes `format-check:backend`; if the formatter produces changes, run
 it deliberately and commit formatting separately from behavior changes.
 `format:frontend/backend` includes it.
 
+## Agent instructions
+
+`WarTable.Api/Mcp/instructions.txt` is the only canonical copy of the text an
+agent receives at initialize. The server embeds the file, and
+`site/docs/embedding.md` regenerates its fallback block from it; editing either
+copy instead of the file is a bug the site build catches.
+
+```bash
+npm run --prefix site sync:instructions         # rewrite the site fallback
+npm run --prefix site check:instructions        # fail if it is stale
+```
+
+`npm run validate` runs the check. When deciding whether a clause earns its
+place, measure both surfaces: the tool descriptions carry more text than the
+block does, so trimming only the block optimises the smaller half.
+
 ## Frontend dev loop
 
 ```bash

@@ -25,7 +25,8 @@
 		"lint": "npm run lint:js && npm run lint:css",
 		"lint:js/css": "npm run lint:js && npm run lint:css",
 		"validate:html": "html-validate --config WarTable.Client/.htmlvalidate.json \"WarTable.Client/**/*.html\"",
-		"validate": "npm run format-check:css/html/js && npm run lint:js/css && npm run validate:html",
+		"validate:instructions": "node site/scripts/sync-instructions.mjs --check",
+		"validate": "npm run format-check:css/html/js && npm run lint:js/css && npm run validate:html && npm run validate:instructions",
 		"test": "dotnet test WarTable.slnx",
 		"init": "npm install && cd WarTable.Client && npm install"
 	},

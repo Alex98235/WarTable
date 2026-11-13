@@ -11,7 +11,7 @@ namespace WarTable.Api.Mcp.Tools;
 public static class StepTools
 {
 	[McpServerTool(Name = "create_step")]
-	[Description("Add a step under an objective. Steps are the atomic unit of work. Step numbers are permanent: never reused or renumbered, so gaps are normal.")]
+	[Description("Add a step under an objective. Steps are the atomic unit of work; step numbers are permanent, never reused.")]
 	public static async Task<object> CreateStepAsync(
 		WarTableService service,
 		string objective_id,
@@ -264,7 +264,7 @@ public static class StepTools
 	}
 
 	[McpServerTool(Name = "add_evidence")]
-	[Description("Attach proof that lives outside the repository — a CI run, a deployed instance, a third-party result. WarTable stores no files, so never point at a path; if the work is in the repository, cite the commit or write a step update instead. Value is a URL (for Link) or a commit sha (for Commit).")]
+	[Description("Attach proof that lives outside the repository - a CI run, a deployed instance, a third-party result. Value is a URL (for Link) or a commit sha (for Commit).")]
 	public static async Task<object> AddEvidenceAsync(
 		WarTableService service,
 		string step_id,
