@@ -189,7 +189,7 @@
 						<p class="eyebrow">Always in play</p>
 						<h2 class="panel-title">Active preferences</h2>
 						<p class="panel-subtitle">
-							Injected into every briefing, in every campaign.
+							Applied to every campaign, in every agent session.
 						</p>
 					</div>
 					<span class="inbox-count">{active.length}</span>
