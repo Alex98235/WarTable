@@ -34,6 +34,20 @@ public static class BunkerTools
 			if (string.IsNullOrWhiteSpace(title))
 				return McpResults.Error("title is required");
 
+			if (basis is not null)
+			{
+				basis = basis.Trim();
+				var problem = NoteBasis.Validate(basis);
+				if (problem is not null)
+					return McpResults.Error(problem);
+
+				if (!await service.BasisResolvesAsync(campaignId.Value, basis))
+				{
+					return McpResults.Error(
+						$"`{basis}` does not resolve in this campaign. Cite something a reader can open.");
+				}
+			}
+
 			IEnumerable<Guid> linkedObjectiveIds =
 				McpArgs.Guids(links?.ObjectiveIds) ?? Array.Empty<Guid>();
 			IEnumerable<Guid> linkedStepIds =

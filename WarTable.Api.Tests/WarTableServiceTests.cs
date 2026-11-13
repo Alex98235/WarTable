@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using ModelContextProtocol.Protocol;
 using WarTable.Api.Data;
+using WarTable.Api.Mcp.Tools;
 using WarTable.Api.Models;
 using WarTable.Api.Services;
 
@@ -678,4 +680,104 @@ public class WarTableServiceTests
 		Assert.Contains(briefing.RecentDecisions, n => n.Id == decision.Id);
 		Assert.DoesNotContain(briefing.RecentDecisions, n => n.Id == superseded.Id);
 	}
+
+	[Fact]
+	public async Task Basis_RejectsUnfollowablePointer()
+	{
+		var (ctx, campaign, _) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R", "v3.0.0");
+
+		var error = Assert.IsType<CallToolResult>(result);
+		Assert.True(error.IsError);
+		Assert.Contains("is not a citation", ErrorText(error));
+	}
+
+	[Fact]
+	public async Task Basis_RejectsAliasThatDoesNotResolve()
+	{
+		var (ctx, campaign, _) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R", "#999");
+
+		var error = Assert.IsType<CallToolResult>(result);
+		Assert.True(error.IsError);
+		Assert.Contains("does not resolve in this campaign", ErrorText(error));
+	}
+
+	[Fact]
+	public async Task Basis_AcceptsExistingNoteAlias()
+	{
+		var (ctx, campaign, _) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var cited = await ctx.Service.CreateNoteAsync(
+			campaign.Id, BunkerNoteKind.Gotcha, "Cited", "Body", "", false, Human,
+			Array.Empty<Guid>(), Array.Empty<Guid>(), null);
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R", $"#{cited.Alias}");
+
+		var note = Assert.IsType<BunkerNote>(result);
+		Assert.Equal($"#{cited.Alias}", note.Basis);
+	}
+
+	[Fact]
+	public async Task Basis_AcceptsExistingObjectiveStep()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "S", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R",
+			$"#{objective.Alias}.{step.StepNumber}");
+
+		var note = Assert.IsType<BunkerNote>(result);
+		Assert.Equal($"#{objective.Alias}.{step.StepNumber}", note.Basis);
+	}
+
+	[Fact]
+	public async Task Basis_AcceptsStepUnderADeletedObjective()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "S", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+		// Aliases are permanent: a citation to a step that once existed should not
+		// be rejected because the objective around it was deleted afterwards.
+		ctx.Db.Objectives.Single(o => o.Id == objective.Id).DeletedAt = DateTime.UtcNow;
+		await ctx.Db.SaveChangesAsync();
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R",
+			$"#{objective.Alias}.{step.StepNumber}");
+
+		var note = Assert.IsType<BunkerNote>(result);
+		Assert.Equal($"#{objective.Alias}.{step.StepNumber}", note.Basis);
+	}
+
+	[Fact]
+	public async Task Basis_AcceptsUrlWithoutCampaignLookup()
+	{
+		var (ctx, campaign, _) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var result = await BunkerTools.AddDecisionAsync(
+			ctx.Service, campaign.Id.ToString(), "D", "A", "B", "R", "https://github.com/x/y");
+
+		var note = Assert.IsType<BunkerNote>(result);
+		Assert.Equal("https://github.com/x/y", note.Basis);
+	}
+
+	private static string ErrorText(CallToolResult result) =>
+		Assert.IsType<TextContentBlock>(result.Content[0]).Text;
 }
