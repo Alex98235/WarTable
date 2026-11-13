@@ -2309,6 +2309,28 @@ img {
 	font-size: 0.86rem;
 }
 
+.capture-confirm {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+	margin: 0;
+	font-size: 0.8rem;
+	color: var(--brass-deep);
+}
+
+.capture-confirm-mark {
+	font-weight: 700;
+	color: var(--brass);
+}
+
+.capture-hint {
+	margin: 0;
+	font-size: 0.78rem;
+	font-style: italic;
+	color: var(--ink-muted);
+}
+
 .seed-excerpt {
 	margin: 5px 0 0;
 	font-size: 0.84rem;
@@ -2408,6 +2430,11 @@ img {
 	color: var(--ink-muted);
 }
 
+.tier-empty .text-toggle {
+	font-size: inherit;
+	font-style: inherit;
+}
+
 .finished-list {
 	display: flex;
 	flex-direction: column;
@@ -2495,6 +2522,14 @@ img {
 	position: relative;
 	padding: 18px 0 18px 28px;
 	border-top: 1px solid var(--line);
+	transition:
+		background-color 0.5s var(--ease-out),
+		box-shadow 0.5s var(--ease-out);
+}
+
+.objective-node.is-new {
+	background-color: color-mix(in srgb, var(--brass-tint) 55%, transparent);
+	box-shadow: inset 3px 0 0 var(--brass);
 }
 
 .objective-node:first-child {
@@ -2623,12 +2658,25 @@ img {
 	color: var(--ink-soft);
 }
 
-.objective-title.is-static {
-	cursor: default;
+.objective-title.is-link {
+	padding: 0;
+	border: 0;
+	background: none;
+	text-align: left;
+	cursor: pointer;
 }
 
-.objective-title.is-static:hover {
-	color: var(--ink-soft);
+.objective-title.is-link:hover {
+	color: var(--olive-deep);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--olive) 32%, transparent);
+	text-underline-offset: 3px;
+}
+
+.objective-title.is-link:focus-visible {
+	outline: 2px solid var(--olive);
+	outline-offset: 2px;
+	border-radius: var(--radius-xs);
 }
 
 .row-meta {
@@ -4179,6 +4227,66 @@ a.evidence-value:hover {
 	background: var(--paper-tint);
 	border-color: var(--line);
 	color: var(--ink);
+}
+
+/* Seed preview — read-only, so the body scrolls while the header and the
+   actions stay put. Sizes to content for a one-line seed. */
+.modal.seed-preview {
+	display: flex;
+	flex-direction: column;
+	max-height: 82vh;
+	overflow: hidden;
+}
+
+.seed-preview .modal-header,
+.seed-preview .modal-actions {
+	flex-shrink: 0;
+}
+
+.seed-preview .modal-actions {
+	border-top: 1px solid var(--line);
+}
+
+.seed-preview-body {
+	min-height: 0;
+	padding-bottom: 18px;
+	overflow-y: auto;
+}
+
+.seed-preview-body .markdown-body {
+	max-width: 68ch;
+}
+
+.seed-meta {
+	margin-top: 6px;
+	font-size: 0.78rem;
+	color: var(--ink-muted);
+}
+
+.seed-empty {
+	margin: 0;
+	font-size: 0.9rem;
+	font-style: italic;
+	color: var(--ink-muted);
+}
+
+.seed-note {
+	max-width: 68ch;
+	margin-top: 18px;
+	padding-top: 14px;
+	border-top: 1px solid var(--line);
+	font-size: 0.8rem;
+	line-height: 1.55;
+	color: var(--ink-muted);
+}
+
+.seed-delete {
+	color: var(--danger);
+}
+
+.seed-delete:hover:not(:disabled) {
+	background: var(--danger-tint);
+	color: var(--danger);
 }
 
 @keyframes fade-in {
