@@ -178,6 +178,26 @@ public sealed class ActivityBroadcasterTests : IAsyncLifetime
 	}
 
 	[Fact]
+	public async Task FileWriteReachesTheFeedWithoutAnExplicitSignal()
+	{
+		// The file watcher is the only production trigger: nothing in the API calls
+		// Signal(). Every other test here signals explicitly so the timing stays
+		// deterministic, which means the watcher itself is only exercised by this
+		// one. If it fails, live updates are dead in production and the failure is
+		// silent - the UI just never refreshes on its own.
+		using var subscription = await _broadcaster.SubscribeAsync();
+
+		var campaign = await WithServiceAsync(
+			service => service.CreateCampaignAsync("Watched Campaign", "", "", Human));
+
+		var delivered = await ReadAsync(subscription.Reader, TimeSpan.FromSeconds(10));
+
+		Assert.NotNull(delivered);
+		Assert.Equal("Created", delivered!.Action);
+		Assert.Equal(campaign.Id, delivered.CampaignId);
+	}
+
+	[Fact]
 	public async Task IdleBroadcasterDoesNotDrainOrAdvanceCursor()
 	{
 		var before = _broadcaster.LastSequence;

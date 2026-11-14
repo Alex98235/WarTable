@@ -43,15 +43,24 @@ public static class EventEndpoints
 
 				// Without an explicit cursor, start at the current head so only new
 				// events are streamed (a client can pass ?since=0 to replay history).
-				var cursor = since
-					?? await db.ActivityEvents.MaxAsync(e => (long?)e.Sequence, cancellationToken)
+				var head = await db.ActivityEvents.MaxAsync(e => (long?)e.Sequence, cancellationToken)
 					?? 0;
+				var (cursor, resync) = ResolveCursor(since, head);
 
 				using var subscription = await broadcaster.SubscribeAsync(
 					cancellationToken: cancellationToken);
 
 				try
 				{
+					// The client's cursor was ahead of the log, so it belongs to another
+					// database. Tell it where the head is instead of streaming silence it
+					// would wait on forever.
+					if (resync)
+					{
+						await response.WriteAsync(
+							$"id: {head}\nevent: resync\ndata: {{}}\n\n", cancellationToken);
+						await response.Body.FlushAsync(cancellationToken);
+					}
 					// Replay the backlog from the client's cursor in batches. The
 					// broadcaster only pushes events written after the subscription,
 					// so this closes the gap for reconnecting clients.
@@ -129,6 +138,22 @@ public static class EventEndpoints
 					// Client disconnected; nothing to clean up beyond the using scope.
 				}
 			}).WithTags("Events");
+	}
+
+	/// <summary>
+	/// The stream cursor for a new connection. A client cursor ahead of the head
+	/// cannot have come from this log: sequences restart when a database is
+	/// recreated or restored from a backup, so it belongs to a different one.
+	/// It is replaced by the head and the client is told to resync, because
+	/// otherwise every event is filtered out as already seen and the connection
+	/// looks healthy while delivering nothing.
+	/// </summary>
+	public static (long Cursor, bool Resync) ResolveCursor(long? since, long head)
+	{
+		if (!since.HasValue)
+			return (head, false);
+
+		return since.Value > head ? (head, true) : (since.Value, false);
 	}
 
 	private static bool IsDeliverable(ActivityEvent activity, Guid? campaignId, long cursor)

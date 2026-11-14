@@ -140,6 +140,23 @@ function connect() {
 		emit(payload);
 	});
 
+	// The cursor was ahead of the log, so it came from another database: the
+	// server has moved us to the real head. Every subscribed view refetches.
+	es.addEventListener('resync', (message) => {
+		clearTimer(openGraceTimer);
+		openGraceTimer = null;
+		attempts = 0;
+		live.status = 'live';
+
+		const seq = Number(message.lastEventId);
+		if (Number.isFinite(seq)) {
+			live.cursor = seq;
+			writeCursor(activeCampaign, seq);
+		}
+
+		emit(null);
+	});
+
 	es.addEventListener('error', () => {
 		// EventSource retries by itself, but without our `since` parameter. Close it
 		// and reconnect manually so the cursor is preserved.
