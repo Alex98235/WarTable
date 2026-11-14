@@ -835,9 +835,9 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
   detail, no steps.
 - **Plan tiers:** `Ready` (unfinished), `Backlog` (committed, not ready yet),
   `Seeds` (captured thoughts, a quiet band below the backlog with the
-  capture strip at its head), and `Finished` (completed objectives, collapsed by
+  capture strip at its head), and `Completed` (completed objectives, collapsed by
   default; auto-opened only when there is no open work). Each tier carries its
-  own count, so a thought is never counted as committed work. Finished rows are
+  own count, so a thought is never counted as committed work. Completed rows are
   one line, with no progress, reorder, or state controls; `updatedAt` is shown as
   last activity, never as a completion timestamp. Reorder applies only within
   `Ready`.
@@ -849,7 +849,7 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
   for a seed, `Restore` and `Delete permanently` for an archived row. An archived
   row is read-only: an edit that lands on an item appearing in no other list hides
   the change from the person making it, and restoring is the way back.
-- **Archived band:** after `Finished`, collapsed, listing archived objectives with
+- **Archived band:** after `Completed`, collapsed, listing archived objectives with
   `Restore` and `Delete permanently`. Permanent delete names what it takes with
   it and holds for six seconds before it can be clicked.
 - **Knowledge rail:** sticky on desktop and stacked on narrow screens. Active

@@ -53,8 +53,8 @@ Configuration and upgrades live on the same site:
 - **Campaign** — a folder for a body of work. It has a charter but no status.
 - **Objective** — a durable outcome inside a campaign, with a campaign-scoped
   alias (`#N`) and a `Seed`, `Backlog`, or `Ready` plan state. A seed is a
-  captured unfinished thought: visible, but not actionable until it is shaped
-  into a backlog objective and released.
+  captured unfinished thought: visible, but not actionable until it is promoted
+  to the backlog, and again to `Ready` when work starts.
 - **Step** — atomic, verifiable work with a stable reference (`#N.M`), explicit
   dependencies, and an `Open` / `InProgress` / `Done` status (plus `Flagged` and
   `Blocked`). Objective status is derived from its steps.
