@@ -180,8 +180,9 @@ public static class StepTools
 
 	[McpServerTool(Name = "delete_step")]
 	[Description(
-		"Soft-delete a step. Fails if other steps depend on it unless force=true; force also removes dependency edges. Returns removed_dependencies. " +
-		"Requires row_version (read with get_step) for optimistic concurrency.")]
+		"Archive a step: it leaves the plan but the row and its dependency edges are kept, so restore_step " +
+		"brings it back exactly. Fails if other steps depend on it unless force=true. Returns " +
+		"retained_dependencies. Requires row_version (read with get_step) for optimistic concurrency.")]
 	public static async Task<object> DeleteStepAsync(
 		WarTableService service,
 		string step_id,
@@ -201,8 +202,44 @@ public static class StepTools
 
 			var result = await service.DeleteStepAsync(id.Value, force, McpArgs.Actor(actor), rv);
 			return result.Deleted
-				? new { ok = true, removed_dependencies = result.RemovedDependencies }
+				? new { ok = true, retained_dependencies = result.RetainedDependencies }
 				: McpResults.Error($"Step not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "restore_step")]
+	[Description(
+		"Restore an archived step and its dependency edges. Fails if the step's objective is archived: " +
+		"restore the objective instead, which restores its steps with it. " +
+		"Requires row_version (read with get_step using include_archived).")]
+	public static async Task<object> RestoreStepAsync(
+		WarTableService service,
+		string step_id,
+		string row_version,
+		string? actor = null)
+	{
+		try
+		{
+			var id = McpArgs.Guid(step_id);
+			if (id is null)
+				return McpResults.Error("step_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var restored = await service.RestoreStepAsync(id.Value, McpArgs.Actor(actor), rv);
+			return restored
+				? new { ok = true }
+				: McpResults.Error($"Archived step not found: {id}");
 		}
 		catch (ConcurrencyConflictException ex)
 		{

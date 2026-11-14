@@ -2194,37 +2194,6 @@ img {
 	font-size: 0.86rem;
 }
 
-.capture-confirm {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
-	margin: 0;
-	font-size: 0.8rem;
-	color: var(--brass-deep);
-}
-
-.capture-confirm-mark {
-	font-weight: 700;
-	color: var(--brass);
-}
-
-.capture-hint {
-	margin: 0;
-	font-size: 0.78rem;
-	font-style: italic;
-	color: var(--ink-muted);
-}
-
-.seed-excerpt {
-	margin: 5px 0 0;
-	font-size: 0.84rem;
-	line-height: 1.5;
-	color: var(--ink-muted);
-	overflow-wrap: anywhere;
-	max-width: 72ch;
-}
-
 /* ==========================================================================
    Plan tree
    ========================================================================== */
@@ -2260,7 +2229,7 @@ img {
 	font-weight: 750;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
+	color: var(--brass-deep);
 }
 
 .tier-count {
@@ -2451,6 +2420,132 @@ img {
 	transform: translateX(2px);
 }
 
+/* --- Archived steps on the objective page --- */
+
+.archived-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	padding: 9px 10px;
+	color: var(--ink-soft);
+}
+
+.archived-row + .archived-row {
+	border-top: 1px solid var(--line);
+}
+
+.archived-row .finished-title {
+	flex: 1 1 auto;
+}
+
+.archived-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.archived-steps {
+	margin-top: 14px;
+	padding-top: 12px;
+	border-top: 1px dashed var(--line);
+}
+
+.archived-steps-toggle {
+	font-size: 0.8rem;
+}
+
+.archived-list {
+	display: flex;
+	flex-direction: column;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--paper-tint);
+}
+
+/* --- Preview rows: the seeds band and the archived band share one anatomy.
+   `<alias> <title> <badge> <meta> <actions>`; the title opens the modal. --- */
+
+.preview-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 44px;
+	padding: 9px 0;
+	color: var(--ink-soft);
+}
+
+.preview-row + .preview-row {
+	border-top: 1px solid var(--line);
+}
+
+.finished-list .preview-row {
+	padding: 9px 10px;
+}
+
+.preview-title {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	font-family: var(--font-body);
+	font-size: 0.92rem;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--ink-soft);
+	text-align: left;
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.preview-title:hover {
+	color: var(--ink);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--olive) 32%, transparent);
+	text-underline-offset: 3px;
+}
+
+.preview-title:focus-visible {
+	outline: 2px solid var(--olive);
+	outline-offset: 2px;
+	border-radius: var(--radius-xs);
+}
+
+.preview-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+/* --- Seeds band: a capture inbox, not a tier of work --- */
+
+.seeds-band {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px dashed var(--line);
+	margin-left: 0;
+}
+
+.seeds-band .capture-strip {
+	margin-bottom: 4px;
+}
+
+.seed-list {
+	display: flex;
+	flex-direction: column;
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
 .plan-tree {
 	position: relative;
 }
@@ -2458,15 +2553,11 @@ img {
 .objective-node {
 	position: relative;
 	padding: 18px 0 18px 28px;
+	margin-left: 10px;
 	border-top: 1px solid var(--line);
 	transition:
 		background-color 0.5s var(--ease-out),
 		box-shadow 0.5s var(--ease-out);
-}
-
-.objective-node.is-new {
-	background-color: color-mix(in srgb, var(--brass-tint) 55%, transparent);
-	box-shadow: inset 3px 0 0 var(--brass);
 }
 
 .objective-node:first-child {
@@ -2546,12 +2637,6 @@ img {
 	margin-top: 6px;
 }
 
-.calm-note {
-	font-size: 0.76rem;
-	font-style: italic;
-	color: var(--ink-muted);
-}
-
 .objective-actions {
 	display: flex;
 	align-items: center;
@@ -2582,17 +2667,6 @@ img {
 
 .objective-node.is-backlog .progress-fill {
 	background: var(--line-strong);
-}
-
-.objective-node.is-seed .node-dot {
-	border-style: dashed;
-	border-color: var(--brass);
-}
-
-.objective-node.is-seed .objective-title {
-	font-size: 1.08rem;
-	font-weight: 550;
-	color: var(--ink-soft);
 }
 
 .objective-title.is-link {
@@ -3331,6 +3405,15 @@ a.evidence-value:hover {
 .note-card.is-deleted {
 	opacity: 0.62;
 	border-style: dashed;
+}
+
+/* Archived rows keep their actions outside the card link: a button inside an
+   anchor is not a control, it is a navigation. */
+.note-card-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 2px 0;
 }
 
 .note-card-top {
@@ -4166,44 +4249,80 @@ a.evidence-value:hover {
 	color: var(--ink);
 }
 
-/* Seed preview — read-only, so the body scrolls while the header and the
-   actions stay put. Sizes to content for a one-line seed. */
-.modal.seed-preview {
+/* Objective modal — one surface for a live seed and an archived objective.
+   The body scrolls while the header and the actions stay put. */
+.modal.objective-modal {
 	display: flex;
 	flex-direction: column;
+	max-width: 640px;
 	max-height: 82vh;
 	overflow: hidden;
 }
 
-.seed-preview .modal-header,
-.seed-preview .modal-actions {
+.objective-modal .modal-header,
+.objective-modal .modal-actions {
 	flex-shrink: 0;
 }
 
-.seed-preview .modal-actions {
+.objective-modal .modal-actions {
 	border-top: 1px solid var(--line);
 }
 
-.seed-preview-body {
+.objective-modal-heading {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.objective-modal-title {
+	display: block;
+	margin: 0;
+	font-family: var(--font-display);
+	font-size: 1.4rem;
+	font-weight: 600;
+	line-height: 1.3;
+	color: var(--ink);
+	overflow-wrap: anywhere;
+}
+
+input.objective-modal-title {
+	width: 100%;
+	padding: 2px 0;
+	border: 0;
+	border-bottom: 1px solid transparent;
+	border-radius: 0;
+	background: transparent;
+	transition: border-color 0.15s var(--ease-out);
+}
+
+input.objective-modal-title:hover {
+	border-bottom-color: var(--line);
+}
+
+input.objective-modal-title:focus {
+	border-bottom-color: var(--line-strong);
+	outline: none;
+}
+
+.objective-modal-body {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
 	min-height: 0;
 	padding-bottom: 18px;
 	overflow-y: auto;
 }
 
-.seed-preview-body .markdown-body {
+.objective-modal-body .markdown-wrap {
 	max-width: 68ch;
 }
 
-.seed-meta {
-	margin-top: 6px;
-	font-size: 0.78rem;
-	color: var(--ink-muted);
+.objective-modal-edit {
+	align-self: flex-start;
 }
 
-.seed-empty {
+.objective-modal-steps {
 	margin: 0;
-	font-size: 0.9rem;
-	font-style: italic;
+	font-size: 0.8rem;
 	color: var(--ink-muted);
 }
 

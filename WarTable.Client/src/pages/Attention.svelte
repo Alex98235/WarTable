@@ -142,13 +142,13 @@
 		<h1 class="page-title">What needs a human</h1>
 		<p class="lede">
 			Flagged steps come first, then blockers, and work that has gone quiet. Backlog plans and
-			seeds are parked separately so they never masquerade as urgent.
+			seeds are kept separate so they never masquerade as urgent.
 		</p>
 	</div>
 	<div class="page-actions">
 		{#if refreshing}<span class="sync-note">Syncing…</span>{/if}
 		<span class="stat-inline"><strong>{urgentCount}</strong> urgent</span>
-		<span class="stat-inline"><strong>{backlog.length}</strong> parked</span>
+		<span class="stat-inline"><strong>{backlog.length}</strong> in the backlog</span>
 		<span class="stat-inline"><strong>{seeds.length}</strong> seeds</span>
 	</div>
 </div>
@@ -246,10 +246,10 @@
 			<section class="panel parked-panel">
 				<header class="attention-group-head">
 					<div>
-						<p class="eyebrow">Parked · calm by design</p>
+						<p class="eyebrow">Committed work · calm by design</p>
 						<h2 class="panel-title">Backlog</h2>
 						<p class="panel-subtitle">
-							Visible but not actionable until someone releases the objective.
+							Visible but not actionable until someone promotes it.
 						</p>
 					</div>
 					<span class="inbox-count big">{filteredBacklog.length}</span>
@@ -267,11 +267,8 @@
 				<header class="attention-group-head">
 					<div>
 						<p class="eyebrow">Unfinished thoughts · calm by design</p>
-						<h2 class="panel-title">Seeds to shape</h2>
-						<p class="panel-subtitle">
-							Seeds are visible to agents. Shape one into a plan; it lands in the
-							backlog until someone releases it.
-						</p>
+						<h2 class="panel-title">Seeds</h2>
+						<p class="panel-subtitle">Seeds are visible to agents.</p>
 					</div>
 					<span class="inbox-count big">{filteredSeeds.length}</span>
 				</header>

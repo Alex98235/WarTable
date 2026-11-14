@@ -67,6 +67,10 @@ Multiple devices see the same state; there are no accounts and no offline writes
     surface we offer, not what a caller holding the URL can reach; a tool list is
     a contract, not a sandbox. See
     [`known-limitations/agent-http-reach-around.md`](known-limitations/agent-http-reach-around.md).
+    The human keeps the verb because removing what is wrong is the human's main
+    use of the record: a thought captured imprecisely, or an agent's confident
+    wrong answer, must not stay as an archived row that the next agent finds and
+    trusts. Deleting removes the idea, which is more than a hidden row does.
 12. **The instruction block is a budget of attention.** Every agent reads it in
     every session, before it knows which tool it needs, so a clause costs
     attention rather than bytes. A clause earns its place by preventing a named
@@ -133,7 +137,8 @@ scope, provenance, retire/edit, always injected.
 Planning finishes in chat. The agent asks whether to move the plan to WarTable.
 On approval it calls `import_plan` once: campaign (or existing campaign),
 objectives, steps, dependencies. The plan lands as `Backlog` or `Ready` depending
-on the requested `plan_state`. The agent releases it and starts work. If the
+on the requested `plan_state`. The agent promotes a backlog plan to `Ready` when
+it starts work. If the
 agent's instructions require human approval first, it asks; the tool does not
 force it.
 
@@ -159,16 +164,16 @@ be edited; the activity log records what changed.
 **Requirements:** note status and supersession links, briefing filtering,
 activity log.
 
-### F. Parked plan
+### F. Backlog plan
 
 The human and agent sketch a plan that will not be executed yet. It is imported
 with objectives in `Backlog`. Backlog objectives do not pollute the ready set or
 the urgent attention queue. They sit in the plan tree with a calm badge until
-either party releases them.
+either party promotes them.
 
 Before that, a passing idea can be captured as a `Seed`: a one-line unfinished
 thought with an alias. Seeds appear in the briefing and attention so the idea is
-not lost, but they never produce ready steps. Shaping a seed promotes it to
+not lost, but they never produce ready steps. Promoting a seed moves it to
 `Backlog`.
 
 **Requirements:** objective-level `PlanState`, seed and backlog filtering in
@@ -235,7 +240,7 @@ A durable outcome. The unit of planning.
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
 | `Description` | Markdown. Outcome and constraints. |
-| `PlanState` | `Seed`, `Backlog`, or `Ready`. Objective-level. The names state permission, not shape: a seed is a captured unfinished thought and is never worked; a backlog objective is a shaped plan deliberately not released; a ready objective's steps may be taken. |
+| `PlanState` | `Seed`, `Backlog`, or `Ready`. Objective-level. The names state permission, not shape: a seed is a captured unfinished thought and is never worked; a backlog objective is a plan deliberately not ready yet; a ready objective's steps may be taken. |
 | `Status` | Derived cache: `not-started`, `in-progress`, `needs-review`, `blocked`, `completed`. |
 | `SortOrder` | Display order. |
 | `NextStepNumber` | Per-objective counter for step numbers. |
@@ -481,6 +486,29 @@ documented in
   is superseded by the knowledge that replaced it.
 - **Preference:** `Active` → retired, preserving history.
 
+#### Archive, restore, delete
+
+Every object except a preference has three separate verbs:
+
+- **Archive** — `ArchivedAt` on a campaign, `DeletedAt` on everything else. The
+  row leaves the default reads and lists, the alias keeps resolving, and children
+  keep their links. An explicit `includeArchived` / `include_archived` reads it
+  back, which is how restore obtains its row version. Both a human and an agent
+  can archive.
+- **Restore** — clears the marker. Nothing was moved, so the inverse is exact,
+  including a step's dependency edges, which are kept rather than cleared. A
+  dependency whose target is archived does not gate readiness: archiving loosens
+  the plan, restoring tightens it back.
+- **Delete** — permanent. The row and its dependents are removed, along with any
+  `BunkerNoteLink` rows that pointed at them. Human only, over HTTP; no MCP tool
+  reaches it.
+
+The distinction matters because archiving and deleting solve different problems.
+Archive is for work that is out of play and might come back. Delete is for
+material that is wrong — the imprecise thought or the agent's confident mistake —
+and leaving it archived leaves it findable by the next session. That is why the
+agent surface offers the first two and never the third.
+
 ### Storage lifecycle
 
 SQLite is the only persistent store. Startup applies EF migrations and stamps
@@ -554,10 +582,11 @@ negotiated by the SDK.
 | `archive_campaign` | `campaign_id`, `actor` | Hides the campaign from the default list; keeps every objective, step, note and alias. |
 | `unarchive_campaign` | `campaign_id`, `actor` | Restores an archived campaign to the default list. |
 
-There is no `delete_campaign`. Deleting a campaign destroys its alias counter, so
-every `#N` reference in it stops resolving, and an agent must not be able to do
-that. Archive is the destructive action an agent gets; the hard delete stays on
-the HTTP surface, where a human can reach it.
+There is no `delete_campaign`. Deleting is irreversible, so the hard delete stays
+on the HTTP surface, where the human at the browser can reach it, and an agent
+gets archive and restore. A campaign's aliases are scoped to it and die with it,
+so nothing outside a deleted campaign dangles; the objection is not a broken
+reference, it is an irreversible act one careless sentence away.
 
 ### Plans and briefing
 
@@ -598,7 +627,8 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `create_objective` | `campaign_id`, `title`, `description`, `plan_state`, `actor` | Aliases are permanent; deletion does not reuse them. |
 | `update_objective` | `objective_id`, `title`, `description`, `plan_state`, `actor` | |
 | `reorder_objectives` | `campaign_id`, `orders`, `actor` | Changes `SortOrder` only; keys are objective GUIDs, not `#N` aliases. |
-| `delete_objective` | `objective_id`, `actor` | Soft delete; old aliases remain resolvable and are never reused. |
+| `delete_objective` | `objective_id`, `actor` | Archive; the row is kept, old aliases remain resolvable and are never reused. |
+| `restore_objective` | `objective_id`, `actor` | Restore an archived objective and the steps archived with it. |
 
 ### Steps
 
@@ -608,7 +638,8 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `update_step` | `step_id`, `title`, `context`, `assignee`, `assigner`, `status`, `depends_on[]`, `actor` | Omitted `depends_on` leaves dependencies unchanged; an empty array clears them. |
 | `update_step_status` | `step_id`, `status`, `actor` | Recalculates objective status. |
 | `reorder_steps` | `objective_id`, `orders`, `actor` | Changes `SortOrder` only; keys are step GUIDs, not `#N.M`; `StepNumber` never changes. |
-| `delete_step` | `step_id`, `force`, `actor` | Soft delete. Refuses when other steps depend on it unless `force=true`; force removes edges and reports `removed_dependencies`. |
+| `delete_step` | `step_id`, `force`, `actor` | Archive. Refuses when other steps depend on it unless `force=true`, which archives it anyway; the edges are kept, so restore is exact. |
+| `restore_step` | `step_id`, `actor` | Restore an archived step. Refused while its objective is archived. |
 | `add_step_update` | `step_id`, `body`, `kind`, `actor` | Append-only. |
 | `add_evidence` | `step_id`, `label`, `value`, `kind`, `actor` | |
 | `delete_evidence` | `step_id`, `evidence_id`, `actor` | Hard delete; removes a citation that is wrong or no longer true. |
@@ -624,7 +655,9 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
 | `get_note` | `campaign_id`, `alias` | |
 | `search_notes` | `campaign_id?`, `search`, `kind`, `status` | |
 | `search_knowledge` | `campaign_id?`, `query`, `mode`, `limit` | Hybrid semantic + keyword over indexed Bunker notes; degrades to keyword. |
-| `update_note` | `note_id`, `title`, `body`, `pinned`, `tags`, `supersedes_id`, `actor` | Status is derived — no longer settable. | |
+| `update_note` | `note_id`, `title`, `body`, `pinned`, `tags`, `supersedes_id`, `actor` | Status is derived - no longer settable. |
+| `delete_note` | `note_id`, `actor` | Archive; the row is kept and the alias still resolves. |
+| `restore_note` | `note_id`, `actor` | Undo `delete_note`. |
 
 ### Preferences
 
@@ -666,7 +699,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   scope, and architecture; `update_campaign` writes it. Component-level design
   detail belongs in the relevant objective description and its steps.
 - When a planning phase finishes, offer to import the plan. Import as `Backlog`
-  if it will not be executed immediately; release when starting.
+  if it will not be executed immediately; promote to `Ready` when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
 - Record durable decisions, gotchas, and context notes in the Bunker
@@ -707,18 +740,29 @@ are JSON with camelCase properties and string enum values.
 | `/api/campaigns/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or hard-delete a campaign (`rowVersion` required). Hard delete is human-only and has no MCP counterpart. |
 | `/api/campaigns/{id}/archive` | `POST` | Archive a campaign (`rowVersion` required). Reversible; keeps all children and the alias counter. |
 | `/api/campaigns/{id}/unarchive` | `POST` | Restore an archived campaign (`rowVersion` required). |
-| `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeNotReady`) or create an objective. |
-| `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete an objective (`rowVersion` required). |
+| `/api/campaigns/{id}/restore` | `POST` | The same call under the spelling every other kind uses. |
+| `/api/campaigns/{id}/permanent` | `DELETE` | The same call as `DELETE /api/campaigns/{id}`. |
+| `/api/objectives` | `GET`, `POST` | List (`campaignId`, `includeNotReady`, `includeArchived`) or create an objective. |
+| `/api/objectives/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or archive an objective (`rowVersion` required). |
+| `/api/objectives/{id}/archive` | `POST` | The same call as `DELETE /api/objectives/{id}`. |
+| `/api/objectives/{id}/restore` | `POST` | Restore an archived objective and the steps archived with it (`rowVersion` required). |
+| `/api/objectives/{id}/permanent` | `DELETE` | Permanently delete an objective, its steps and the note links pointing at them (`rowVersion` required). Human only. |
 | `/api/objectives/reorder` | `PUT` | Reorder objectives; keys are objective GUIDs. |
-| `/api/steps` | `GET`, `POST` | List by `objectiveId` or create a step. |
-| `/api/steps/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete a step (`rowVersion` required, `force` optional). |
+| `/api/steps` | `GET`, `POST` | List by `objectiveId` (`includeArchived` optional) or create a step. |
+| `/api/steps/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or archive a step (`rowVersion` required, `force` optional). |
+| `/api/steps/{id}/archive` | `POST` | The same call as `DELETE /api/steps/{id}`. |
+| `/api/steps/{id}/restore` | `POST` | Restore an archived step (`rowVersion` required); refused while its objective is archived. |
+| `/api/steps/{id}/permanent` | `DELETE` | Permanently delete a step and its note links (`rowVersion` required). Human only. |
 | `/api/steps/reorder` | `PUT` | Reorder steps; keys are step GUIDs. |
 | `/api/steps/{id}/status` | `PATCH` | Quick status change (+ `rowVersion`). |
 | `/api/steps/{id}/updates` | `GET`, `POST` | List or append step updates. |
 | `/api/steps/{id}/evidence` | `GET`, `POST` | List or attach evidence. |
 | `/api/steps/{id}/evidence/{evidenceId}` | `DELETE` | Hard-delete a piece of evidence. |
 | `/api/notes` | `GET`, `POST` | List (`campaignId`, `search`, `kind`, `status`, `includeDeleted`) or create a Bunker note. |
-| `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or soft-delete a note (`rowVersion` required). |
+| `/api/notes/{id}` | `GET`, `PUT`, `DELETE` | Read, patch (+ `rowVersion`), or archive a note (`rowVersion` required). |
+| `/api/notes/{id}/archive` | `POST` | The same call as `DELETE /api/notes/{id}`. |
+| `/api/notes/{id}/restore` | `POST` | Restore an archived note (`rowVersion` required). |
+| `/api/notes/{id}/permanent` | `DELETE` | Permanently delete a note and its links (`rowVersion` required). Human only. |
 | `/api/notes/by-alias` | `GET` | Resolve a note by `campaignId` and `alias`. |
 | `/api/preferences` | `GET`, `POST` | List (`includeInactive`) or capture a preference. |
 | `/api/preferences/{id}` | `PUT` | Edit or retire a preference (+ `rowVersion`). |
@@ -735,6 +779,14 @@ are JSON with camelCase properties and string enum values.
 `/api/events` starts at the log head when no cursor is supplied and replays from
 `?since=` for reconnecting clients.
 
+`POST /{id}/archive`, `POST /{id}/restore` and `DELETE /{id}/permanent` are the
+canonical spellings for every kind. The older ones remain and keep their effects:
+`DELETE /api/campaigns/{id}` is still the hard delete, `DELETE /{id}` on an
+objective, step or note still archives, and `unarchive` still restores a
+campaign. No existing route changed meaning, so a caller written against the
+older spelling keeps working — and no call that was reversible became
+destructive.
+
 ## 8. Screen spec
 
 All views subscribe to `/api/events`. Cross-device changes appear without a
@@ -745,7 +797,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
   questions, and stale in-progress work. Each group caps its visible rows and
   links to the full inbox.
-- **Parked sections** below the urgent groups: backlog plans and seeds, styled
+- **Backlog and seed sections** below the urgent groups: backlog plans and seeds, styled
   as calm work rather than urgent items.
 - **Campaign folders** below: title, charter excerpt, ready/backlog objective
   counts, last activity, tags. No status badges and no status counts.
@@ -766,7 +818,7 @@ The human view has no briefing. The briefing is the agent's bounded context
 the agent's picture. Everything the page shows is derived from the campaign
 payload — charter, seeds, plan, and notes — with no separate briefing request.
 
-- **Hero:** title, tags, compact stats (`in play`, `finished`, steps done, last
+- **Hero:** title, tags, compact stats (`ready`, `finished`, steps done, last
   update), and the primary actions (`Edit campaign`, `Bunker`, `+ Objective`).
   When any step is flagged or blocked, one attention stat (`N need you`) links to
   the attention view; at zero it is absent, not `0 need you`.
@@ -778,13 +830,28 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
 - **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
   / `Show less` and an edit action that writes the campaign. An empty charter is a
   compact inline invitation, not an empty panel.
-- **Seed capture strip:** one input above the plan to park a thought — title plus
-  optional detail, no steps.
-- **Plan tiers:** `In play` (ready, unfinished), `Parked` (seeds, then backlog),
-  and `Finished` (completed objectives, collapsed by default; auto-opened only
-  when there is no open work). Finished rows are one line, with no progress,
-  reorder, or state controls; `updatedAt` is shown as last activity, never as a
-  completion timestamp. Reorder applies only within `In play`.
+- **Seed capture strip:** one input at the head of the `Seeds` band, so a captured
+  thought appears directly under the field that created it - title plus optional
+  detail, no steps.
+- **Plan tiers:** `Ready` (unfinished), `Backlog` (committed, not ready yet),
+  `Seeds` (captured thoughts, a quiet band below the backlog with the
+  capture strip at its head), and `Finished` (completed objectives, collapsed by
+  default; auto-opened only when there is no open work). Each tier carries its
+  own count, so a thought is never counted as committed work. Finished rows are
+  one line, with no progress, reorder, or state controls; `updatedAt` is shown as
+  last activity, never as a completion timestamp. Reorder applies only within
+  `Ready`.
+- **Item rows:** `alias`, title, plan state, time, actions. The title opens the
+  item's surface: a ready or backlog objective opens the objective page, while a
+  seed and an archived objective have no page of their own and open the item
+  modal instead. The modal shows the description as rendered Markdown, the step
+  count when there is one, and only the actions that apply - `Save` and `Promote`
+  for a seed, `Restore` and `Delete permanently` for an archived row. An archived
+  row is read-only: an edit that lands on an item appearing in no other list hides
+  the change from the person making it, and restoring is the way back.
+- **Archived band:** after `Finished`, collapsed, listing archived objectives with
+  `Restore` and `Delete permanently`. Permanent delete names what it takes with
+  it and holds for six seconds before it can be clicked.
 - **Knowledge rail:** sticky on desktop and stacked on narrow screens. Active
   directives sit in their own zone at the top, above the search and recent notes,
   because they are standing rules rather than recent activity; with none, the
@@ -797,7 +864,9 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
 
 - Header: alias, title, `PlanState`, derived status, description.
 - Steps: ordered list with dependency indicators, assignee/assigner, status
-  control, updates thread, and evidence.
+  control, updates thread, and evidence. Steps archived on their own collapse
+  under an `Archived steps (N)` disclosure with `Restore` and
+  `Delete permanently`; deleting the objective is not the only way back.
 - Ready and blocked indicators; "blocked by #12.1" chips.
 
 ### Bunker

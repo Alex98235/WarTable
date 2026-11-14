@@ -226,13 +226,13 @@
 				<div class="parked-zone">
 					<div class="parked-head">
 						<div>
-							<p class="eyebrow">Parked</p>
+							<p class="eyebrow">Backlog</p>
 							<h3>Backlog</h3>
 						</div>
 						<span class="parked-count">{backlog.length}</span>
 					</div>
 					<p class="parked-hint">
-						Backlog plans are visible but not actionable. Release one when it is time to
+						Backlog plans are visible but not actionable. Promote one when it is time to
 						work.
 					</p>
 					<div class="parked-list">
@@ -242,7 +242,7 @@
 					</div>
 					{#if backlog.length > 3}
 						<a class="more-link" href="#/attention"
-							>+{backlog.length - 3} more parked plans</a
+							>+{backlog.length - 3} more in the backlog</a
 						>
 					{/if}
 				</div>
@@ -253,13 +253,11 @@
 					<div class="parked-head">
 						<div>
 							<p class="eyebrow">Seeds</p>
-							<h3>Seeds to shape</h3>
+							<h3>Captured thoughts</h3>
 						</div>
 						<span class="parked-count">{seeds.length}</span>
 					</div>
-					<p class="parked-hint">
-						Unfinished thoughts. Shape one into a plan; it lands in the backlog.
-					</p>
+					<p class="parked-hint">Unfinished thoughts.</p>
 					<div class="parked-list">
 						{#each seeds.slice(0, 3) as item (item.entityId)}
 							<AttentionItem {item} />

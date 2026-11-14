@@ -493,7 +493,7 @@ public class WarTableServiceTests
 
 		var deleted = await ctx.Service.DeleteStepAsync(b.Id, false, Human);
 		Assert.True(deleted.Deleted);
-		Assert.Equal(0, deleted.RemovedDependencies);
+		Assert.Equal(0, deleted.RetainedDependencies);
 
 		var d = await ctx.Service.CreateStepAsync(
 			objective.Id, "D", "", "", "orchestrator", Array.Empty<Guid>(), Human);
@@ -505,7 +505,39 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task DeleteStep_RefusesToBreakDependentsUnlessForced()
+	public async Task ArchivedRowsStayReadable_SoRestoreHasARowVersion()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+		var live = await ctx.Service.ResolveAliasAsync(campaign.Id, objective.Alias);
+		Assert.NotNull(live);
+		Assert.Equal(objective.RowVersion, live!.RowVersion);
+
+		await ctx.Service.DeleteObjectiveAsync(objective.Id, Human);
+
+		// An archived object is in no plan and no list. The alias resolution is the
+		// only read path that can hand restore the row_version it requires, so it
+		// has to carry it even when the row is deleted.
+		var archived = await ctx.Service.ResolveAliasAsync(campaign.Id, objective.Alias);
+		Assert.NotNull(archived);
+		Assert.True(archived!.Deleted);
+		Assert.NotEqual(Guid.Empty, archived.RowVersion);
+
+		// Same for a step: the default lookup hides it, includeArchived finds it.
+		Assert.Null(await ctx.Service.GetStepByRefAsync(
+			campaign.Id, objective.Alias, step.StepNumber));
+		var byRef = await ctx.Service.GetStepByRefAsync(
+			campaign.Id, objective.Alias, step.StepNumber, includeArchived: true);
+		Assert.NotNull(byRef);
+		Assert.Equal(step.Id, byRef!.Id);
+	}
+
+	[Fact]
+	public async Task DeleteStep_RefusesToArchiveADependencyUnlessForced()
 	{
 		var (ctx, _, objective) = await ArrangeAsync();
 		await using var _ctx = ctx;
@@ -525,12 +557,100 @@ public class WarTableServiceTests
 
 		var result = await ctx.Service.DeleteStepAsync(a.Id, true, Human);
 		Assert.True(result.Deleted);
-		Assert.Equal(1, result.RemovedDependencies);
+		Assert.Equal(1, result.RetainedDependencies);
 		Assert.Null(await ctx.Service.GetStepAsync(a.Id));
 
-		var remaining = await ctx.Service.GetStepAsync(b.Id);
-		Assert.NotNull(remaining);
-		Assert.Empty(remaining!.DependsOn);
+		// Archiving is reversible, so it must not destroy the graph it needs to
+		// restore. The edge survives; readiness ignores it while the target is out.
+		Assert.True(await ctx.Db.StepDependencies.AnyAsync(
+			d => d.StepId == b.Id && d.DependsOnStepId == a.Id));
+	}
+
+	[Fact]
+	public async Task ArchivedDependency_StopsGatingReadiness_UntilItIsRestored()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync(PlanState.Ready);
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var b = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepAsync(a.Id, new StepPatch(), new[] { b.Id }, Human);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == a.Id);
+
+		Assert.True((await ctx.Service.DeleteStepAsync(b.Id, true, Human)).Deleted);
+		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+		Assert.Contains(briefing.ReadySteps, s => s.Id == a.Id);
+
+		Assert.True(await ctx.Service.RestoreStepAsync(b.Id, Human));
+		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == a.Id);
+	}
+
+	[Fact]
+	public async Task RestoringAStepOfAnArchivedObjectiveIsRefused()
+	{
+		var (ctx, _, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+
+		Assert.True(await ctx.Service.DeleteObjectiveAsync(objective.Id, Human));
+
+		var error = await Assert.ThrowsAsync<InvalidOperationException>(
+			() => ctx.Service.RestoreStepAsync(a.Id, Human));
+		Assert.Contains("objective", error.Message, StringComparison.OrdinalIgnoreCase);
+	}
+
+	[Fact]
+	public async Task ArchivedObjective_RestoresWithItsStepsAndDependencies()
+	{
+		var (ctx, _, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var b = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepAsync(a.Id, new StepPatch(), new[] { b.Id }, Human);
+
+		Assert.True(await ctx.Service.DeleteObjectiveAsync(objective.Id, Human));
+		Assert.False(await ctx.Db.Objectives.AnyAsync(o => o.Id == objective.Id));
+		Assert.Null(await ctx.Service.GetStepAsync(a.Id));
+
+		Assert.True(await ctx.Service.RestoreObjectiveAsync(objective.Id, Human));
+
+		Assert.True(await ctx.Db.Objectives.AnyAsync(o => o.Id == objective.Id));
+		Assert.NotNull(await ctx.Service.GetStepAsync(a.Id));
+		Assert.NotNull(await ctx.Service.GetStepAsync(b.Id));
+		Assert.True(await ctx.Db.StepDependencies.AnyAsync(
+			d => d.StepId == a.Id && d.DependsOnStepId == b.Id));
+	}
+
+	[Fact]
+	public async Task PurgingAnObjectiveRemovesItsStepsAndDependencies()
+	{
+		var (ctx, _, objective) = await ArrangeAsync();
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		var b = await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepAsync(a.Id, new StepPatch(), new[] { b.Id }, Human);
+
+		Assert.True(await ctx.Service.DeleteObjectiveAsync(objective.Id, Human));
+		Assert.True(await ctx.Service.PurgeObjectiveAsync(objective.Id, Human));
+
+		Assert.False(await ctx.Db.Objectives.IgnoreQueryFilters().AnyAsync(o => o.Id == objective.Id));
+		Assert.False(await ctx.Db.Steps.IgnoreQueryFilters().AnyAsync(s => s.Id == a.Id || s.Id == b.Id));
+		Assert.False(await ctx.Db.StepDependencies.AnyAsync(
+			d => d.StepId == a.Id || d.DependsOnStepId == a.Id ||
+				 d.StepId == b.Id || d.DependsOnStepId == b.Id));
 	}
 
 	[Fact]

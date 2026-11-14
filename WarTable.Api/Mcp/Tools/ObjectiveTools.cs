@@ -105,7 +105,8 @@ public static class ObjectiveTools
 
 	[McpServerTool(Name = "delete_objective")]
 	[Description(
-		"Soft-delete an objective and its steps. Old #N aliases remain resolvable and are never reused. " +
+		"Archive an objective and its steps: they leave the plan but the row is kept, old #N aliases stay " +
+		"resolvable and are never reused. Undo with restore_objective. " +
 		"Requires row_version (read with get_object or get_plan) for optimistic concurrency.")]
 	public static async Task<object> DeleteObjectiveAsync(
 		WarTableService service,
@@ -127,6 +128,42 @@ public static class ObjectiveTools
 			return deleted
 				? new { ok = true }
 				: McpResults.Error($"Objective not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "restore_objective")]
+	[Description(
+		"Restore an archived objective and the steps archived with it. The row was never removed, so " +
+		"restoring returns the objective, its steps and their dependencies exactly as they were. " +
+		"Requires row_version (read with get_object using include_archived).")]
+	public static async Task<object> RestoreObjectiveAsync(
+		WarTableService service,
+		string objective_id,
+		string row_version,
+		string? actor = null)
+	{
+		try
+		{
+			var id = McpArgs.Guid(objective_id);
+			if (id is null)
+				return McpResults.Error("objective_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var restored = await service.RestoreObjectiveAsync(id.Value, McpArgs.Actor(actor), rv);
+			return restored
+				? new { ok = true }
+				: McpResults.Error($"Archived objective not found: {id}");
 		}
 		catch (ConcurrencyConflictException ex)
 		{

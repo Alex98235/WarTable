@@ -90,7 +90,7 @@ public class McpToolSurfaceTests
 			.Where(x => x.Parameter is not null)
 			.ToList();
 
-		Assert.Equal(11, toolsWithToken.Count);
+		Assert.Equal(14, toolsWithToken.Count);
 
 		foreach (var (name, parameter) in toolsWithToken)
 		{
@@ -117,6 +117,27 @@ public class McpToolSurfaceTests
 		Assert.DoesNotContain("delete_campaign", names);
 		Assert.Contains("archive_campaign", names);
 		Assert.Contains("unarchive_campaign", names);
+	}
+
+	/// <summary>
+	/// Restore is on the agent surface; permanent deletion is not. Anything
+	/// unrecoverable stays a human act, so no tool may name a purge even when the
+	/// HTTP route exists.
+	/// </summary>
+	[Fact]
+	public void Lifecycle_ExposesRestoreButNoPurge()
+	{
+		var names = ToolTypes()
+			.SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+			.Select(method => method.GetCustomAttribute<McpServerToolAttribute>()?.Name)
+			.Where(name => name is not null)
+			.ToList();
+
+		Assert.Contains("restore_objective", names);
+		Assert.Contains("restore_note", names);
+		Assert.Contains("restore_step", names);
+		Assert.DoesNotContain(names, name => name!.Contains("purge", StringComparison.OrdinalIgnoreCase));
+		Assert.DoesNotContain(names, name => name!.Contains("permanent", StringComparison.OrdinalIgnoreCase));
 	}
 
 	/// <summary>

@@ -44,7 +44,9 @@ public static class LookupTools
 					resolved.CampaignId,
 					resolved.Alias,
 					null,
-					null);
+					null,
+					null,
+					resolved.RowVersion);
 			}
 
 			var fullObjective = await service.GetObjectiveAsync(resolved.Id);
@@ -58,7 +60,8 @@ public static class LookupTools
 					fullObjective.Description,
 					fullObjective.PlanState,
 					fullObjective.Status,
-					fullObjective.UpdatedAt);
+					fullObjective.UpdatedAt,
+					fullObjective.RowVersion);
 			KnowledgeContext? knowledge = null;
 			string? knowledgeError = null;
 
@@ -83,7 +86,8 @@ public static class LookupTools
 				resolved.Alias,
 				objective,
 				knowledge,
-				knowledgeError);
+				knowledgeError,
+				resolved.RowVersion);
 		}
 		catch (Exception ex)
 		{
@@ -97,14 +101,17 @@ public static class LookupTools
 		"dependencies, plus a bounded `knowledge` context of linked, tagged and semantically " +
 		"related gotchas, decisions, context and directives as short excerpts. Set " +
 		"`include_knowledge` to false to skip context. Full note bodies are only available " +
-		"through `get_note`; `knowledge_error` reports a skipped context without failing the step.")]
+		"through `get_note`; `knowledge_error` reports a skipped context without failing the step. " +
+		"Archived steps are hidden unless `include_archived` is true, which is how a step " +
+		"archived on its own is read before restore_step.")]
 	public static async Task<object> GetStepAsync(
 		WarTableService service,
 		KnowledgeContextService context,
 		string campaign_id,
 		int objective_alias,
 		int step_number,
-		bool? include_knowledge = null)
+		bool? include_knowledge = null,
+		bool? include_archived = null)
 	{
 		try
 		{
@@ -115,7 +122,8 @@ public static class LookupTools
 			var step = await service.GetStepByRefAsync(
 				campaignId.Value,
 				objective_alias,
-				step_number);
+				step_number,
+				include_archived ?? false);
 
 			if (step is null)
 				return McpResults.Error(

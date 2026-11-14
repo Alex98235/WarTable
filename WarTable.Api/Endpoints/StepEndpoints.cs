@@ -75,9 +75,9 @@ public static class StepEndpoints
 				: Results.BadRequest(new { error = "No steps to reorder" });
 		});
 
-		group.MapGet("/", async (Guid objectiveId, WarTableService service) =>
+		group.MapGet("/", async (Guid objectiveId, bool? includeArchived, WarTableService service) =>
 		{
-			var steps = await service.GetStepsAsync(objectiveId);
+			var steps = await service.GetStepsAsync(objectiveId, includeArchived ?? false);
 			return Results.Ok(steps);
 		});
 
@@ -187,6 +187,22 @@ public static class StepEndpoints
 				throw;
 			}
 		});
+
+		// Canonical spelling of the same act as DELETE /{id}, which stays for
+		// compatibility and keeps archiving.
+		group.MapPost("/{id:guid}/archive",
+			(Guid id, bool? force, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, async () =>
+					(await service.DeleteStepAsync(id, force ?? false, Actor(actor), rowVersion)).Deleted));
+
+		group.MapPost("/{id:guid}/restore",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.RestoreStepAsync(id, Actor(actor), rowVersion)));
+
+		// Human-only, like every permanent delete: agents get archive and restore.
+		group.MapDelete("/{id:guid}/permanent",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.PurgeStepAsync(id, Actor(actor), rowVersion)));
 
 		// ── Updates ──
 

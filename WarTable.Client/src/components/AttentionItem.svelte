@@ -8,8 +8,8 @@
 		FlaggedStep: { label: 'Flagged step', mark: '!', tone: 'flag' },
 		BlockedObjective: { label: 'Blocked objective', mark: '×', tone: 'blocked' },
 		StaleStep: { label: 'Stale work', mark: '◷', tone: 'stale' },
-		BacklogObjective: { label: 'Parked', mark: '◇', tone: 'backlog' },
-		SeedObjective: { label: 'Seed · needs shaping', mark: '◌', tone: 'seed' }
+		BacklogObjective: { label: 'Backlog', mark: '◇', tone: 'backlog' },
+		SeedObjective: { label: 'Seed — needs attention', mark: '◌', tone: 'seed' }
 	};
 
 	let meta = $derived(metaByKind[item.kind] || { label: item.kind, mark: '·', tone: 'neutral' });

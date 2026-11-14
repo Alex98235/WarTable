@@ -4,6 +4,7 @@
 		apiDelete,
 		apiGet,
 		apiPost,
+		apiPostAction,
 		apiPut,
 		isConflict,
 		stepProgress,
@@ -43,6 +44,12 @@
 		dependsOn: []
 	});
 	let addingStep = $state(false);
+
+	// Steps archived on their own stay off the plan but reachable, and restoring
+	// one is the only way back. The objective payload drops them, so they are read
+	// from the step list with archived rows included.
+	let archivedSteps = $state([]);
+	let archivedStepsOpen = $state(false);
 
 	let steps = $derived(
 		[...(objective?.steps || [])].sort(
@@ -100,6 +107,16 @@
 			if (token !== loadToken) return;
 
 			objective = objectiveData;
+
+			const stepRows = await apiGet('/api/steps', {
+				objectiveId: objectiveData.id,
+				includeArchived: 'true'
+			}).catch(() => []);
+			if (token !== loadToken) return;
+
+			archivedSteps = (Array.isArray(stepRows) ? stepRows : []).filter(
+				(step) => step.deletedAt
+			);
 		} catch (err) {
 			if (token !== loadToken) return;
 			if (String(err.message || '').includes('404')) notFound = true;
@@ -142,7 +159,8 @@
 					async () => {
 						editing = false;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -160,14 +178,9 @@
 				actor: ACTOR,
 				rowVersion: objective.rowVersion
 			});
-			addToast(
-				planState === 'Ready'
-					? 'Objective released.'
-					: planState === 'Seed'
-						? 'Objective moved back to a seed.'
-						: 'Objective moved to the backlog.',
-				'success'
-			);
+			const stateLabel =
+				planState === 'Seed' ? 'a seed' : planState === 'Backlog' ? 'the backlog' : 'Ready';
+			addToast(`Moved to ${stateLabel}.`, 'success');
 			await load({ silent: true });
 		} catch (err) {
 			if (isConflict(err)) {
@@ -181,17 +194,17 @@
 		}
 	}
 
-	function deleteObjective() {
+	function archiveObjective() {
 		if (!objective) return;
 		showConfirm(
-			`Delete objective #${objective.alias} "${objective.title}" and its steps? This cannot be undone.`,
+			`Archive objective #${objective.alias} "${objective.title}" and its steps? It leaves the plan; the alias still resolves and you can restore it from Archived objectives.`,
 			async () => {
 				try {
-					await apiDelete(`/api/objectives/${objective.id}`, {
+					await apiPostAction(`/api/objectives/${objective.id}/archive`, {
 						actor: ACTOR,
 						rowVersion: objective.rowVersion
 					});
-					addToast('Objective deleted.', 'success');
+					addToast('Archived.', 'success');
 					go(`/campaign/${campaignId}`);
 				} catch (err) {
 					if (isConflict(err)) {
@@ -201,9 +214,62 @@
 						);
 						return;
 					}
-					addToast(err.message || 'Could not delete the objective.', 'error');
+					addToast(err.message || 'Could not archive the objective.', 'error');
 				}
 			}
+		);
+	}
+
+	async function restoreStep(step) {
+		try {
+			await apiPostAction(`/api/steps/${step.id}/restore`, {
+				actor: ACTOR,
+				rowVersion: step.rowVersion
+			});
+			addToast('Restored.', 'success');
+			await load({ silent: true });
+		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This step was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
+			addToast(err.message || 'Could not restore the step.', 'error');
+		}
+	}
+
+	function purgeStep(step) {
+		const updates = step.updates?.length || 0;
+		const evidence = step.evidence?.length || 0;
+		const parts = [];
+		if (updates > 0) parts.push(`${updates} update${updates === 1 ? '' : 's'}`);
+		if (evidence > 0) parts.push(`${evidence} evidence link${evidence === 1 ? '' : 's'}`);
+		const scale = parts.length > 0 ? ` and its ${parts.join(' and ')}` : '';
+
+		showConfirm(
+			`Permanently delete step #${objective?.alias}.${step.stepNumber} "${step.title}"${scale}? This cannot be undone.`,
+			async () => {
+				try {
+					await apiDelete(`/api/steps/${step.id}/permanent`, {
+						actor: ACTOR,
+						rowVersion: step.rowVersion
+					});
+					addToast('Permanently deleted.', 'success');
+					await load({ silent: true });
+				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This step was changed elsewhere. Reload to see the current state.',
+							'error'
+						);
+						return;
+					}
+					addToast(err.message || 'Could not delete the step.', 'error');
+				}
+			},
+			{ confirmLabel: 'Delete permanently', holdMs: 6000 }
 		);
 	}
 
@@ -343,7 +409,9 @@
 			<div class="page-actions">
 				{#if refreshing}<span class="sync-note">Syncing…</span>{/if}
 				<button type="button" class="btn btn-secondary" onclick={openEdit}>Edit</button>
-				<button type="button" class="btn btn-primary" onclick={openAddStep}>+ Step</button>
+				<button type="button" class="btn btn-ghost danger-hover" onclick={archiveObjective}
+					>Archive</button
+				>
 			</div>
 		</div>
 
@@ -372,9 +440,9 @@
 				</div>
 				<p class="control-hint">
 					{objective.planState === 'Seed'
-						? 'Seed: an unfinished thought. Shape it into a plan when it is ready.'
+						? 'Seed: an unfinished thought.'
 						: objective.planState === 'Backlog'
-							? 'Backlog: a plan, visible but deliberately not released.'
+							? 'Backlog: a plan, not ready yet.'
 							: 'Ready: open, unblocked steps may be taken.'}
 				</p>
 			</div>
@@ -465,6 +533,47 @@
 							canMoveDown={index < steps.length - 1}
 						/>
 					{/each}
+				</div>
+			{/if}
+
+			{#if archivedSteps.length > 0}
+				<div class="archived-steps">
+					<button
+						type="button"
+						class="text-toggle archived-steps-toggle"
+						aria-expanded={archivedStepsOpen}
+						onclick={() => (archivedStepsOpen = !archivedStepsOpen)}
+					>
+						Archived steps ({archivedSteps.length})
+					</button>
+					{#if archivedStepsOpen}
+						<ul class="archived-list">
+							{#each archivedSteps as step (step.id)}
+								<li class="archived-row">
+									<span class="ref-chip"
+										>#{objective.alias}.{step.stepNumber}</span
+									>
+									<span class="finished-title">{step.title}</span>
+									<span class="finished-meta"
+										>archived {timeAgo(step.deletedAt)}</span
+									>
+									<span class="archived-actions">
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm"
+											onclick={() => restoreStep(step)}>Restore</button
+										>
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm danger-hover"
+											onclick={() => purgeStep(step)}
+											>Delete permanently</button
+										>
+									</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
 				</div>
 			{/if}
 
@@ -615,20 +724,13 @@
 						/>
 					</div>
 				</div>
-				<div class="modal-actions spread">
-					<button type="button" class="btn btn-danger" onclick={deleteObjective}
-						>Delete objective</button
+				<div class="modal-actions">
+					<button type="button" class="btn btn-ghost" onclick={() => (editing = false)}
+						>Cancel</button
 					>
-					<span class="modal-actions-group">
-						<button
-							type="button"
-							class="btn btn-ghost"
-							onclick={() => (editing = false)}>Cancel</button
-						>
-						<button type="submit" class="btn btn-primary" disabled={saving}>
-							{saving ? 'Saving…' : 'Save objective'}
-						</button>
-					</span>
+					<button type="submit" class="btn btn-primary" disabled={saving}>
+						{saving ? 'Saving…' : 'Save objective'}
+					</button>
 				</div>
 			</form>
 		</div>

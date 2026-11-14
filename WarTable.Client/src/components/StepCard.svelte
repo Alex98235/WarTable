@@ -5,9 +5,9 @@
 		UPDATE_KINDS,
 		EVIDENCE_KINDS,
 		actorLabel,
-		apiDelete,
 		apiPatch,
 		apiPost,
+		apiPostAction,
 		apiPut,
 		isConflict,
 		formatDate,
@@ -91,7 +91,8 @@
 			if (isConflict(err)) {
 				showConfirm(
 					'This step was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
-					() => onchanged()
+					() => onchanged(),
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -148,7 +149,8 @@
 					() => {
 						editing = false;
 						onchanged();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -209,39 +211,41 @@
 		}
 	}
 
-	function deleteStep() {
-		showConfirm(`Delete ${ref} "${step.title}"? This cannot be undone.`, () =>
-			removeStep(false)
+	function archiveStep() {
+		showConfirm(
+			`Archive step ${ref} "${step.title}"? It leaves the plan; you can restore it from Archived steps.`,
+			() => removeStep(false)
 		);
 	}
 
 	async function removeStep(force) {
 		try {
-			await apiDelete(
-				`/api/steps/${step.id}`,
+			await apiPostAction(
+				`/api/steps/${step.id}/archive`,
 				force
 					? { actor: ACTOR, force: true, rowVersion: step.rowVersion }
 					: { actor: ACTOR, rowVersion: step.rowVersion }
 			);
-			addToast('Step deleted.', 'success');
+			addToast('Archived.', 'success');
 			onchanged();
 		} catch (err) {
 			const message = err.message || '';
 			if (isConflict(err)) {
 				showConfirm(
 					'This step was changed elsewhere. Reload to see the current state?',
-					() => onchanged()
+					() => onchanged(),
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
 			if (!force && /depend|force=true|required by/i.test(message)) {
 				showConfirm(
-					`${ref} is required by other steps. Delete it and remove those dependency edges?`,
+					`${ref} is required by other steps. Archiving it removes that dependency from the plan, so they stop waiting for it. Archive it anyway?`,
 					() => removeStep(true)
 				);
 				return;
 			}
-			addToast(err.message || 'Could not delete the step.', 'error');
+			addToast(err.message || 'Could not archive the step.', 'error');
 		}
 	}
 
@@ -307,9 +311,9 @@
 			<button
 				type="button"
 				class="btn btn-ghost btn-icon btn-xs danger-hover"
-				onclick={deleteStep}
-				title="Delete step"
-				aria-label="Delete step">×</button
+				onclick={archiveStep}
+				title="Archive step"
+				aria-label="Archive step">×</button
 			>
 		</div>
 	</header>
