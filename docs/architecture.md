@@ -119,8 +119,18 @@ with no cursor starts at the current head and does not replay the entire
 history; a reconnecting client passes its last cursor as `since`. If a
 notification is genuinely missed (for example, a watcher overflow), live
 delivery waits for the next write, and reconnecting with `since` recovers the
-event from the database. The watcher is local-filesystem-only; a network-share
-database is not a supported deployment.
+event from the database.
+
+A cursor is only meaningful against one log. Sequence numbers restart when a
+database is recreated or restored from a backup, and a browser keeps its cursor
+in `localStorage`, which is per origin rather than per database. A cursor ahead
+of the head therefore belongs to a different database: the endpoint answers it
+with a `resync` event carrying the real head, the client moves its cursor there
+and refreshes what it is showing. Treating it as "nothing new" instead would
+leave the connection open, silent and apparently healthy.
+
+The watcher is local-filesystem-only; a network-share database is not a
+supported deployment.
 
 ## Embeddings pipeline
 
