@@ -829,13 +829,28 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
 - **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
   / `Show less` and an edit action that writes the campaign. An empty charter is a
   compact inline invitation, not an empty panel.
-- **Seed capture strip:** one input above the plan to park a thought — title plus
-  optional detail, no steps.
-- **Plan tiers:** `In play` (ready, unfinished), `Parked` (seeds, then backlog),
-  and `Finished` (completed objectives, collapsed by default; auto-opened only
-  when there is no open work). Finished rows are one line, with no progress,
-  reorder, or state controls; `updatedAt` is shown as last activity, never as a
-  completion timestamp. Reorder applies only within `In play`.
+- **Seed capture strip:** one input at the head of the `Seeds` band, so a parked
+  thought appears directly under the field that created it - title plus optional
+  detail, no steps.
+- **Plan tiers:** `In play` (ready, unfinished), `Backlog` (committed, not
+  released), `Seeds` (captured thoughts, a quiet band below the backlog with the
+  capture strip at its head), and `Finished` (completed objectives, collapsed by
+  default; auto-opened only when there is no open work). Each tier carries its
+  own count, so a thought is never counted as committed work. Finished rows are
+  one line, with no progress, reorder, or state controls; `updatedAt` is shown as
+  last activity, never as a completion timestamp. Reorder applies only within
+  `In play`.
+- **Item rows:** `alias`, title, plan state, time, actions. The title opens the
+  item's surface: a ready or backlog objective opens the objective page, while a
+  seed and an archived objective have no page of their own and open the item
+  modal instead. The modal shows the description as rendered Markdown, the step
+  count when there is one, and only the actions that apply - `Save` and `Promote`
+  for a seed, `Restore` and `Delete permanently` for an archived row. An archived
+  row is read-only: an edit that lands on an item appearing in no other list hides
+  the change from the person making it, and restoring is the way back.
+- **Archived band:** after `Finished`, collapsed, listing archived objectives with
+  `Restore` and `Delete permanently`. Permanent delete names what it takes with
+  it and holds for six seconds before it can be clicked.
 - **Knowledge rail:** sticky on desktop and stacked on narrow screens. Active
   directives sit in their own zone at the top, above the search and recent notes,
   because they are standing rules rather than recent activity; with none, the
@@ -848,7 +863,9 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
 
 - Header: alias, title, `PlanState`, derived status, description.
 - Steps: ordered list with dependency indicators, assignee/assigner, status
-  control, updates thread, and evidence.
+  control, updates thread, and evidence. Steps archived on their own collapse
+  under an `Archived steps (N)` disclosure with `Restore` and
+  `Delete permanently`; deleting the objective is not the only way back.
 - Ready and blocked indicators; "blocked by #12.1" chips.
 
 ### Bunker

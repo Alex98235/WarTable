@@ -20,6 +20,7 @@
 	import Markdown from '../components/Markdown.svelte';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
+	import ObjectiveModal from '../components/ObjectiveModal.svelte';
 
 	let { route } = $props();
 	let campaignId = $derived(route.params.id);
@@ -74,11 +75,11 @@
 	let seedSaving = $state(false);
 	let seedInputEl = $state(null);
 
-	// One seed expands at a time. The row is the editor: promoting leaves the
-	// thought alone, and saving keeps it a Seed.
-	let openSeedId = $state(null);
-	let seedEditForm = $state({ title: '', description: '' });
-	let seedEditSaving = $state(false);
+	// The modal is the first-class surface for the two row types that have no
+	// page: a live seed and an archived objective.
+	let previewObjective = $state(null);
+	let previewMode = $state('seed');
+	let previewOpener = null;
 
 	// The list carries archived rows too, so restore and purge have a read path.
 	// Everything the plan renders is live; the archived band is the only consumer
@@ -238,6 +239,23 @@
 
 	function toggleExpanded(id) {
 		expanded = { ...expanded, [id]: !expanded[id] };
+	}
+
+	function openPreview(objective, mode, opener) {
+		previewMode = mode;
+		previewOpener = opener || null;
+		previewObjective = objective;
+	}
+
+	/**
+	 * Restoring focus is right for a close and wrong for a row that is about to
+	 * leave the band: promote, archive, restore and purge all move the opener.
+	 */
+	function closePreview({ restoreFocus = true } = {}) {
+		previewObjective = null;
+		const opener = previewOpener;
+		previewOpener = null;
+		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
 	}
 
 	function objectiveHref(objective) {
@@ -453,54 +471,39 @@
 		}
 	}
 
-	function toggleSeed(seed) {
-		if (openSeedId === seed.id) {
-			openSeedId = null;
-			return;
-		}
-		openSeedId = seed.id;
-		seedEditForm = {
-			title: seed.title || '',
-			description: seed.description || ''
-		};
-	}
-
-	async function saveSeedEdit(event) {
-		event.preventDefault();
-		const seed = seedObjectives.find((candidate) => candidate.id === openSeedId);
-		if (!seed) return;
-		seedEditSaving = true;
+	async function saveSeed(seed, form) {
 		try {
 			await apiPut(`/api/objectives/${seed.id}`, {
-				title: seedEditForm.title.trim(),
-				description: seedEditForm.description,
+				title: form.title,
+				description: form.description,
 				planState: 'Seed',
 				actor: ACTOR,
 				rowVersion: seed.rowVersion
 			});
 			addToast('Seed updated.', 'success');
-			openSeedId = null;
+			closePreview();
 			await load({ silent: true });
+			return true;
 		} catch (err) {
 			if (isConflict(err)) {
 				showConfirm(
 					'This seed was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
 					async () => {
-						openSeedId = null;
+						closePreview({ restoreFocus: false });
 						await load();
 					},
 					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
-				return;
+				return false;
 			}
 			addToast(err.message || 'Could not update the seed.', 'error');
-		} finally {
-			seedEditSaving = false;
+			return false;
 		}
 	}
 
-	function promoteSeed(seed) {
-		setPlanState(seed, 'Backlog', 'Promoted to the backlog.');
+	async function promoteSeed(seed) {
+		const promoted = await setPlanState(seed, 'Backlog', 'Promoted to the backlog.');
+		if (promoted) closePreview({ restoreFocus: false });
 	}
 
 	function archiveSeed(seed) {
@@ -513,7 +516,7 @@
 						rowVersion: seed.rowVersion
 					});
 					addToast('Archived.', 'success');
-					openSeedId = null;
+					closePreview({ restoreFocus: false });
 					await load({ silent: true });
 				} catch (err) {
 					if (isConflict(err)) {
@@ -562,6 +565,7 @@
 				rowVersion: objective.rowVersion
 			});
 			addToast('Restored.', 'success');
+			closePreview({ restoreFocus: false });
 			await load({ silent: true });
 		} catch (err) {
 			if (isConflict(err)) {
@@ -610,6 +614,7 @@
 						rowVersion: objective.rowVersion
 					});
 					addToast('Permanently deleted.', 'success');
+					closePreview({ restoreFocus: false });
 					await load({ silent: true });
 				} catch (err) {
 					if (isConflict(err)) {
@@ -667,15 +672,17 @@
 				'success'
 			);
 			await load({ silent: true });
+			return true;
 		} catch (err) {
 			if (isConflict(err)) {
 				addToast(
 					'This objective was changed elsewhere. Reload to see the current state.',
 					'error'
 				);
-				return;
+				return false;
 			}
 			addToast(err.message || 'Could not change the plan state.', 'error');
+			return false;
 		}
 	}
 
@@ -1218,83 +1225,24 @@
 					{:else}
 						<ul class="seed-list">
 							{#each seedObjectives as seed (seed.id)}
-								{@const isOpen = openSeedId === seed.id}
-								<li class="seed-row">
-									<div class="seed-row-main">
-										<span class="ref-chip">#{seed.alias}</span>
-										<button
-											type="button"
-											class="seed-title"
-											aria-expanded={isOpen}
-											aria-controls="seed-editor-{seed.id}"
-											onclick={() => toggleSeed(seed)}>{seed.title}</button
-										>
-										<span class="row-meta"
-											>updated {timeAgo(seed.updatedAt)}</span
-										>
-									</div>
-									{#if seed.description && !isOpen}
-										<p class="seed-line">
-											{plainText(seed.description, 120)}
-										</p>
-									{/if}
-									<div class="seed-row-actions">
+								<li class="preview-row">
+									<span class="ref-chip">#{seed.alias}</span>
+									<button
+										type="button"
+										class="preview-title"
+										onclick={(event) =>
+											openPreview(seed, 'seed', event.currentTarget)}
+										>{seed.title}</button
+									>
+									<StatusBadge status="Seed" sm />
+									<span class="row-meta">updated {timeAgo(seed.updatedAt)}</span>
+									<span class="preview-actions">
 										<button
 											type="button"
 											class="btn btn-ghost btn-sm"
 											onclick={() => promoteSeed(seed)}>Promote</button
 										>
-									</div>
-									{#if isOpen}
-										<form
-											id="seed-editor-{seed.id}"
-											class="seed-editor"
-											onsubmit={saveSeedEdit}
-										>
-											<label class="sr-only" for="seed-title-{seed.id}"
-												>Seed title</label
-											>
-											<input
-												id="seed-title-{seed.id}"
-												class="form-input"
-												type="text"
-												bind:value={seedEditForm.title}
-												required
-											/>
-											<label class="sr-only" for="seed-body-{seed.id}"
-												>Seed detail</label
-											>
-											<MarkdownEditor
-												id="seed-body-{seed.id}"
-												bind:value={seedEditForm.description}
-												{campaignId}
-												rows={4}
-											/>
-											<div class="seed-editor-actions">
-												<button
-													type="button"
-													class="btn btn-ghost btn-sm danger-hover"
-													onclick={() => archiveSeed(seed)}
-													>Archive seed</button
-												>
-												<span class="seed-editor-spacer"></span>
-												<button
-													type="button"
-													class="btn btn-ghost btn-sm"
-													onclick={() => (openSeedId = null)}
-													>Cancel</button
-												>
-												<button
-													type="submit"
-													class="btn btn-primary btn-sm"
-													disabled={seedEditSaving}
-													>{seedEditSaving
-														? 'Saving…'
-														: 'Save seed'}</button
-												>
-											</div>
-										</form>
-									{/if}
+									</span>
 								</li>
 							{/each}
 						</ul>
@@ -1384,28 +1332,36 @@
 						{#if archivedOpen}
 							<ul class="finished-list" id="archived-list">
 								{#each archivedObjectives as objective (objective.id)}
-									<li class="finished-row">
-										<div class="archived-row">
-											<span class="ref-chip">#{objective.alias}</span>
-											<span class="finished-title">{objective.title}</span>
-											<span class="finished-meta"
-												>archived {timeAgo(objective.deletedAt)}</span
+									<li class="preview-row">
+										<span class="ref-chip">#{objective.alias}</span>
+										<button
+											type="button"
+											class="preview-title"
+											onclick={(event) =>
+												openPreview(
+													objective,
+													'archived',
+													event.currentTarget
+												)}>{objective.title}</button
+										>
+										<StatusBadge status={objective.planState} sm />
+										<span class="row-meta"
+											>archived {timeAgo(objective.deletedAt)}</span
+										>
+										<span class="preview-actions">
+											<button
+												type="button"
+												class="btn btn-ghost btn-sm"
+												onclick={() => restoreObjective(objective)}
+												>Restore</button
 											>
-											<span class="archived-actions">
-												<button
-													type="button"
-													class="btn btn-ghost btn-sm"
-													onclick={() => restoreObjective(objective)}
-													>Restore</button
-												>
-												<button
-													type="button"
-													class="btn btn-ghost btn-sm danger-hover"
-													onclick={() => purgeObjective(objective)}
-													>Delete permanently</button
-												>
-											</span>
-										</div>
+											<button
+												type="button"
+												class="btn btn-ghost btn-sm danger-hover"
+												onclick={() => purgeObjective(objective)}
+												>Delete permanently</button
+											>
+										</span>
 									</li>
 								{/each}
 							</ul>
@@ -1823,4 +1779,18 @@
 			</form>
 		</div>
 	</div>
+{/if}
+
+{#if previewObjective}
+	<ObjectiveModal
+		objective={previewObjective}
+		mode={previewMode}
+		{campaignId}
+		onClose={() => closePreview()}
+		onSave={(form) => saveSeed(previewObjective, form)}
+		onPromote={() => promoteSeed(previewObjective)}
+		onArchive={() => archiveSeed(previewObjective)}
+		onRestore={() => restoreObjective(previewObjective)}
+		onPurge={() => purgeObjective(previewObjective)}
+	/>
 {/if}
