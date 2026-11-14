@@ -107,8 +107,8 @@
 	);
 
 	// The plan is split into ranked tiers so the reader sees live work before
-	// parked captures and finished outcomes. A completed objective always lands
-	// in Finished, even if it was parked as backlog when it finished.
+	// backlog plans and finished outcomes. A completed objective always lands
+	// in Finished, even if it was in the backlog when it finished.
 	let finishedObjectives = $derived(
 		planObjectives.filter((objective) => objective.status === 'completed')
 	);
@@ -664,13 +664,7 @@
 				actor: ACTOR,
 				rowVersion: objective.rowVersion
 			});
-			addToast(
-				message ??
-					(planState === 'Ready'
-						? 'Objective released.'
-						: 'Objective moved to the backlog.'),
-				'success'
-			);
+			addToast(message ?? 'Promoted.', 'success');
 			await load({ silent: true });
 			return true;
 		} catch (err) {
@@ -687,10 +681,10 @@
 	}
 
 	/**
-	 * Reordering only makes sense inside the In play tier. The swap happens
+	 * Reordering only makes sense inside the Ready tier. The swap happens
 	 * between this objective and its nearest neighbour in that tier, then every
 	 * plan objective is re-indexed so sort orders stay unique across tiers.
-	 * Parked or finished objectives keep their relative order.
+	 * Backlog, seed and finished objectives keep their relative order.
 	 */
 	async function moveObjective(objective, direction) {
 		const index = inPlayObjectives.findIndex((candidate) => candidate.id === objective.id);
@@ -800,7 +794,7 @@
 				<h1 class="page-title hero-title">{campaign.title}</h1>
 				<div class="hero-meta">
 					{#each tags as tag}<span class="tag">{tag}</span>{/each}
-					<span class="hero-stat">{inPlayObjectives.length} in play</span>
+					<span class="hero-stat">{inPlayObjectives.length} ready</span>
 					{#if finishedObjectives.length > 0}
 						<span class="hero-stat">{finishedObjectives.length} finished</span>
 					{/if}
@@ -936,9 +930,6 @@
 											>{progress.blocked} blocked</span
 										>
 									{/if}
-									{#if objective.planState === 'Backlog'}
-										<span class="calm-note">Not in the ready set</span>
-									{/if}
 								</div>
 							</div>
 
@@ -974,7 +965,7 @@
 										class="btn btn-secondary btn-sm"
 										onclick={() => setPlanState(objective, 'Ready')}
 									>
-										Release
+										Promote
 									</button>
 								{:else}
 									<button
@@ -1099,14 +1090,13 @@
 
 				<section class="plan-tier">
 					<header class="tier-head">
-						<h3 class="tier-title">In play</h3>
+						<h3 class="tier-title">Ready</h3>
 						{#if inPlayObjectives.length > 0}
 							<span class="tier-count">{inPlayObjectives.length}</span>
 						{/if}
-						<span class="tier-hint">Ready and in progress</span>
 					</header>
 					{#if inPlayObjectives.length === 0}
-						<p class="tier-empty">Nothing in play.</p>
+						<p class="tier-empty">Nothing ready yet.</p>
 					{:else}
 						<div class="plan-tree">
 							{#each inPlayObjectives as objective, index (objective.id)}
@@ -1122,13 +1112,10 @@
 						{#if backlogObjectives.length > 0}
 							<span class="tier-count">{backlogObjectives.length}</span>
 						{/if}
-						<span class="tier-hint">Committed work, not released yet</span>
 					</header>
 
 					{#if backlogObjectives.length === 0}
-						<p class="tier-empty">
-							Nothing in the backlog. Promote a seed, or add an objective.
-						</p>
+						<p class="tier-empty">Nothing in the backlog.</p>
 					{:else}
 						<div class="plan-tree">
 							{#each backlogObjectives as objective, index (objective.id)}
@@ -1144,9 +1131,7 @@
 						{#if seedObjectives.length > 0}
 							<span class="tier-count">{seedObjectives.length}</span>
 						{/if}
-						<span class="tier-hint"
-							>Captured thoughts. Promote one to move it into the backlog.</span
-						>
+						<span class="tier-hint">Captured thoughts.</span>
 					</header>
 
 					<form class="capture-strip" onsubmit={parkSeed}>
@@ -1642,8 +1627,8 @@
 							class="form-select"
 							bind:value={objectiveForm.planState}
 						>
-							<option value="Backlog">Backlog — parked, not released</option>
-							<option value="Ready">Ready — included in the ready set</option>
+							<option value="Backlog">Backlog</option>
+							<option value="Ready">Ready</option>
 						</select>
 					</div>
 				</div>
@@ -1723,8 +1708,8 @@
 							class="form-select"
 							bind:value={objectiveEditForm.planState}
 						>
-							<option value="Backlog">Backlog — parked, not released</option>
-							<option value="Ready">Ready — included in the ready set</option>
+							<option value="Backlog">Backlog</option>
+							<option value="Ready">Ready</option>
 						</select>
 					</div>
 				</div>

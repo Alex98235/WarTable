@@ -137,7 +137,8 @@ scope, provenance, retire/edit, always injected.
 Planning finishes in chat. The agent asks whether to move the plan to WarTable.
 On approval it calls `import_plan` once: campaign (or existing campaign),
 objectives, steps, dependencies. The plan lands as `Backlog` or `Ready` depending
-on the requested `plan_state`. The agent releases it and starts work. If the
+on the requested `plan_state`. The agent promotes a backlog plan to `Ready` when
+it starts work. If the
 agent's instructions require human approval first, it asks; the tool does not
 force it.
 
@@ -163,16 +164,16 @@ be edited; the activity log records what changed.
 **Requirements:** note status and supersession links, briefing filtering,
 activity log.
 
-### F. Parked plan
+### F. Backlog plan
 
 The human and agent sketch a plan that will not be executed yet. It is imported
 with objectives in `Backlog`. Backlog objectives do not pollute the ready set or
 the urgent attention queue. They sit in the plan tree with a calm badge until
-either party releases them.
+either party promotes them.
 
 Before that, a passing idea can be captured as a `Seed`: a one-line unfinished
 thought with an alias. Seeds appear in the briefing and attention so the idea is
-not lost, but they never produce ready steps. Shaping a seed promotes it to
+not lost, but they never produce ready steps. Promoting a seed moves it to
 `Backlog`.
 
 **Requirements:** objective-level `PlanState`, seed and backlog filtering in
@@ -239,7 +240,7 @@ A durable outcome. The unit of planning.
 | `Alias` | `#N`, campaign-scoped, never reused, resolves after soft delete. |
 | `Title` | |
 | `Description` | Markdown. Outcome and constraints. |
-| `PlanState` | `Seed`, `Backlog`, or `Ready`. Objective-level. The names state permission, not shape: a seed is a captured unfinished thought and is never worked; a backlog objective is a shaped plan deliberately not released; a ready objective's steps may be taken. |
+| `PlanState` | `Seed`, `Backlog`, or `Ready`. Objective-level. The names state permission, not shape: a seed is a captured unfinished thought and is never worked; a backlog objective is a plan deliberately not ready yet; a ready objective's steps may be taken. |
 | `Status` | Derived cache: `not-started`, `in-progress`, `needs-review`, `blocked`, `completed`. |
 | `SortOrder` | Display order. |
 | `NextStepNumber` | Per-objective counter for step numbers. |
@@ -698,7 +699,7 @@ import. The response maps keys to real ids, aliases, and `#N.M` refs.
   scope, and architecture; `update_campaign` writes it. Component-level design
   detail belongs in the relevant objective description and its steps.
 - When a planning phase finishes, offer to import the plan. Import as `Backlog`
-  if it will not be executed immediately; release when starting.
+  if it will not be executed immediately; promote to `Ready` when starting.
 - Pick up seeds when no ready work is queued: discuss the thought with the human,
   then promote it with `update_objective`; do not execute it as-is.
 - Record durable decisions, gotchas, and context notes in the Bunker
@@ -796,7 +797,7 @@ manual refresh, and reconnecting clients resync from their last event cursor.
 - **Attention inbox** at the top: flagged steps, blocked objectives, open
   questions, and stale in-progress work. Each group caps its visible rows and
   links to the full inbox.
-- **Parked sections** below the urgent groups: backlog plans and seeds, styled
+- **Backlog and seed sections** below the urgent groups: backlog plans and seeds, styled
   as calm work rather than urgent items.
 - **Campaign folders** below: title, charter excerpt, ready/backlog objective
   counts, last activity, tags. No status badges and no status counts.
@@ -817,7 +818,7 @@ The human view has no briefing. The briefing is the agent's bounded context
 the agent's picture. Everything the page shows is derived from the campaign
 payload — charter, seeds, plan, and notes — with no separate briefing request.
 
-- **Hero:** title, tags, compact stats (`in play`, `finished`, steps done, last
+- **Hero:** title, tags, compact stats (`ready`, `finished`, steps done, last
   update), and the primary actions (`Edit campaign`, `Bunker`, `+ Objective`).
   When any step is flagged or blocked, one attention stat (`N need you`) links to
   the attention view; at zero it is absent, not `0 need you`.
@@ -829,17 +830,17 @@ payload — charter, seeds, plan, and notes — with no separate briefing reques
 - **Charter:** the campaign's charter text as a 3-line preview with `Read charter`
   / `Show less` and an edit action that writes the campaign. An empty charter is a
   compact inline invitation, not an empty panel.
-- **Seed capture strip:** one input at the head of the `Seeds` band, so a parked
+- **Seed capture strip:** one input at the head of the `Seeds` band, so a captured
   thought appears directly under the field that created it - title plus optional
   detail, no steps.
-- **Plan tiers:** `In play` (ready, unfinished), `Backlog` (committed, not
-  released), `Seeds` (captured thoughts, a quiet band below the backlog with the
+- **Plan tiers:** `Ready` (unfinished), `Backlog` (committed, not ready yet),
+  `Seeds` (captured thoughts, a quiet band below the backlog with the
   capture strip at its head), and `Finished` (completed objectives, collapsed by
   default; auto-opened only when there is no open work). Each tier carries its
   own count, so a thought is never counted as committed work. Finished rows are
   one line, with no progress, reorder, or state controls; `updatedAt` is shown as
   last activity, never as a completion timestamp. Reorder applies only within
-  `In play`.
+  `Ready`.
 - **Item rows:** `alias`, title, plan state, time, actions. The title opens the
   item's surface: a ready or backlog objective opens the objective page, while a
   seed and an archived objective have no page of their own and open the item

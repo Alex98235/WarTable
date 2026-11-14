@@ -178,14 +178,9 @@
 				actor: ACTOR,
 				rowVersion: objective.rowVersion
 			});
-			addToast(
-				planState === 'Ready'
-					? 'Objective released.'
-					: planState === 'Seed'
-						? 'Objective moved back to a seed.'
-						: 'Objective moved to the backlog.',
-				'success'
-			);
+			const stateLabel =
+				planState === 'Seed' ? 'a seed' : planState === 'Backlog' ? 'the backlog' : 'Ready';
+			addToast(`Moved to ${stateLabel}.`, 'success');
 			await load({ silent: true });
 		} catch (err) {
 			if (isConflict(err)) {
@@ -445,9 +440,9 @@
 				</div>
 				<p class="control-hint">
 					{objective.planState === 'Seed'
-						? 'Seed: an unfinished thought. Promote it to move it into the backlog.'
+						? 'Seed: an unfinished thought.'
 						: objective.planState === 'Backlog'
-							? 'Backlog: a plan, visible but deliberately not released.'
+							? 'Backlog: a plan, not ready yet.'
 							: 'Ready: open, unblocked steps may be taken.'}
 				</p>
 			</div>

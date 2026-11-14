@@ -187,7 +187,7 @@
 			<section class="panel reveal" style="--i: 1">
 				<header class="panel-head">
 					<div class="panel-heading">
-						<p class="eyebrow">Always in play</p>
+						<p class="eyebrow">Always applied</p>
 						<h2 class="panel-title">Active preferences</h2>
 						<p class="panel-subtitle">
 							Applied to every campaign, in every agent session.

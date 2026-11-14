@@ -2229,7 +2229,7 @@ img {
 	font-weight: 750;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
-	color: var(--ink-soft);
+	color: var(--brass-deep);
 }
 
 .tier-count {
@@ -2531,10 +2531,7 @@ img {
 	margin-top: 20px;
 	padding-top: 16px;
 	border-top: 1px dashed var(--line);
-}
-
-.seeds-band .tier-title {
-	color: var(--ink-muted);
+	margin-left: 0;
 }
 
 .seeds-band .capture-strip {
@@ -2556,6 +2553,7 @@ img {
 .objective-node {
 	position: relative;
 	padding: 18px 0 18px 28px;
+	margin-left: 10px;
 	border-top: 1px solid var(--line);
 	transition:
 		background-color 0.5s var(--ease-out),
@@ -2637,12 +2635,6 @@ img {
 	flex-wrap: wrap;
 	gap: 6px;
 	margin-top: 6px;
-}
-
-.calm-note {
-	font-size: 0.76rem;
-	font-style: italic;
-	color: var(--ink-muted);
 }
 
 .objective-actions {
