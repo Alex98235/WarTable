@@ -890,37 +890,15 @@
 					<div class="panel-heading">
 						<p class="eyebrow">The plan</p>
 						<h2 class="panel-title">Objectives &amp; steps</h2>
-						<p class="panel-subtitle">
-							What is in play first, then the backlog, then seeds and what is
-							finished.
-						</p>
 					</div>
 					<div class="panel-head-actions">
 						<button
 							type="button"
-							class="btn btn-ghost btn-sm"
+							class="btn btn-primary btn-sm"
 							onclick={openObjectiveModal}>+ Objective</button
 						>
 					</div>
 				</header>
-
-				{#if planObjectives.length === 0 && seedObjectives.length === 0}
-					<div class="calm-state">
-						<span class="calm-mark" aria-hidden="true">◇</span>
-						<div>
-							<h3>No objectives yet.</h3>
-							<p>
-								Add the first durable outcome, then break it into steps agents can
-								pull.
-							</p>
-							<button
-								type="button"
-								class="btn btn-primary btn-sm"
-								onclick={openObjectiveModal}>Add an objective</button
-							>
-						</div>
-					</div>
-				{/if}
 
 				{#snippet objectiveRow(objective, index, movable)}
 					{@const progress = stepProgress(objective.steps)}
@@ -1119,51 +1097,46 @@
 					</article>
 				{/snippet}
 
-				{#if planObjectives.length > 0}
-					<section class="plan-tier">
-						<header class="tier-head">
-							<h3 class="tier-title">In play</h3>
-							{#if inPlayObjectives.length > 0}
-								<span class="tier-count">{inPlayObjectives.length}</span>
-							{/if}
-							<span class="tier-hint">Ready and in progress</span>
-						</header>
-						{#if inPlayObjectives.length === 0}
-							<p class="tier-empty">
-								Nothing in play. Release a backlog objective below, or add an
-								objective. Seeds wait in their own band until you promote one.
-							</p>
-						{:else}
-							<div class="plan-tree">
-								{#each inPlayObjectives as objective, index (objective.id)}
-									{@render objectiveRow(objective, index, true)}
-								{/each}
-							</div>
+				<section class="plan-tier">
+					<header class="tier-head">
+						<h3 class="tier-title">In play</h3>
+						{#if inPlayObjectives.length > 0}
+							<span class="tier-count">{inPlayObjectives.length}</span>
 						{/if}
-					</section>
+						<span class="tier-hint">Ready and in progress</span>
+					</header>
+					{#if inPlayObjectives.length === 0}
+						<p class="tier-empty">Nothing in play.</p>
+					{:else}
+						<div class="plan-tree">
+							{#each inPlayObjectives as objective, index (objective.id)}
+								{@render objectiveRow(objective, index, true)}
+							{/each}
+						</div>
+					{/if}
+				</section>
 
-					<section class="plan-tier">
-						<header class="tier-head">
-							<h3 class="tier-title">Backlog</h3>
-							{#if backlogObjectives.length > 0}
-								<span class="tier-count">{backlogObjectives.length}</span>
-							{/if}
-							<span class="tier-hint">Committed work, not released yet</span>
-						</header>
-
-						{#if backlogObjectives.length === 0}
-							<p class="tier-empty">
-								Nothing in the backlog. Promote a seed, or add an objective.
-							</p>
-						{:else}
-							<div class="plan-tree">
-								{#each backlogObjectives as objective, index (objective.id)}
-									{@render objectiveRow(objective, index, false)}
-								{/each}
-							</div>
+				<section class="plan-tier">
+					<header class="tier-head">
+						<h3 class="tier-title">Backlog</h3>
+						{#if backlogObjectives.length > 0}
+							<span class="tier-count">{backlogObjectives.length}</span>
 						{/if}
-					</section>
-				{/if}
+						<span class="tier-hint">Committed work, not released yet</span>
+					</header>
+
+					{#if backlogObjectives.length === 0}
+						<p class="tier-empty">
+							Nothing in the backlog. Promote a seed, or add an objective.
+						</p>
+					{:else}
+						<div class="plan-tree">
+							{#each backlogObjectives as objective, index (objective.id)}
+								{@render objectiveRow(objective, index, false)}
+							{/each}
+						</div>
+					{/if}
+				</section>
 
 				<section class="plan-tier seeds-band">
 					<header class="tier-head">

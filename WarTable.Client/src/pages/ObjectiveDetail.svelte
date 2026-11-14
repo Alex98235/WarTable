@@ -414,7 +414,9 @@
 			<div class="page-actions">
 				{#if refreshing}<span class="sync-note">Syncing…</span>{/if}
 				<button type="button" class="btn btn-secondary" onclick={openEdit}>Edit</button>
-				<button type="button" class="btn btn-primary" onclick={openAddStep}>+ Step</button>
+				<button type="button" class="btn btn-ghost danger-hover" onclick={archiveObjective}
+					>Archive</button
+				>
 			</div>
 		</div>
 
@@ -727,22 +729,13 @@
 						/>
 					</div>
 				</div>
-				<div class="modal-actions spread">
-					<button
-						type="button"
-						class="btn btn-ghost danger-hover"
-						onclick={archiveObjective}>Archive objective</button
+				<div class="modal-actions">
+					<button type="button" class="btn btn-ghost" onclick={() => (editing = false)}
+						>Cancel</button
 					>
-					<span class="modal-actions-group">
-						<button
-							type="button"
-							class="btn btn-ghost"
-							onclick={() => (editing = false)}>Cancel</button
-						>
-						<button type="submit" class="btn btn-primary" disabled={saving}>
-							{saving ? 'Saving…' : 'Save objective'}
-						</button>
-					</span>
+					<button type="submit" class="btn btn-primary" disabled={saving}>
+						{saving ? 'Saving…' : 'Save objective'}
+					</button>
 				</div>
 			</form>
 		</div>
