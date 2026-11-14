@@ -20,7 +20,6 @@
 	import Markdown from '../components/Markdown.svelte';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
-	import SeedPreview from '../components/SeedPreview.svelte';
 
 	let { route } = $props();
 	let campaignId = $derived(route.params.id);
@@ -41,6 +40,8 @@
 
 	let finishedOpen = $state(false);
 	let finishedInitialized = false;
+
+	let archivedOpen = $state(false);
 
 	let railSearch = $state('');
 
@@ -67,34 +68,38 @@
 		planState: 'Backlog'
 	});
 	let objectiveEditSaving = $state(false);
-	let shapingSeed = $state(false);
 
 	let seedForm = $state({ title: '', description: '' });
 	let seedDetailOpen = $state(false);
 	let seedSaving = $state(false);
 	let seedInputEl = $state(null);
 
-	// Capture feedback. `parkedSeed` drives the inline confirmation in the strip;
-	// `highlightSeedId` drives the row flash. Both are set only by a park from
-	// this client, never derived from updatedAt, so a live update from another
-	// device cannot make an old seed look new.
-	let parkedSeed = $state(null);
-	let highlightSeedId = $state(null);
-	let parkedTimer = null;
-	let highlightTimer = null;
+	// One seed expands at a time. The row is the editor: promoting leaves the
+	// thought alone, and saving keeps it a Seed.
+	let openSeedId = $state(null);
+	let seedEditForm = $state({ title: '', description: '' });
+	let seedEditSaving = $state(false);
 
-	let previewSeed = $state(null);
-	let seedOpener = null;
+	// The list carries archived rows too, so restore and purge have a read path.
+	// Everything the plan renders is live; the archived band is the only consumer
+	// of the rest.
+	let liveObjectives = $derived(objectives.filter((objective) => !objective.deletedAt));
+
+	let archivedObjectives = $derived(
+		objectives
+			.filter((objective) => objective.deletedAt)
+			.sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)))
+	);
 
 	let seedObjectives = $derived(
-		objectives
+		liveObjectives
 			.filter((objective) => objective.planState === 'Seed')
 			.map((objective) => objectiveDetails[objective.id] || objective)
 			.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))
 	);
 
 	let planObjectives = $derived(
-		[...objectives]
+		[...liveObjectives]
 			.filter((objective) => objective.planState !== 'Seed')
 			.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 			.map((objective) => objectiveDetails[objective.id] || objective)
@@ -171,7 +176,7 @@
 		try {
 			const [campaignData, objectiveData, noteData, prefData] = await Promise.all([
 				apiGet(`/api/campaigns/${campaignId}`),
-				apiGet('/api/objectives', { campaignId }),
+				apiGet('/api/objectives', { campaignId, includeArchived: 'true' }),
 				apiGet('/api/notes', { campaignId }),
 				apiGet('/api/preferences').catch(() => [])
 			]);
@@ -183,8 +188,11 @@
 			objectives = Array.isArray(objectiveData) ? objectiveData : [];
 			preferences = Array.isArray(prefData) ? prefData.filter((p) => p.active) : [];
 
+			// Archived objectives have no detail route: the single-objective read
+			// filters them out. The list row is all the archived band needs.
+			const live = objectives.filter((objective) => !objective.deletedAt);
 			const details = await Promise.all(
-				objectives.map((objective) =>
+				live.map((objective) =>
 					apiGet(`/api/objectives/${objective.id}`).catch(() => objective)
 				)
 			);
@@ -268,7 +276,8 @@
 					async () => {
 						editingCampaign = false;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -302,7 +311,8 @@
 					async () => {
 						editingCharter = false;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -326,7 +336,7 @@
 					rowVersion: campaign?.rowVersion
 				}
 			);
-			addToast(archived ? 'Campaign archived.' : 'Campaign restored.', 'success');
+			addToast(archived ? 'Archived.' : 'Restored.', 'success');
 			editingCampaign = false;
 			await load({ silent: true });
 		} catch (err) {
@@ -377,22 +387,11 @@
 	}
 
 	function openObjectiveEdit(objective) {
-		shapingSeed = false;
 		editingObjective = objective;
 		objectiveEditForm = {
 			title: objective.title || '',
 			description: objective.description || '',
 			planState: objective.planState || 'Backlog'
-		};
-	}
-
-	function shapeSeed(seed) {
-		shapingSeed = true;
-		editingObjective = seed;
-		objectiveEditForm = {
-			title: seed.title || '',
-			description: seed.description || '',
-			planState: 'Backlog'
 		};
 	}
 
@@ -408,9 +407,8 @@
 				actor: ACTOR,
 				rowVersion: editingObjective.rowVersion
 			});
-			addToast(shapingSeed ? 'Seed shaped into the plan.' : 'Objective updated.', 'success');
+			addToast('Objective updated.', 'success');
 			editingObjective = null;
-			shapingSeed = false;
 			expansionInitialized = false;
 			await load({ silent: true });
 		} catch (err) {
@@ -419,9 +417,9 @@
 					'This objective was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
 					async () => {
 						editingObjective = null;
-						shapingSeed = false;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -435,7 +433,7 @@
 		event.preventDefault();
 		seedSaving = true;
 		try {
-			const created = await apiPost('/api/objectives', {
+			await apiPost('/api/objectives', {
 				campaignId,
 				title: seedForm.title.trim(),
 				description: seedForm.description,
@@ -445,7 +443,8 @@
 			seedForm = { title: '', description: '' };
 			seedDetailOpen = false;
 			await load({ silent: true });
-			announceParked(created);
+			// The input sits at the head of the band, so the new row appearing
+			// directly below it is the confirmation. No toast, no flash.
 			seedInputEl?.focus();
 		} catch (err) {
 			addToast(err.message || 'Could not park the thought.', 'error');
@@ -454,82 +453,67 @@
 		}
 	}
 
-	/**
-	 * The confirmation names the alias and the destination, because the seed
-	 * lands in Parked, which is often below the fold. It replaces the success
-	 * toast: a toast 400px above the list cannot answer "did that work?".
-	 */
-	function announceParked(seed) {
-		parkedSeed = { id: seed.id, alias: seed.alias };
-		clearTimeout(parkedTimer);
-		parkedTimer = setTimeout(() => (parkedSeed = null), 8000);
-		highlightSeed(seed.id);
+	function toggleSeed(seed) {
+		if (openSeedId === seed.id) {
+			openSeedId = null;
+			return;
+		}
+		openSeedId = seed.id;
+		seedEditForm = {
+			title: seed.title || '',
+			description: seed.description || ''
+		};
 	}
 
-	function highlightSeed(id) {
-		highlightSeedId = id;
-		clearTimeout(highlightTimer);
-		highlightTimer = setTimeout(() => (highlightSeedId = null), 2400);
+	async function saveSeedEdit(event) {
+		event.preventDefault();
+		const seed = seedObjectives.find((candidate) => candidate.id === openSeedId);
+		if (!seed) return;
+		seedEditSaving = true;
+		try {
+			await apiPut(`/api/objectives/${seed.id}`, {
+				title: seedEditForm.title.trim(),
+				description: seedEditForm.description,
+				planState: 'Seed',
+				actor: ACTOR,
+				rowVersion: seed.rowVersion
+			});
+			addToast('Seed updated.', 'success');
+			openSeedId = null;
+			await load({ silent: true });
+		} catch (err) {
+			if (isConflict(err)) {
+				showConfirm(
+					'This seed was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
+					async () => {
+						openSeedId = null;
+						await load();
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
+				);
+				return;
+			}
+			addToast(err.message || 'Could not update the seed.', 'error');
+		} finally {
+			seedEditSaving = false;
+		}
 	}
 
-	function dismissParked() {
-		if (!parkedSeed) return;
-		clearTimeout(parkedTimer);
-		parkedSeed = null;
+	function promoteSeed(seed) {
+		setPlanState(seed, 'Backlog', 'Promoted to the backlog.');
 	}
 
-	// No auto-scroll on park: it would yank a reader past the work they were
-	// looking at. The confirmation offers the jump instead.
-	function showParked() {
-		if (!parkedSeed) return;
-		const row = document.getElementById(`seed-${parkedSeed.id}`);
-		if (!row) return;
-		row.scrollIntoView({ block: 'center', behavior: 'smooth' });
-		highlightSeed(parkedSeed.id);
-	}
-
-	function focusCapture() {
-		seedInputEl?.focus();
-	}
-
-	function openSeedPreview(seed, opener) {
-		seedOpener = opener || null;
-		previewSeed = seed;
-	}
-
-	function closeSeedPreview() {
-		previewSeed = null;
-		const opener = seedOpener;
-		seedOpener = null;
-		if (opener) requestAnimationFrame(() => opener.focus());
-	}
-
-	// Shaping and deleting both leave the preview for another surface, so they
-	// drop the opener instead of restoring focus to a row that is about to move.
-	function shapeFromPreview() {
-		const seed = previewSeed;
-		previewSeed = null;
-		seedOpener = null;
-		if (seed) shapeSeed(seed);
-	}
-
-	function deleteFromPreview() {
-		const seed = previewSeed;
-		previewSeed = null;
-		seedOpener = null;
-		if (seed) deleteSeed(seed);
-	}
-
-	function deleteSeed(seed) {
+	function archiveSeed(seed) {
 		showConfirm(
-			`Delete seed #${seed.alias} "${seed.title}"? This cannot be undone.`,
+			`Archive seed #${seed.alias} "${seed.title}"? It leaves the plan; the alias still resolves and you can restore it from Archived objectives.`,
 			async () => {
 				try {
-					await apiDelete(`/api/objectives/${seed.id}`, {
+					await apiPostAction(`/api/objectives/${seed.id}/archive`, {
 						actor: ACTOR,
 						rowVersion: seed.rowVersion
 					});
-					addToast('Seed deleted.', 'success');
+					addToast('Archived.', 'success');
+					openSeedId = null;
 					await load({ silent: true });
 				} catch (err) {
 					if (isConflict(err)) {
@@ -539,9 +523,106 @@
 						);
 						return;
 					}
-					addToast(err.message || 'Could not delete the seed.', 'error');
+					addToast(err.message || 'Could not archive the seed.', 'error');
 				}
 			}
+		);
+	}
+
+	function archiveObjective(objective) {
+		showConfirm(
+			`Archive objective #${objective.alias} "${objective.title}" and its steps? It leaves the plan; the alias still resolves and you can restore it from Archived objectives.`,
+			async () => {
+				try {
+					await apiPostAction(`/api/objectives/${objective.id}/archive`, {
+						actor: ACTOR,
+						rowVersion: objective.rowVersion
+					});
+					addToast('Archived.', 'success');
+					editingObjective = null;
+					await load({ silent: true });
+				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This objective was changed elsewhere. Reload to see the current state.',
+							'error'
+						);
+						return;
+					}
+					addToast(err.message || 'Could not archive the objective.', 'error');
+				}
+			}
+		);
+	}
+
+	async function restoreObjective(objective) {
+		try {
+			await apiPostAction(`/api/objectives/${objective.id}/restore`, {
+				actor: ACTOR,
+				rowVersion: objective.rowVersion
+			});
+			addToast('Restored.', 'success');
+			await load({ silent: true });
+		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This objective was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
+			addToast(err.message || 'Could not restore the objective.', 'error');
+		}
+	}
+
+	/**
+	 * The archived row carries no steps, and the single-objective read filters
+	 * archived rows out, so the scale of a purge is read from the step list.
+	 */
+	async function purgeObjective(objective) {
+		let scale = '';
+		try {
+			const rows = await apiGet('/api/steps', {
+				objectiveId: objective.id,
+				includeArchived: 'true'
+			});
+			const archivedSteps = (Array.isArray(rows) ? rows : []).filter(
+				(step) => step.deletedAt
+			);
+			const updates = archivedSteps.reduce(
+				(sum, step) => sum + (step.updates?.length || 0),
+				0
+			);
+			if (archivedSteps.length > 0) {
+				scale = ` and ${count(archivedSteps.length, 'step')}`;
+				if (updates > 0) scale += ` with ${count(updates, 'update')}`;
+			}
+		} catch {
+			scale = '';
+		}
+
+		showConfirm(
+			`Permanently delete objective #${objective.alias} "${objective.title}"${scale}? This cannot be undone.`,
+			async () => {
+				try {
+					await apiDelete(`/api/objectives/${objective.id}/permanent`, {
+						actor: ACTOR,
+						rowVersion: objective.rowVersion
+					});
+					addToast('Permanently deleted.', 'success');
+					await load({ silent: true });
+				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This objective was changed elsewhere. Reload to see the current state.',
+							'error'
+						);
+						return;
+					}
+					addToast(err.message || 'Could not delete the objective.', 'error');
+				}
+			},
+			{ confirmLabel: 'Delete permanently', holdMs: 6000 }
 		);
 	}
 
@@ -571,7 +652,7 @@
 		}
 	}
 
-	async function setPlanState(objective, planState) {
+	async function setPlanState(objective, planState, message) {
 		try {
 			await apiPut(`/api/objectives/${objective.id}`, {
 				planState,
@@ -579,7 +660,10 @@
 				rowVersion: objective.rowVersion
 			});
 			addToast(
-				planState === 'Ready' ? 'Objective released.' : 'Objective moved to the backlog.',
+				message ??
+					(planState === 'Ready'
+						? 'Objective released.'
+						: 'Objective moved to the backlog.'),
 				'success'
 			);
 			await load({ silent: true });
@@ -794,66 +878,14 @@
 
 	<div class="campaign-layout">
 		<div class="campaign-main">
-			<form class="capture-strip reveal" style="--i: 1" onsubmit={parkSeed}>
-				<div class="capture-strip-row">
-					<label class="capture-strip-label" for="seed-thought">Park a thought</label>
-					<input
-						id="seed-thought"
-						class="capture-input"
-						type="text"
-						placeholder="Something unfinished…"
-						bind:this={seedInputEl}
-						bind:value={seedForm.title}
-						oninput={dismissParked}
-						required
-					/>
-					<div class="capture-strip-actions">
-						<button
-							type="button"
-							class="text-toggle"
-							aria-expanded={seedDetailOpen}
-							onclick={() => (seedDetailOpen = !seedDetailOpen)}
-							>{seedDetailOpen ? 'Hide detail' : 'Add detail'}</button
-						>
-						<button type="submit" class="btn btn-ghost btn-sm" disabled={seedSaving}>
-							{seedSaving ? 'Parking…' : 'Park it'}
-						</button>
-					</div>
-				</div>
-				{#if parkedSeed}
-					<p class="capture-confirm" role="status">
-						<span class="capture-confirm-mark" aria-hidden="true">✓</span>
-						<span>Parked as #{parkedSeed.alias} — in Parked below</span>
-						<button type="button" class="text-toggle" onclick={showParked}
-							>Show it</button
-						>
-					</p>
-				{/if}
-				{#if seedDetailOpen}
-					<div class="capture-detail-wrap">
-						<label class="sr-only" for="seed-thought-detail">Detail</label>
-						<textarea
-							id="seed-thought-detail"
-							class="form-textarea capture-detail"
-							rows="3"
-							placeholder="Context, links, half-formed angles…"
-							bind:value={seedForm.description}></textarea>
-					</div>
-				{/if}
-				{#if seedObjectives.length === 0}
-					<p class="capture-hint">
-						A seed is a thought you are not ready to shape. It waits in Parked.
-					</p>
-				{/if}
-			</form>
-
-			<section class="panel plan-panel reveal" style="--i: 2">
+			<section class="panel plan-panel reveal" style="--i: 1">
 				<header class="panel-head">
 					<div class="panel-heading">
 						<p class="eyebrow">The plan</p>
 						<h2 class="panel-title">Objectives &amp; steps</h2>
 						<p class="panel-subtitle">
-							What is in play first, then parked work, then what is finished.
+							What is in play first, then the backlog, then seeds and what is
+							finished.
 						</p>
 					</div>
 					<div class="panel-head-actions">
@@ -881,208 +913,206 @@
 							>
 						</div>
 					</div>
-				{:else}
-					{#snippet objectiveRow(objective, index, movable)}
-						{@const progress = stepProgress(objective.steps)}
-						{@const isOpen = !!expanded[objective.id]}
-						<article
-							class="objective-node"
-							class:is-backlog={objective.planState === 'Backlog'}
-						>
-							<div class="objective-node-line" aria-hidden="true">
-								<span class="node-dot"></span>
-							</div>
+				{/if}
 
-							<div class="objective-row">
-								<div class="objective-main">
-									<div class="objective-title-line">
-										<span class="ref-chip large">#{objective.alias}</span>
-										<a class="objective-title" href={objectiveHref(objective)}
-											>{objective.title}</a
-										>
-									</div>
-									<div class="objective-badges">
-										<StatusBadge
-											status={objective.planState === 'Ready'
-												? objective.status || 'not-started'
-												: objective.planState}
-											sm
-										/>
-										{#if progress.flagged > 0}
-											<span class="chip chip-flag"
-												>{progress.flagged} flagged</span
-											>
-										{/if}
-										{#if progress.blocked > 0}
-											<span class="chip chip-blocked"
-												>{progress.blocked} blocked</span
-											>
-										{/if}
-										{#if objective.planState === 'Backlog'}
-											<span class="calm-note"
-												>Parked · not in the ready set</span
-											>
-										{/if}
-									</div>
+				{#snippet objectiveRow(objective, index, movable)}
+					{@const progress = stepProgress(objective.steps)}
+					{@const isOpen = !!expanded[objective.id]}
+					<article
+						class="objective-node"
+						class:is-backlog={objective.planState === 'Backlog'}
+					>
+						<div class="objective-node-line" aria-hidden="true">
+							<span class="node-dot"></span>
+						</div>
+
+						<div class="objective-row">
+							<div class="objective-main">
+								<div class="objective-title-line">
+									<span class="ref-chip large">#{objective.alias}</span>
+									<a class="objective-title" href={objectiveHref(objective)}
+										>{objective.title}</a
+									>
 								</div>
-
-								<div class="objective-actions">
-									{#if movable}
-										<button
-											type="button"
-											class="btn btn-ghost btn-icon btn-sm"
-											onclick={() => moveObjective(objective, -1)}
-											disabled={index === 0}
-											title="Move up"
-											aria-label="Move objective up">↑</button
-										>
-										<button
-											type="button"
-											class="btn btn-ghost btn-icon btn-sm"
-											onclick={() => moveObjective(objective, 1)}
-											disabled={index === inPlayObjectives.length - 1}
-											title="Move down"
-											aria-label="Move objective down">↓</button
+								<div class="objective-badges">
+									<StatusBadge
+										status={objective.planState === 'Ready'
+											? objective.status || 'not-started'
+											: objective.planState}
+										sm
+									/>
+									{#if progress.flagged > 0}
+										<span class="chip chip-flag"
+											>{progress.flagged} flagged</span
 										>
 									{/if}
+									{#if progress.blocked > 0}
+										<span class="chip chip-blocked"
+											>{progress.blocked} blocked</span
+										>
+									{/if}
+									{#if objective.planState === 'Backlog'}
+										<span class="calm-note">Not in the ready set</span>
+									{/if}
+								</div>
+							</div>
+
+							<div class="objective-actions">
+								{#if movable}
 									<button
 										type="button"
 										class="btn btn-ghost btn-icon btn-sm"
-										onclick={() => openObjectiveEdit(objective)}
-										title="Edit objective"
-										aria-label="Edit objective">✎</button
+										onclick={() => moveObjective(objective, -1)}
+										disabled={index === 0}
+										title="Move up"
+										aria-label="Move objective up">↑</button
 									>
-									{#if objective.planState === 'Backlog'}
-										<button
-											type="button"
-											class="btn btn-secondary btn-sm"
-											onclick={() => setPlanState(objective, 'Ready')}
-										>
-											Release
-										</button>
-									{:else}
-										<button
-											type="button"
-											class="btn btn-ghost btn-sm"
-											onclick={() => setPlanState(objective, 'Backlog')}
-										>
-											Park
-										</button>
-									{/if}
-								</div>
-							</div>
-
-							<div class="objective-progress-row">
-								<div class="progress-track slim" aria-hidden="true">
-									<span class="progress-fill" style="width: {progress.pct}%"
-									></span>
-								</div>
-								<span class="progress-numbers">
-									{progress.done}/{progress.total} steps
-								</span>
+									<button
+										type="button"
+										class="btn btn-ghost btn-icon btn-sm"
+										onclick={() => moveObjective(objective, 1)}
+										disabled={index === inPlayObjectives.length - 1}
+										title="Move down"
+										aria-label="Move objective down">↓</button
+									>
+								{/if}
 								<button
 									type="button"
-									class="text-toggle"
-									aria-expanded={isOpen}
-									onclick={() => toggleExpanded(objective.id)}
+									class="btn btn-ghost btn-icon btn-sm"
+									onclick={() => openObjectiveEdit(objective)}
+									title="Edit objective"
+									aria-label="Edit objective">✎</button
 								>
-									{isOpen
-										? 'Hide steps'
-										: `Show ${progress.total} step${progress.total === 1 ? '' : 's'}`}
-								</button>
-								<a class="text-link objective-open" href={objectiveHref(objective)}
-									>Open objective →</a
-								>
+								{#if objective.planState === 'Backlog'}
+									<button
+										type="button"
+										class="btn btn-secondary btn-sm"
+										onclick={() => setPlanState(objective, 'Ready')}
+									>
+										Release
+									</button>
+								{:else}
+									<button
+										type="button"
+										class="btn btn-ghost btn-sm"
+										onclick={() => setPlanState(objective, 'Backlog')}
+									>
+										Park
+									</button>
+								{/if}
 							</div>
+						</div>
 
-							{#if isOpen}
-								<div class="step-cluster">
-									{#if !objective.steps || objective.steps.length === 0}
-										<p class="micro-empty">
-											No steps yet. Open the objective to add the first atomic
-											unit of work.
-										</p>
-									{:else}
-										{#each objective.steps as step (step.id)}
-											{@const latest = latestUpdate(step)}
-											{@const deps = (step.dependsOn || []).filter(
-												(dep) => dep.status !== 'done'
-											)}
-											<div
-												class="step-line"
-												class:is-flagged={step.status === 'flagged'}
-											>
-												<div class="step-line-top">
-													<span class="step-ref"
-														>#{objective.alias}.{step.stepNumber}</span
-													>
-													<a
-														class="step-line-title"
-														href={objectiveHref(objective)}
-														>{step.title}</a
-													>
-													<StatusBadge status={step.status} sm />
-													<span class="step-line-spacer"></span>
-													<button
-														type="button"
-														class="btn btn-ghost btn-icon btn-xs"
-														class:flag-on={step.status === 'flagged'}
-														onclick={() => toggleFlag(step)}
-														title={step.status === 'flagged'
-															? 'Clear flag'
-															: 'Flag for human attention'}
-														aria-label={step.status === 'flagged'
-															? 'Clear flag'
-															: 'Flag step'}>!</button
-													>
-												</div>
-												<div class="step-line-meta">
-													{#if step.assignee}
-														<span class="assignee"
-															>@{actorLabel(step.assignee)}</span
-														>
-													{/if}
-													{#if deps.length > 0}
-														<span class="dep-inline">
-															waits on
-															{#each deps as dep (dep.stepId)}
-																<span class="dep-chip is-pending"
-																	>#{dep.objectiveAlias}.{dep.stepNumber}</span
-																>
-															{/each}
-														</span>
-													{:else if step.status === 'open' && objective.planState === 'Ready'}
-														<span class="chip chip-ready">ready</span>
-													{/if}
-													{#if step.updatedAt}<span title={step.updatedAt}
-															>updated {timeAgo(step.updatedAt)}</span
-														>{/if}
-												</div>
-												{#if latest}
-													<p class="step-line-latest">
-														<StatusBadge
-															status={latest.kind}
-															sm
-															tone={latest.kind === 'Blocker'
-																? 'blocked'
-																: latest.kind === 'Result'
-																	? 'done'
-																	: 'neutral'}
-														/>
-														<span>{plainText(latest.body, 150)}</span>
-														<span class="latest-time"
-															>{timeAgo(latest.createdAt)}</span
-														>
-													</p>
-												{/if}
+						<div class="objective-progress-row">
+							<div class="progress-track slim" aria-hidden="true">
+								<span class="progress-fill" style="width: {progress.pct}%"></span>
+							</div>
+							<span class="progress-numbers">
+								{progress.done}/{progress.total} steps
+							</span>
+							<button
+								type="button"
+								class="text-toggle"
+								aria-expanded={isOpen}
+								onclick={() => toggleExpanded(objective.id)}
+							>
+								{isOpen
+									? 'Hide steps'
+									: `Show ${progress.total} step${progress.total === 1 ? '' : 's'}`}
+							</button>
+							<a class="text-link objective-open" href={objectiveHref(objective)}
+								>Open objective →</a
+							>
+						</div>
+
+						{#if isOpen}
+							<div class="step-cluster">
+								{#if !objective.steps || objective.steps.length === 0}
+									<p class="micro-empty">
+										No steps yet. Open the objective to add the first atomic
+										unit of work.
+									</p>
+								{:else}
+									{#each objective.steps as step (step.id)}
+										{@const latest = latestUpdate(step)}
+										{@const deps = (step.dependsOn || []).filter(
+											(dep) => dep.status !== 'done'
+										)}
+										<div
+											class="step-line"
+											class:is-flagged={step.status === 'flagged'}
+										>
+											<div class="step-line-top">
+												<span class="step-ref"
+													>#{objective.alias}.{step.stepNumber}</span
+												>
+												<a
+													class="step-line-title"
+													href={objectiveHref(objective)}>{step.title}</a
+												>
+												<StatusBadge status={step.status} sm />
+												<span class="step-line-spacer"></span>
+												<button
+													type="button"
+													class="btn btn-ghost btn-icon btn-xs"
+													class:flag-on={step.status === 'flagged'}
+													onclick={() => toggleFlag(step)}
+													title={step.status === 'flagged'
+														? 'Clear flag'
+														: 'Flag for human attention'}
+													aria-label={step.status === 'flagged'
+														? 'Clear flag'
+														: 'Flag step'}>!</button
+												>
 											</div>
-										{/each}
-									{/if}
-								</div>
-							{/if}
-						</article>
-					{/snippet}
+											<div class="step-line-meta">
+												{#if step.assignee}
+													<span class="assignee"
+														>@{actorLabel(step.assignee)}</span
+													>
+												{/if}
+												{#if deps.length > 0}
+													<span class="dep-inline">
+														waits on
+														{#each deps as dep (dep.stepId)}
+															<span class="dep-chip is-pending"
+																>#{dep.objectiveAlias}.{dep.stepNumber}</span
+															>
+														{/each}
+													</span>
+												{:else if step.status === 'open' && objective.planState === 'Ready'}
+													<span class="chip chip-ready">ready</span>
+												{/if}
+												{#if step.updatedAt}<span title={step.updatedAt}
+														>updated {timeAgo(step.updatedAt)}</span
+													>{/if}
+											</div>
+											{#if latest}
+												<p class="step-line-latest">
+													<StatusBadge
+														status={latest.kind}
+														sm
+														tone={latest.kind === 'Blocker'
+															? 'blocked'
+															: latest.kind === 'Result'
+																? 'done'
+																: 'neutral'}
+													/>
+													<span>{plainText(latest.body, 150)}</span>
+													<span class="latest-time"
+														>{timeAgo(latest.createdAt)}</span
+													>
+												</p>
+											{/if}
+										</div>
+									{/each}
+								{/if}
+							</div>
+						{/if}
+					</article>
+				{/snippet}
 
+				{#if planObjectives.length > 0}
 					<section class="plan-tier">
 						<header class="tier-head">
 							<h3 class="tier-title">In play</h3>
@@ -1093,8 +1123,8 @@
 						</header>
 						{#if inPlayObjectives.length === 0}
 							<p class="tier-empty">
-								Nothing in play. Shape a seed or release a backlog objective below,
-								or add an objective.
+								Nothing in play. Release a backlog objective below, or add an
+								objective. Seeds wait in their own band until you promote one.
 							</p>
 						{:else}
 							<div class="plan-tree">
@@ -1105,88 +1135,20 @@
 						{/if}
 					</section>
 
-					<section class="plan-tier parked-tier">
+					<section class="plan-tier">
 						<header class="tier-head">
-							<h3 class="tier-title">Parked</h3>
-							{#if seedObjectives.length + backlogObjectives.length > 0}
-								<span class="tier-count"
-									>{seedObjectives.length + backlogObjectives.length}</span
-								>
+							<h3 class="tier-title">Backlog</h3>
+							{#if backlogObjectives.length > 0}
+								<span class="tier-count">{backlogObjectives.length}</span>
 							{/if}
-							<span class="tier-hint">Backlog and seeds — not in the ready set</span>
+							<span class="tier-hint">Committed work, not released yet</span>
 						</header>
 
-						{#if seedObjectives.length === 0 && backlogObjectives.length === 0}
+						{#if backlogObjectives.length === 0}
 							<p class="tier-empty">
-								Nothing parked. A thought captured
-								<button type="button" class="text-toggle" onclick={focusCapture}
-									>above</button
-								>
-								waits here until it is shaped.
+								Nothing in the backlog. Promote a seed, or add an objective.
 							</p>
-						{/if}
-
-						{#if seedObjectives.length > 0}
-							<div class="plan-tree">
-								{#each seedObjectives as seed (seed.id)}
-									<article
-										id={`seed-${seed.id}`}
-										class="objective-node is-seed"
-										class:is-new={highlightSeedId === seed.id}
-									>
-										<div class="objective-node-line" aria-hidden="true">
-											<span class="node-dot"></span>
-										</div>
-										<div class="objective-row">
-											<div class="objective-main">
-												<div class="objective-title-line">
-													<span class="ref-chip large">#{seed.alias}</span
-													>
-													<button
-														type="button"
-														class="objective-title is-link"
-														onclick={(event) =>
-															openSeedPreview(
-																seed,
-																event.currentTarget
-															)}>{seed.title}</button
-													>
-												</div>
-												<div class="objective-badges">
-													<StatusBadge status="Seed" sm />
-													<span class="row-meta"
-														>updated {timeAgo(seed.updatedAt)}</span
-													>
-												</div>
-												{#if seed.description}
-													<p class="seed-excerpt">
-														{plainText(seed.description, 140)}
-													</p>
-												{/if}
-											</div>
-											<div class="objective-actions">
-												<button
-													type="button"
-													class="btn btn-secondary btn-sm"
-													onclick={() => shapeSeed(seed)}
-												>
-													Shape
-												</button>
-												<button
-													type="button"
-													class="btn btn-ghost btn-sm"
-													onclick={() => deleteSeed(seed)}
-												>
-													Delete
-												</button>
-											</div>
-										</div>
-									</article>
-								{/each}
-							</div>
-						{/if}
-
-						{#if backlogObjectives.length > 0}
+						{:else}
 							<div class="plan-tree">
 								{#each backlogObjectives as objective, index (objective.id)}
 									{@render objectiveRow(objective, index, false)}
@@ -1194,62 +1156,261 @@
 							</div>
 						{/if}
 					</section>
+				{/if}
 
-					{#if finishedObjectives.length > 0}
-						<section class="plan-tier finished-tier">
-							<h3 class="sr-only">Completed</h3>
-							<button
-								type="button"
-								class="tier-head tier-toggle"
-								aria-expanded={finishedOpen}
-								aria-controls="finished-list"
-								onclick={() => (finishedOpen = !finishedOpen)}
+				<section class="plan-tier seeds-band">
+					<header class="tier-head">
+						<h3 class="tier-title">Seeds</h3>
+						{#if seedObjectives.length > 0}
+							<span class="tier-count">{seedObjectives.length}</span>
+						{/if}
+						<span class="tier-hint"
+							>Captured thoughts. Promote one to move it into the backlog.</span
+						>
+					</header>
+
+					<form class="capture-strip" onsubmit={parkSeed}>
+						<div class="capture-strip-row">
+							<label class="capture-strip-label" for="seed-thought"
+								>Park a thought</label
 							>
-								<svg
-									class="tier-caret"
-									viewBox="0 0 16 16"
-									width="14"
-									height="14"
-									aria-hidden="true"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.75"
-									stroke-linecap="round"
-									stroke-linejoin="round"
+							<input
+								id="seed-thought"
+								class="capture-input"
+								type="text"
+								placeholder="Something unfinished…"
+								bind:this={seedInputEl}
+								bind:value={seedForm.title}
+								required
+							/>
+							<div class="capture-strip-actions">
+								<button
+									type="button"
+									class="text-toggle"
+									aria-expanded={seedDetailOpen}
+									onclick={() => (seedDetailOpen = !seedDetailOpen)}
+									>{seedDetailOpen ? 'Hide detail' : 'Add detail'}</button
 								>
-									<path d="M6 3.5 10.5 8 6 12.5" />
-								</svg>
-								<span class="tier-title">Completed</span>
-								<span class="tier-count">{finishedObjectives.length}</span>
-							</button>
-							{#if finishedOpen}
-								<ul class="finished-list" id="finished-list">
-									{#each finishedObjectives as objective (objective.id)}
-										<li class="finished-row">
-											<a
-												class="finished-link"
-												href={objectiveHref(objective)}
-												aria-label={`#${objective.alias} ${objective.title}`}
-												title={objective.title}
+								<button
+									type="submit"
+									class="btn btn-ghost btn-sm"
+									disabled={seedSaving}
+								>
+									{seedSaving ? 'Parking…' : 'Park it'}
+								</button>
+							</div>
+						</div>
+						{#if seedDetailOpen}
+							<div class="capture-detail-wrap">
+								<label class="sr-only" for="seed-thought-detail">Detail</label>
+								<textarea
+									id="seed-thought-detail"
+									class="form-textarea capture-detail"
+									rows="3"
+									placeholder="Context, links, half-formed angles…"
+									bind:value={seedForm.description}></textarea>
+							</div>
+						{/if}
+					</form>
+
+					{#if seedObjectives.length === 0}
+						<p class="tier-empty">Nothing captured yet.</p>
+					{:else}
+						<ul class="seed-list">
+							{#each seedObjectives as seed (seed.id)}
+								{@const isOpen = openSeedId === seed.id}
+								<li class="seed-row">
+									<div class="seed-row-main">
+										<span class="ref-chip">#{seed.alias}</span>
+										<button
+											type="button"
+											class="seed-title"
+											aria-expanded={isOpen}
+											aria-controls="seed-editor-{seed.id}"
+											onclick={() => toggleSeed(seed)}>{seed.title}</button
+										>
+										<span class="row-meta"
+											>updated {timeAgo(seed.updatedAt)}</span
+										>
+									</div>
+									{#if seed.description && !isOpen}
+										<p class="seed-line">
+											{plainText(seed.description, 120)}
+										</p>
+									{/if}
+									<div class="seed-row-actions">
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm"
+											onclick={() => promoteSeed(seed)}>Promote</button
+										>
+									</div>
+									{#if isOpen}
+										<form
+											id="seed-editor-{seed.id}"
+											class="seed-editor"
+											onsubmit={saveSeedEdit}
+										>
+											<label class="sr-only" for="seed-title-{seed.id}"
+												>Seed title</label
 											>
-												<span class="ref-chip">#{objective.alias}</span>
-												<span class="finished-title">{objective.title}</span
+											<input
+												id="seed-title-{seed.id}"
+												class="form-input"
+												type="text"
+												bind:value={seedEditForm.title}
+												required
+											/>
+											<label class="sr-only" for="seed-body-{seed.id}"
+												>Seed detail</label
+											>
+											<MarkdownEditor
+												id="seed-body-{seed.id}"
+												bind:value={seedEditForm.description}
+												{campaignId}
+												rows={4}
+											/>
+											<div class="seed-editor-actions">
+												<button
+													type="button"
+													class="btn btn-ghost btn-sm danger-hover"
+													onclick={() => archiveSeed(seed)}
+													>Archive seed</button
 												>
-												<span class="finished-meta"
-													>completed · last activity {timeAgo(
-														objective.updatedAt
-													)}</span
+												<span class="seed-editor-spacer"></span>
+												<button
+													type="button"
+													class="btn btn-ghost btn-sm"
+													onclick={() => (openSeedId = null)}
+													>Cancel</button
 												>
-												<span class="finished-arrow" aria-hidden="true"
-													>→</span
+												<button
+													type="submit"
+													class="btn btn-primary btn-sm"
+													disabled={seedEditSaving}
+													>{seedEditSaving
+														? 'Saving…'
+														: 'Save seed'}</button
 												>
-											</a>
-										</li>
-									{/each}
-								</ul>
-							{/if}
-						</section>
+											</div>
+										</form>
+									{/if}
+								</li>
+							{/each}
+						</ul>
 					{/if}
+				</section>
+
+				{#if finishedObjectives.length > 0}
+					<section class="plan-tier finished-tier">
+						<h3 class="sr-only">Completed</h3>
+						<button
+							type="button"
+							class="tier-head tier-toggle"
+							aria-expanded={finishedOpen}
+							aria-controls="finished-list"
+							onclick={() => (finishedOpen = !finishedOpen)}
+						>
+							<svg
+								class="tier-caret"
+								viewBox="0 0 16 16"
+								width="14"
+								height="14"
+								aria-hidden="true"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.75"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M6 3.5 10.5 8 6 12.5" />
+							</svg>
+							<span class="tier-title">Completed</span>
+							<span class="tier-count">{finishedObjectives.length}</span>
+						</button>
+						{#if finishedOpen}
+							<ul class="finished-list" id="finished-list">
+								{#each finishedObjectives as objective (objective.id)}
+									<li class="finished-row">
+										<a
+											class="finished-link"
+											href={objectiveHref(objective)}
+											aria-label={`#${objective.alias} ${objective.title}`}
+											title={objective.title}
+										>
+											<span class="ref-chip">#{objective.alias}</span>
+											<span class="finished-title">{objective.title}</span>
+											<span class="finished-meta"
+												>completed · last activity {timeAgo(
+													objective.updatedAt
+												)}</span
+											>
+											<span class="finished-arrow" aria-hidden="true">→</span>
+										</a>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</section>
+				{/if}
+
+				{#if archivedObjectives.length > 0}
+					<section class="plan-tier finished-tier archived-tier">
+						<h3 class="sr-only">Archived objectives</h3>
+						<button
+							type="button"
+							class="tier-head tier-toggle"
+							aria-expanded={archivedOpen}
+							aria-controls="archived-list"
+							onclick={() => (archivedOpen = !archivedOpen)}
+						>
+							<svg
+								class="tier-caret"
+								viewBox="0 0 16 16"
+								width="14"
+								height="14"
+								aria-hidden="true"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.75"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							>
+								<path d="M6 3.5 10.5 8 6 12.5" />
+							</svg>
+							<span class="tier-title">Archived objectives</span>
+							<span class="tier-count">{archivedObjectives.length}</span>
+						</button>
+						{#if archivedOpen}
+							<ul class="finished-list" id="archived-list">
+								{#each archivedObjectives as objective (objective.id)}
+									<li class="finished-row">
+										<div class="archived-row">
+											<span class="ref-chip">#{objective.alias}</span>
+											<span class="finished-title">{objective.title}</span>
+											<span class="finished-meta"
+												>archived {timeAgo(objective.deletedAt)}</span
+											>
+											<span class="archived-actions">
+												<button
+													type="button"
+													class="btn btn-ghost btn-sm"
+													onclick={() => restoreObjective(objective)}
+													>Restore</button
+												>
+												<button
+													type="button"
+													class="btn btn-ghost btn-sm danger-hover"
+													onclick={() => purgeObjective(objective)}
+													>Delete permanently</button
+												>
+											</span>
+										</div>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</section>
 				{/if}
 			</section>
 		</div>
@@ -1595,22 +1756,12 @@
 				<div class="modal-header">
 					<div>
 						<p class="eyebrow">#{editingObjective.alias}</p>
-						<h2 id="edit-objective-inline-title">
-							{shapingSeed ? 'Shape this seed' : 'Edit objective'}
-						</h2>
-						{#if shapingSeed}
-							<p class="panel-subtitle">
-								Saving moves it out of the seed pile and into your plan.
-							</p>
-						{/if}
+						<h2 id="edit-objective-inline-title">Edit objective</h2>
 					</div>
 					<button
 						type="button"
 						class="modal-close"
-						onclick={() => {
-							editingObjective = null;
-							shapingSeed = false;
-						}}
+						onclick={() => (editingObjective = null)}
 						aria-label="Close">×</button
 					>
 				</div>
@@ -1648,27 +1799,28 @@
 						</select>
 					</div>
 				</div>
-				<div class="modal-actions">
+				<div class="modal-actions spread">
 					<button
 						type="button"
-						class="btn btn-ghost"
-						onclick={() => (editingObjective = null)}>Cancel</button
+						class="btn btn-ghost danger-hover"
+						onclick={() => archiveObjective(editingObjective)}>Archive objective</button
 					>
-					<button type="submit" class="btn btn-primary" disabled={objectiveEditSaving}>
-						{objectiveEditSaving ? 'Saving…' : 'Save objective'}
-					</button>
+					<span class="modal-actions-group">
+						<button
+							type="button"
+							class="btn btn-ghost"
+							onclick={() => (editingObjective = null)}>Cancel</button
+						>
+						<button
+							type="submit"
+							class="btn btn-primary"
+							disabled={objectiveEditSaving}
+						>
+							{objectiveEditSaving ? 'Saving…' : 'Save objective'}
+						</button>
+					</span>
 				</div>
 			</form>
 		</div>
 	</div>
-{/if}
-
-{#if previewSeed}
-	<SeedPreview
-		seed={previewSeed}
-		{campaignId}
-		onShape={shapeFromPreview}
-		onDelete={deleteFromPreview}
-		onClose={closeSeedPreview}
-	/>
 {/if}

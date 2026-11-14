@@ -7,6 +7,7 @@
 		apiDelete,
 		apiGet,
 		apiPost,
+		apiPostAction,
 		apiPut,
 		isConflict,
 		parseTags,
@@ -483,7 +484,8 @@
 					async () => {
 						editing = null;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -506,7 +508,8 @@
 			if (isConflict(err)) {
 				showConfirm(
 					'This note was changed elsewhere while you were editing. Your changes are not saved. Reload to see the current version?',
-					async () => await load()
+					async () => await load(),
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
@@ -514,16 +517,16 @@
 		}
 	}
 
-	function deleteNote(note) {
+	function archiveNote(note) {
 		showConfirm(
-			`Delete note #${note.alias} "${note.title}"? The alias will still resolve for history.`,
+			`Archive note #${note.alias} "${note.title}"? It leaves the Bunker; the alias still resolves. Turn on Show deleted to restore it.`,
 			async () => {
 				try {
-					await apiDelete(`/api/notes/${note.id}`, {
+					await apiPostAction(`/api/notes/${note.id}/archive`, {
 						actor: ACTOR,
 						rowVersion: note.rowVersion
 					});
-					addToast('Note deleted.', 'success');
+					addToast('Archived.', 'success');
 					go(`/campaign/${campaignId}/bunker`);
 					await load({ silent: true });
 				} catch (err) {
@@ -533,13 +536,63 @@
 							async () => {
 								go(`/campaign/${campaignId}/bunker`);
 								await load();
-							}
+							},
+							{ confirmLabel: 'Reload', tone: 'primary' }
+						);
+						return;
+					}
+					addToast(err.message || 'Could not archive the note.', 'error');
+				}
+			}
+		);
+	}
+
+	async function restoreNote(note) {
+		try {
+			await apiPostAction(`/api/notes/${note.id}/restore`, {
+				actor: ACTOR,
+				rowVersion: note.rowVersion
+			});
+			addToast('Restored.', 'success');
+			await load({ silent: true });
+		} catch (err) {
+			if (isConflict(err)) {
+				addToast(
+					'This note was changed elsewhere. Reload to see the current state.',
+					'error'
+				);
+				return;
+			}
+			addToast(err.message || 'Could not restore the note.', 'error');
+		}
+	}
+
+	function purgeNote(note) {
+		const links = note.links?.length || 0;
+		const scale = links > 0 ? ` and its ${links} link${links === 1 ? '' : 's'}` : '';
+		showConfirm(
+			`Permanently delete note #${note.alias} "${note.title}"${scale}? This cannot be undone.`,
+			async () => {
+				try {
+					await apiDelete(`/api/notes/${note.id}/permanent`, {
+						actor: ACTOR,
+						rowVersion: note.rowVersion
+					});
+					addToast('Permanently deleted.', 'success');
+					if (selectedNote?.id === note.id) go(`/campaign/${campaignId}/bunker`);
+					await load({ silent: true });
+				} catch (err) {
+					if (isConflict(err)) {
+						addToast(
+							'This note was changed elsewhere. Reload to see the current state.',
+							'error'
 						);
 						return;
 					}
 					addToast(err.message || 'Could not delete the note.', 'error');
 				}
-			}
+			},
+			{ confirmLabel: 'Delete permanently', holdMs: 6000 }
 		);
 	}
 
@@ -842,6 +895,21 @@
 											>{/if}
 									</span>
 								</a>
+								{#if note.deletedAt}
+									<div class="note-card-actions">
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm"
+											onclick={() => restoreNote(note)}>Restore</button
+										>
+										<button
+											type="button"
+											class="btn btn-ghost btn-sm danger-hover"
+											onclick={() => purgeNote(note)}
+											>Delete permanently</button
+										>
+									</div>
+								{/if}
 							</li>
 						{/each}
 					</ul>
@@ -874,30 +942,44 @@
 							<h1 class="note-detail-title">{selectedNote.title}</h1>
 						</div>
 						<div class="note-detail-actions">
-							<button
-								type="button"
-								class="btn btn-secondary btn-sm"
-								onclick={() => startEdit(selectedNote)}>Edit</button
-							>
-							<button
-								type="button"
-								class="btn btn-ghost btn-sm"
-								onclick={() => togglePin(selectedNote)}
-							>
-								{selectedNote.pinned ? 'Unpin' : 'Pin'}
-							</button>
-							<button
-								type="button"
-								class="btn btn-ghost btn-sm danger-hover"
-								onclick={() => deleteNote(selectedNote)}>Delete</button
-							>
+							{#if selectedNote.deletedAt}
+								<button
+									type="button"
+									class="btn btn-secondary btn-sm"
+									onclick={() => restoreNote(selectedNote)}>Restore</button
+								>
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm danger-hover"
+									onclick={() => purgeNote(selectedNote)}
+									>Delete permanently</button
+								>
+							{:else}
+								<button
+									type="button"
+									class="btn btn-secondary btn-sm"
+									onclick={() => startEdit(selectedNote)}>Edit</button
+								>
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm"
+									onclick={() => togglePin(selectedNote)}
+								>
+									{selectedNote.pinned ? 'Unpin' : 'Pin'}
+								</button>
+								<button
+									type="button"
+									class="btn btn-ghost btn-sm danger-hover"
+									onclick={() => archiveNote(selectedNote)}>Archive</button
+								>
+							{/if}
 						</div>
 					</header>
 
 					{#if selectedNote.deletedAt}
 						<div class="notice notice-danger">
-							This note is soft-deleted. The alias still resolves so old references
-							stay meaningful.
+							This note is archived. The alias still resolves so old references stay
+							meaningful. Restore it to bring it back into the Bunker.
 						</div>
 					{/if}
 

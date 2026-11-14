@@ -2194,37 +2194,6 @@ img {
 	font-size: 0.86rem;
 }
 
-.capture-confirm {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	flex-wrap: wrap;
-	margin: 0;
-	font-size: 0.8rem;
-	color: var(--brass-deep);
-}
-
-.capture-confirm-mark {
-	font-weight: 700;
-	color: var(--brass);
-}
-
-.capture-hint {
-	margin: 0;
-	font-size: 0.78rem;
-	font-style: italic;
-	color: var(--ink-muted);
-}
-
-.seed-excerpt {
-	margin: 5px 0 0;
-	font-size: 0.84rem;
-	line-height: 1.5;
-	color: var(--ink-muted);
-	overflow-wrap: anywhere;
-	max-width: 72ch;
-}
-
 /* ==========================================================================
    Plan tree
    ========================================================================== */
@@ -2451,6 +2420,168 @@ img {
 	transform: translateX(2px);
 }
 
+/* --- Archived band: same disclosure shape as Completed, with actions --- */
+
+.archived-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	min-height: 44px;
+	padding: 9px 10px;
+	color: var(--ink-soft);
+}
+
+.archived-row + .archived-row {
+	border-top: 1px solid var(--line);
+}
+
+.archived-row .finished-title {
+	flex: 1 1 auto;
+}
+
+.archived-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.archived-steps {
+	margin-top: 14px;
+	padding-top: 12px;
+	border-top: 1px dashed var(--line);
+}
+
+.archived-steps-toggle {
+	font-size: 0.8rem;
+}
+
+.archived-list {
+	display: flex;
+	flex-direction: column;
+	margin: 8px 0 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--paper-tint);
+}
+
+/* --- Seeds band: a capture inbox, not a tier of work --- */
+
+.seeds-band {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px dashed var(--line);
+}
+
+.seeds-band .tier-title {
+	color: var(--ink-muted);
+}
+
+.seeds-band .capture-strip {
+	margin-bottom: 4px;
+}
+
+.seed-list {
+	display: flex;
+	flex-direction: column;
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.seed-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	align-items: baseline;
+	gap: 2px 12px;
+	padding: 9px 0;
+	border-top: 1px solid var(--line);
+}
+
+.seed-row:first-child {
+	border-top: 0;
+}
+
+.seed-row-main {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.seed-title {
+	padding: 0;
+	border: 0;
+	background: none;
+	font-family: var(--font-body);
+	font-size: 0.92rem;
+	font-weight: 600;
+	line-height: 1.4;
+	color: var(--ink-soft);
+	text-align: left;
+	cursor: pointer;
+	overflow-wrap: anywhere;
+}
+
+.seed-title:hover {
+	color: var(--ink);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in srgb, var(--olive) 32%, transparent);
+	text-underline-offset: 3px;
+}
+
+.seed-title:focus-visible {
+	outline: 2px solid var(--olive);
+	outline-offset: 2px;
+	border-radius: var(--radius-xs);
+}
+
+.seed-line {
+	grid-column: 1;
+	margin: 0;
+	font-size: 0.82rem;
+	line-height: 1.5;
+	color: var(--ink-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 72ch;
+}
+
+.seed-row-actions {
+	grid-column: 2;
+	grid-row: 1;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-shrink: 0;
+}
+
+.seed-editor {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-top: 8px;
+	padding: 12px;
+	border: 1px solid var(--line);
+	border-radius: var(--radius-sm);
+	background: var(--paper-raised);
+}
+
+.seed-editor-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.seed-editor-spacer {
+	flex: 1 1 auto;
+}
+
 .plan-tree {
 	position: relative;
 }
@@ -2462,11 +2593,6 @@ img {
 	transition:
 		background-color 0.5s var(--ease-out),
 		box-shadow 0.5s var(--ease-out);
-}
-
-.objective-node.is-new {
-	background-color: color-mix(in srgb, var(--brass-tint) 55%, transparent);
-	box-shadow: inset 3px 0 0 var(--brass);
 }
 
 .objective-node:first-child {
@@ -2582,17 +2708,6 @@ img {
 
 .objective-node.is-backlog .progress-fill {
 	background: var(--line-strong);
-}
-
-.objective-node.is-seed .node-dot {
-	border-style: dashed;
-	border-color: var(--brass);
-}
-
-.objective-node.is-seed .objective-title {
-	font-size: 1.08rem;
-	font-weight: 550;
-	color: var(--ink-soft);
 }
 
 .objective-title.is-link {
@@ -3331,6 +3446,15 @@ a.evidence-value:hover {
 .note-card.is-deleted {
 	opacity: 0.62;
 	border-style: dashed;
+}
+
+/* Archived rows keep their actions outside the card link: a button inside an
+   anchor is not a control, it is a navigation. */
+.note-card-actions {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 2px 0;
 }
 
 .note-card-top {

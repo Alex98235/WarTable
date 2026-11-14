@@ -253,12 +253,12 @@
 					<div class="parked-head">
 						<div>
 							<p class="eyebrow">Seeds</p>
-							<h3>Seeds to shape</h3>
+							<h3>Captured thoughts</h3>
 						</div>
 						<span class="parked-count">{seeds.length}</span>
 					</div>
 					<p class="parked-hint">
-						Unfinished thoughts. Shape one into a plan; it lands in the backlog.
+						Unfinished thoughts. Promote one to move it into the backlog.
 					</p>
 					<div class="parked-list">
 						{#each seeds.slice(0, 3) as item (item.entityId)}

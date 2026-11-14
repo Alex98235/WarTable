@@ -12,7 +12,9 @@
 		return Math.max(0, Math.ceil((state.openedAt + state.holdMs - now) / 1000));
 	});
 	let held = $derived(($confirmState?.holdMs ?? 0) > 0 && remaining > 0);
-	let label = $derived($confirmState?.confirmLabel ?? 'Delete');
+	// The default is the reversible act. A call site that means the irreversible
+	// one passes its own label, so forgetting the option cannot arm a purge.
+	let label = $derived($confirmState?.confirmLabel ?? 'Archive');
 
 	$effect(() => {
 		if (!$confirmState?.holdMs) return;

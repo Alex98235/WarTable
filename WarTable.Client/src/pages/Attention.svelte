@@ -267,10 +267,10 @@
 				<header class="attention-group-head">
 					<div>
 						<p class="eyebrow">Unfinished thoughts · calm by design</p>
-						<h2 class="panel-title">Seeds to shape</h2>
+						<h2 class="panel-title">Seeds</h2>
 						<p class="panel-subtitle">
-							Seeds are visible to agents. Shape one into a plan; it lands in the
-							backlog until someone releases it.
+							Seeds are visible to agents. Promote one to move it into the backlog,
+							where it waits to be released.
 						</p>
 					</div>
 					<span class="inbox-count big">{filteredSeeds.length}</span>

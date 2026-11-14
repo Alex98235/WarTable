@@ -100,7 +100,8 @@
 					async () => {
 						editing = null;
 						await load();
-					}
+					},
+					{ confirmLabel: 'Reload', tone: 'primary' }
 				);
 				return;
 			}
