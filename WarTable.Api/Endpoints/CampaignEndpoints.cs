@@ -114,6 +114,9 @@ public static class CampaignEndpoints
 
 		MapArchivedRoute("/{id:guid}/archive", archived: true);
 		MapArchivedRoute("/{id:guid}/unarchive", archived: false);
+		// "restore" is the spelling every other kind uses; kept alongside the tool
+		// name unarchive_campaign, which agents already have.
+		MapArchivedRoute("/{id:guid}/restore", archived: false);
 
 		group.MapDelete("/{id:guid}", async (Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
 		{
@@ -136,5 +139,11 @@ public static class CampaignEndpoints
 				throw;
 			}
 		});
+
+		// Canonical spelling of the campaign hard delete. The DELETE /{id} above
+		// keeps its effect unchanged for anything already calling it.
+		group.MapDelete("/{id:guid}/permanent",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.DeleteCampaignAsync(id, Actor(actor), rowVersion)));
 	}
 }

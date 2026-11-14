@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using WarTable.Api.Models;
 using WarTable.Api.Services.Embeddings;
 
@@ -12,11 +13,14 @@ public record ObjectiveSummary(
 	string Description,
 	PlanState PlanState,
 	string Status,
-	DateTime UpdatedAt);
+	DateTime UpdatedAt,
+	[property: JsonPropertyName("rowVersion")] Guid RowVersion);
 
 /// <summary>
 /// Alias resolution plus a compact objective summary and its bounded knowledge context.
 /// Notes keep the original top-level fields and leave objective/knowledge null.
+/// The row version is what makes an archived object reachable: restore and purge
+/// both need it, and an archived object appears in no plan or list.
 /// </summary>
 public record AliasResolutionDetail(
 	string Kind,
@@ -27,7 +31,8 @@ public record AliasResolutionDetail(
 	int Alias,
 	ObjectiveSummary? Objective,
 	KnowledgeContext? Knowledge,
-	string? KnowledgeError = null);
+	string? KnowledgeError = null,
+	[property: JsonPropertyName("rowVersion")] Guid RowVersion = default);
 
 /// <summary>A resolved step with its bounded knowledge context.</summary>
 public record StepLookupDetail(
@@ -36,7 +41,7 @@ public record StepLookupDetail(
 	string? KnowledgeError = null);
 
 /// <summary>Outcome of a step delete, including any dependency edges removed.</summary>
-public record DeleteStepResult(bool Deleted, int RemovedDependencies);
+public record DeleteStepResult(bool Deleted, int RetainedDependencies);
 
 /// <summary>One actionable step in a briefing, flattened with its objective context.</summary>
 public record BriefingStep(

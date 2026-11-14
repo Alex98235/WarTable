@@ -58,7 +58,8 @@ public record AliasResolution(
 	string Title,
 	bool Deleted,
 	Guid CampaignId,
-	int Alias);
+	int Alias,
+	Guid RowVersion);
 
 /// <summary>Valid step statuses.</summary>
 public static class StepStatuses
@@ -516,9 +517,18 @@ public partial class WarTableService
 
 	// ── Objectives ──
 
-	public async Task<List<Objective>> GetObjectivesAsync(Guid? campaignId = null, bool includeNotReady = true)
+	public async Task<List<Objective>> GetObjectivesAsync(
+		Guid? campaignId = null,
+		bool includeNotReady = true,
+		bool includeArchived = false)
 	{
 		var query = _db.Objectives.AsNoTracking().AsQueryable();
+
+		// Archived objectives are listed alongside live ones, the way notes are
+		// with include_deleted: the caller filters. Restore and purge both need a
+		// read path, and a hidden row cannot be restored.
+		if (includeArchived)
+			query = query.IgnoreQueryFilters();
 
 		if (campaignId.HasValue)
 			query = query.Where(o => o.CampaignId == campaignId.Value);
@@ -662,8 +672,13 @@ public partial class WarTableService
 	}
 
 	/// <summary>
-	/// Soft delete. The row is retained so old <c>#N</c> references stay resolvable.
-	/// Child steps are soft-deleted as well.
+	/// Archive. The row is retained so old <c>#N</c> references stay resolvable,
+	/// and child steps are archived with it.
+	/// <para>
+	/// Dependency edges are kept rather than removed: an edge whose target is
+	/// archived no longer gates readiness, so archiving loosens the plan and
+	/// restoring tightens it back. Removing the edges would make restore lossy.
+	/// </para>
 	/// </summary>
 	public async Task<bool> DeleteObjectiveAsync(Guid id, string actor, Guid? rowVersion = null)
 	{
@@ -686,32 +701,121 @@ public partial class WarTableService
 			step.UpdatedAt = now;
 		}
 
-		// StepDependency uses Restrict. Clear edges touching the deleted steps so
-		// surviving steps are not left with dangling dependency references.
-		var stepIds = steps.Select(s => s.Id).ToList();
-		if (stepIds.Count > 0)
+		await RecordEventAsync(
+			objective.CampaignId, actor, ActivityEntityType.Objective, objective.Id,
+			"Deleted", $"Archived objective #{objective.Alias}: {objective.Title}",
+			new { objective_id = objective.Id, alias = objective.Alias });
+
+		return true;
+	}
+
+	/// <summary>
+	/// Restore an archived objective and the steps archived with it. Steps keep
+	/// their edges, so the graph comes back exactly as it was.
+	/// </summary>
+	public async Task<bool> RestoreObjectiveAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var objective = await _db.Objectives.IgnoreQueryFilters()
+			.FirstOrDefaultAsync(o => o.Id == id && o.DeletedAt != null);
+		if (objective is null)
+			return false;
+
+		ApplyConcurrencyToken(objective, rowVersion);
+
+		var now = DateTime.UtcNow;
+		var archivedAt = objective.DeletedAt;
+		objective.DeletedAt = null;
+		objective.UpdatedAt = now;
+
+		// The cascade stamped one timestamp on everything it archived. A step
+		// archived on its own before that keeps its own marker and stays archived.
+		var restored = await _db.Steps.IgnoreQueryFilters()
+			.Where(s => s.ObjectiveId == id && s.DeletedAt == archivedAt)
+			.ToListAsync();
+		foreach (var step in restored)
 		{
-			var dependencies = await _db.StepDependencies
-				.Where(d => stepIds.Contains(d.StepId) || stepIds.Contains(d.DependsOnStepId))
-				.ToListAsync();
-			_db.StepDependencies.RemoveRange(dependencies);
+			step.DeletedAt = null;
+			step.UpdatedAt = now;
 		}
+
+		var live = await _db.Steps.AsNoTracking()
+			.Where(s => s.ObjectiveId == id)
+			.ToListAsync();
+		objective.Status = DeriveObjectiveStatus(live.Concat(restored));
 
 		await RecordEventAsync(
 			objective.CampaignId, actor, ActivityEntityType.Objective, objective.Id,
-			"Deleted", $"Deleted objective #{objective.Alias}: {objective.Title}",
-			new { objective_id = objective.Id, alias = objective.Alias });
+			"Restored", $"Restored objective #{objective.Alias}: {objective.Title}",
+			new
+			{
+				objective_id = objective.Id,
+				alias = objective.Alias,
+				restored_steps = restored.Count,
+			});
+
+		return true;
+	}
+
+	/// <summary>
+	/// Human-only permanent delete. Removes the objective, its steps, their
+	/// updates and evidence, every dependency edge touching those steps, and any
+	/// Bunker link pointing at them. There is no recovery; the event survives.
+	/// </summary>
+	public async Task<bool> PurgeObjectiveAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var objective = await _db.Objectives.IgnoreQueryFilters()
+			.FirstOrDefaultAsync(o => o.Id == id);
+		if (objective is null)
+			return false;
+
+		ApplyConcurrencyToken(objective, rowVersion);
+
+		var stepIds = await _db.Steps.IgnoreQueryFilters()
+			.Where(s => s.ObjectiveId == id)
+			.Select(s => s.Id)
+			.ToListAsync();
+
+		var edges = await _db.StepDependencies
+			.Where(d => stepIds.Contains(d.StepId) || stepIds.Contains(d.DependsOnStepId))
+			.ToListAsync();
+		_db.StepDependencies.RemoveRange(edges);
+
+		// Links are not FK-bound to objectives or steps, so they would dangle.
+		var links = await _db.BunkerNoteLinks
+			.Where(l => l.ObjectiveId == id ||
+						(l.StepId != null && stepIds.Contains(l.StepId.Value)))
+			.ToListAsync();
+		_db.BunkerNoteLinks.RemoveRange(links);
+
+		_db.Objectives.Remove(objective);
+
+		await RecordEventAsync(
+			objective.CampaignId, actor, ActivityEntityType.Objective, objective.Id,
+			"Deleted", $"Permanently deleted objective #{objective.Alias}: {objective.Title}",
+			new
+			{
+				objective_id = objective.Id,
+				alias = objective.Alias,
+				purged = true,
+				removed_steps = stepIds.Count,
+				removed_dependencies = edges.Count,
+			});
 
 		return true;
 	}
 
 	// ── Steps ──
 
-	public async Task<List<Step>> GetStepsAsync(Guid objectiveId)
+	public async Task<List<Step>> GetStepsAsync(Guid objectiveId, bool includeArchived = false)
 	{
-		var steps = await _db.Steps.AsNoTracking()
+		IQueryable<Step> query = _db.Steps.AsNoTracking()
 			.Include(s => s.Updates)
-			.Include(s => s.Evidence)
+			.Include(s => s.Evidence);
+
+		if (includeArchived)
+			query = query.IgnoreQueryFilters();
+
+		var steps = await query
 			.Where(s => s.ObjectiveId == objectiveId)
 			.OrderBy(s => s.SortOrder)
 			.ThenBy(s => s.CreatedAt)
@@ -990,25 +1094,111 @@ public partial class WarTableService
 		step.DeletedAt = now;
 		step.UpdatedAt = now;
 
+		// Edges are kept so a restore is exact. A dependency on an archived step
+		// no longer gates readiness, so dependents are released while it is out.
 		var dependencies = await _db.StepDependencies
 			.Where(d => d.StepId == step.Id || d.DependsOnStepId == step.Id)
 			.ToListAsync();
-		_db.StepDependencies.RemoveRange(dependencies);
 
 		var derived = await ComputeObjectiveStatusAsync(step.ObjectiveId, excludeStepId: step.Id);
 		await ApplyObjectiveStatusAsync(step.ObjectiveId, derived, now);
 
 		await RecordEventAsync(
 			step.Objective.CampaignId, actor, ActivityEntityType.Step, step.Id,
-			"Deleted", $"Deleted step #{step.Objective.Alias}.{step.StepNumber}: {step.Title}",
+			"Deleted", $"Archived step #{step.Objective.Alias}.{step.StepNumber}: {step.Title}",
 			new
 			{
 				objective_id = step.ObjectiveId,
 				step_number = step.StepNumber,
-				removed_dependencies = dependencies.Count,
+				retained_dependencies = dependencies.Count,
 			});
 
 		return new(true, dependencies.Count);
+	}
+
+	/// <summary>
+	/// Restore an archived step. Fails if its objective is itself archived: the
+	/// objective has to come back first.
+	/// </summary>
+	public async Task<bool> RestoreStepAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var step = await _db.Steps.IgnoreQueryFilters()
+			.FirstOrDefaultAsync(s => s.Id == id && s.DeletedAt != null);
+		if (step is null)
+			return false;
+
+		// IgnoreQueryFilters applies to includes as well, so an Include here would
+		// hand back an archived parent. Ask the filtered set instead: no row means
+		// the objective is archived, and the objective has to come back first.
+		var objective = await _db.Objectives
+			.FirstOrDefaultAsync(o => o.Id == step.ObjectiveId);
+		if (objective is null)
+			throw new InvalidOperationException(
+				"The step's objective is archived. Restore the objective first.");
+
+		ApplyConcurrencyToken(step, rowVersion);
+
+		var now = DateTime.UtcNow;
+		step.DeletedAt = null;
+		step.UpdatedAt = now;
+
+		var live = await _db.Steps.AsNoTracking()
+			.Where(s => s.ObjectiveId == step.ObjectiveId)
+			.ToListAsync();
+		objective.Status = DeriveObjectiveStatus(live.Append(step));
+
+		await RecordEventAsync(
+			objective.CampaignId, actor, ActivityEntityType.Step, step.Id,
+			"Restored", $"Restored step #{objective.Alias}.{step.StepNumber}: {step.Title}",
+			new { objective_id = step.ObjectiveId, step_number = step.StepNumber });
+
+		return true;
+	}
+
+	/// <summary>
+	/// Human-only permanent delete of a single step. Removes its updates, evidence,
+	/// edges and Bunker links. Dependents are released rather than blocked.
+	/// </summary>
+	public async Task<bool> PurgeStepAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var step = await _db.Steps.IgnoreQueryFilters()
+			.Include(s => s.Objective)
+			.FirstOrDefaultAsync(s => s.Id == id);
+		if (step is null)
+			return false;
+
+		ApplyConcurrencyToken(step, rowVersion);
+
+		var now = DateTime.UtcNow;
+
+		var edges = await _db.StepDependencies
+			.Where(d => d.StepId == id || d.DependsOnStepId == id)
+			.ToListAsync();
+		_db.StepDependencies.RemoveRange(edges);
+
+		var links = await _db.BunkerNoteLinks
+			.Where(l => l.StepId == id)
+			.ToListAsync();
+		_db.BunkerNoteLinks.RemoveRange(links);
+
+		_db.Steps.Remove(step);
+
+		var derived = await ComputeObjectiveStatusAsync(step.ObjectiveId, excludeStepId: id);
+		if (step.Objective is not null)
+			await ApplyObjectiveStatusAsync(step.ObjectiveId, derived, now);
+
+		await RecordEventAsync(
+			step.Objective?.CampaignId, actor, ActivityEntityType.Step, id,
+			"Deleted", $"Permanently deleted step {step.StepNumber}: {step.Title}",
+			new
+			{
+				objective_id = step.ObjectiveId,
+				step_number = step.StepNumber,
+				purged = true,
+				removed_dependencies = edges.Count,
+			});
+
+		return true;
 	}
 
 	public async Task<StepUpdate?> AddStepUpdateAsync(Guid stepId, string body, StepUpdateKind kind, string actor)
@@ -1152,7 +1342,8 @@ public partial class WarTableService
 		{
 			return new AliasResolution(
 				"Objective", objective.Id, objective.Title,
-				objective.DeletedAt is not null, campaignId, alias);
+				objective.DeletedAt is not null, campaignId, alias,
+				objective.RowVersion);
 		}
 
 		var note = await _db.BunkerNotes
@@ -1163,21 +1354,38 @@ public partial class WarTableService
 		{
 			return new AliasResolution(
 				"Note", note.Id, note.Title,
-				note.DeletedAt is not null, campaignId, alias);
+				note.DeletedAt is not null, campaignId, alias,
+				note.RowVersion);
 		}
 
 		return null;
 	}
 
-	/// <summary>Resolves <c>#N.M</c> to a step.</summary>
-	public async Task<Step?> GetStepByRefAsync(Guid campaignId, int objectiveAlias, int stepNumber)
+	/// <summary>
+	/// Resolves <c>#N.M</c> to a step. Archiving hides a step and its objective from
+	/// every read, so <paramref name="includeArchived"/> is the only way to see a row
+	/// that restore needs; it is off by default so the normal lookup stays bounded.
+	/// </summary>
+	public async Task<Step?> GetStepByRefAsync(
+		Guid campaignId,
+		int objectiveAlias,
+		int stepNumber,
+		bool includeArchived = false)
 	{
-		var objective = await _db.Objectives.AsNoTracking()
+		var objectives = _db.Objectives.AsNoTracking();
+		var steps = _db.Steps.AsNoTracking();
+		if (includeArchived)
+		{
+			objectives = objectives.IgnoreQueryFilters();
+			steps = steps.IgnoreQueryFilters();
+		}
+
+		var objective = await objectives
 			.FirstOrDefaultAsync(o => o.CampaignId == campaignId && o.Alias == objectiveAlias);
 		if (objective is null)
 			return null;
 
-		var step = await _db.Steps.AsNoTracking()
+		var step = await steps
 			.Include(s => s.Updates)
 			.Include(s => s.Evidence)
 			.FirstOrDefaultAsync(s => s.ObjectiveId == objective.Id && s.StepNumber == stepNumber);
@@ -1534,8 +1742,56 @@ public partial class WarTableService
 
 		await RecordEventAsync(
 			note.CampaignId, actor, ActivityEntityType.Note, note.Id,
-			"Deleted", $"Deleted {note.Kind} note #{note.Alias}: {note.Title}",
+			"Deleted", $"Archived {note.Kind} note #{note.Alias}: {note.Title}",
 			new { note_id = note.Id, alias = note.Alias });
+
+		return true;
+	}
+
+	/// <summary>Restore an archived Bunker note.</summary>
+	public async Task<bool> RestoreNoteAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var note = await _db.BunkerNotes.IgnoreQueryFilters()
+			.FirstOrDefaultAsync(n => n.Id == id && n.DeletedAt != null);
+		if (note is null)
+			return false;
+
+		ApplyConcurrencyToken(note, rowVersion);
+
+		note.DeletedAt = null;
+		note.UpdatedAt = DateTime.UtcNow;
+
+		await RecordEventAsync(
+			note.CampaignId, actor, ActivityEntityType.Note, note.Id,
+			"Restored", $"Restored {note.Kind} note #{note.Alias}: {note.Title}",
+			new { note_id = note.Id, alias = note.Alias });
+
+		return true;
+	}
+
+	/// <summary>
+	/// Human-only permanent delete of a note. Its links cascade; the event stays.
+	/// </summary>
+	public async Task<bool> PurgeNoteAsync(Guid id, string actor, Guid? rowVersion = null)
+	{
+		var note = await _db.BunkerNotes.IgnoreQueryFilters()
+			.FirstOrDefaultAsync(n => n.Id == id);
+		if (note is null)
+			return false;
+
+		ApplyConcurrencyToken(note, rowVersion);
+
+		_db.BunkerNotes.Remove(note);
+
+		await RecordEventAsync(
+			note.CampaignId, actor, ActivityEntityType.Note, id,
+			"Deleted", $"Permanently deleted {note.Kind} note #{note.Alias}: {note.Title}",
+			new
+			{
+				note_id = id,
+				alias = note.Alias,
+				purged = true,
+			});
 
 		return true;
 	}
@@ -1682,9 +1938,12 @@ public partial class WarTableService
 				if (step.Status == StepStatuses.Blocked)
 					blocked.Add(item);
 
+				// A dependency whose target is archived comes back null, because the
+				// Step query filter applies to the include. Archiving work removes it
+				// from the plan, so it stops gating; restoring brings the gate back.
 				if (objective.PlanState == PlanState.Ready &&
 					step.Status == StepStatuses.Open &&
-					step.Dependencies.All(d => d.DependsOnStep is not null &&
+					step.Dependencies.All(d => d.DependsOnStep is null ||
 											   d.DependsOnStep.Status == StepStatuses.Done))
 				{
 					ready.Add(item);

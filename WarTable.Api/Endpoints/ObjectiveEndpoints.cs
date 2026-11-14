@@ -50,9 +50,12 @@ public static class ObjectiveEndpoints
 				: Results.BadRequest(new { error = "No objectives to reorder" });
 		});
 
-		group.MapGet("/", async (Guid? campaignId, bool? includeNotReady, WarTableService service) =>
+		group.MapGet("/", async (Guid? campaignId, bool? includeNotReady, bool? includeArchived, WarTableService service) =>
 		{
-			var objectives = await service.GetObjectivesAsync(campaignId, includeNotReady ?? true);
+			var objectives = await service.GetObjectivesAsync(
+				campaignId,
+				includeNotReady ?? true,
+				includeArchived ?? false);
 			return Results.Ok(objectives);
 		});
 
@@ -128,5 +131,21 @@ public static class ObjectiveEndpoints
 				throw;
 			}
 		});
+
+		// Canonical spelling of the same act as DELETE /{id}, which stays for
+		// compatibility and keeps archiving.
+		group.MapPost("/{id:guid}/archive",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.DeleteObjectiveAsync(id, Actor(actor), rowVersion)));
+
+		group.MapPost("/{id:guid}/restore",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.RestoreObjectiveAsync(id, Actor(actor), rowVersion)));
+
+		// Human-only. No MCP tool reaches this: an unrecoverable act is not on the
+		// agent surface.
+		group.MapDelete("/{id:guid}/permanent",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.PurgeObjectiveAsync(id, Actor(actor), rowVersion)));
 	}
 }

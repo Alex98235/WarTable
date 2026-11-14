@@ -12,13 +12,21 @@ with no authentication:
 
 The MCP surface has no hard delete — `delete_campaign` does not exist, and
 `McpToolSurfaceTests.Campaign_HasArchiveButNoHardDelete` asserts its absence. The
-HTTP route does: `CampaignEndpoints.cs:89-109` calls `DeleteCampaignAsync`, which
-removes the campaign and cascades to its objectives, steps and notes.
+HTTP route does: `CampaignEndpoints.cs` calls `DeleteCampaignAsync`, which
+removes the campaign and cascades to its objectives, steps and notes. The same
+holds for objectives, steps and notes: each has a `DELETE /{id}/permanent`
+route that only a human is meant to use, and no MCP tool reaches it.
 
 An agent that receives `http://<host>:5110/mcp` and can read its own client
 configuration knows the origin. One request to
 `DELETE http://<host>:5110/api/campaigns/{id}` reaches what the tool list
 withheld. Nothing about the request identifies the caller.
+
+The permanent-delete routes widen this slightly: before they existed, the worst
+an agent could do to an objective, step or note was archive it, which the
+restore path reverses. Now a `curl` naming `/permanent` destroys it. The
+capability exists because the human needs it, and it is reachable for the reason
+this whole entry exists.
 
 ## Why it is this way
 

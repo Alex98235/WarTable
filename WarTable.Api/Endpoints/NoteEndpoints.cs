@@ -149,5 +149,20 @@ public static class NoteEndpoints
 				throw;
 			}
 		});
+
+		// Canonical spelling of the same act as DELETE /{id}, which stays for
+		// compatibility and keeps archiving.
+		group.MapPost("/{id:guid}/archive",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.DeleteNoteAsync(id, Actor(actor), rowVersion)));
+
+		group.MapPost("/{id:guid}/restore",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.RestoreNoteAsync(id, Actor(actor), rowVersion)));
+
+		// Human-only, like every permanent delete: agents get archive and restore.
+		group.MapDelete("/{id:guid}/permanent",
+			(Guid id, Guid? rowVersion, string? actor, WarTableService service) =>
+				MutationEndpoint.Run(rowVersion, () => service.PurgeNoteAsync(id, Actor(actor), rowVersion)));
 	}
 }

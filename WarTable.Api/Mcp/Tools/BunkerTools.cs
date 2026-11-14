@@ -326,7 +326,8 @@ public static class BunkerTools
 
 	[McpServerTool(Name = "delete_note")]
 	[Description(
-		"Soft-delete a Bunker note. Requires row_version (read with get_note) for optimistic concurrency.")]
+		"Archive a Bunker note: it leaves every list but the row is kept and its alias still resolves. " +
+		"Undo with restore_note. Requires row_version (read with get_note) for optimistic concurrency.")]
 	public static async Task<object> DeleteNoteAsync(
 		WarTableService service,
 		string note_id,
@@ -347,6 +348,42 @@ public static class BunkerTools
 			return deleted
 				? new { ok = true }
 				: McpResults.Error($"Note not found: {id}");
+		}
+		catch (ConcurrencyConflictException ex)
+		{
+			return McpConflictResult(ex);
+		}
+		catch (Exception ex)
+		{
+			return McpResults.Error(ex.Message);
+		}
+	}
+
+	[McpServerTool(Name = "restore_note")]
+	[Description(
+		"Restore an archived Bunker note. The row was never removed, so this returns it to every list " +
+		"with its kind, links and pinned state intact. Requires row_version (read with get_note using " +
+		"include_archived).")]
+	public static async Task<object> RestoreNoteAsync(
+		WarTableService service,
+		string note_id,
+		string row_version,
+		string? actor = null)
+	{
+		try
+		{
+			var id = McpArgs.Guid(note_id);
+			if (id is null)
+				return McpResults.Error("note_id is required");
+
+			var (rv, rvError) = McpArgs.RowVersion(row_version);
+			if (rvError is not null)
+				return McpResults.Error(rvError);
+
+			var restored = await service.RestoreNoteAsync(id.Value, McpArgs.Actor(actor), rv);
+			return restored
+				? new { ok = true }
+				: McpResults.Error($"Archived note not found: {id}");
 		}
 		catch (ConcurrencyConflictException ex)
 		{
