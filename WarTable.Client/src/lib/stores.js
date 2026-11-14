@@ -21,13 +21,26 @@ export function removeToast(id) {
 // Confirm dialog
 export const confirmState = writable(null);
 
+// Focus goes back here when the dialog closes. Without it a keyboard user is
+// dropped at the top of the document after every confirmation.
+let opener = null;
+
 // Confirm dialog. `options` adds: confirmLabel (button text), tone ('danger' |
 // 'primary'), and holdMs (a countdown that keeps the button disabled, for
 // actions whose whole cost is that they cannot be undone).
 export function showConfirm(message, onConfirm, options = {}) {
+	opener =
+		typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+			? document.activeElement
+			: null;
 	confirmState.set({ message, onConfirm, openedAt: Date.now(), ...options });
 }
 
 export function closeConfirm() {
 	confirmState.set(null);
+	const target = opener;
+	opener = null;
+	// The opener may be gone: confirming an archive navigates, and the row that
+	// held the button is no longer in the document.
+	if (target?.isConnected) requestAnimationFrame(() => target.focus());
 }

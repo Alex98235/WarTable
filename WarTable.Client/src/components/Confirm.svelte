@@ -16,6 +16,16 @@
 	// one passes its own label, so forgetting the option cannot arm a purge.
 	let label = $derived($confirmState?.confirmLabel ?? 'Archive');
 
+	let cancelButton = $state(null);
+
+	// Focus the safe action, never the destructive one: Enter on a dialog whose
+	// whole subject is irreversibility should not be the fast path. It also puts
+	// the keyboard inside the dialog, so Escape reaches this handler instead of
+	// being ignored by a modal underneath.
+	$effect(() => {
+		if ($confirmState) cancelButton?.focus();
+	});
+
 	$effect(() => {
 		if (!$confirmState?.holdMs) return;
 		const id = setInterval(() => (now = Date.now()), 250);
@@ -53,7 +63,9 @@
 				<p id="confirm-message" class="confirm-message">{$confirmState.message}</p>
 			</div>
 			<div class="modal-actions">
-				<button class="btn btn-ghost" onclick={closeConfirm}>Cancel</button>
+				<button class="btn btn-ghost" onclick={closeConfirm} bind:this={cancelButton}
+					>Cancel</button
+				>
 				<button
 					class="btn {$confirmState.tone === 'primary' ? 'btn-primary' : 'btn-danger'}"
 					onclick={confirm}
