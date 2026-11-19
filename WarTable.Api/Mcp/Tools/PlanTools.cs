@@ -135,12 +135,13 @@ public static class PlanTools
 
 	[McpServerTool(Name = "get_briefing")]
 	[Description(
-		"Get bounded, structured context for starting work: campaign, ready/blocked/flagged " +
-		"steps, open questions, directives, preferences, recent decisions and activity.")]
+		"Get bounded context for starting work: campaign and charter, ready, in-progress, " +
+		"blocked and flagged steps, parked objectives, seeds, directives, preferences and " +
+		"recent decisions. Each capped section reports how many entries it left out. " +
+		"Activity is a separate trail: use get_activity.")]
 	public static async Task<object> GetBriefingAsync(
 		WarTableService service,
-		string campaign_id,
-		long? since = null)
+		string campaign_id)
 	{
 		try
 		{
@@ -148,7 +149,7 @@ public static class PlanTools
 			if (id is null)
 				return McpResults.Error("campaign_id is required");
 
-			return await service.GetBriefingAsync(id.Value, since);
+			return await service.GetBriefingAsync(id.Value);
 		}
 		catch (Exception ex)
 		{

@@ -9,14 +9,14 @@ public static class BriefingEndpoints
 {
 	public static void MapBriefingEndpoints(this WebApplication app)
 	{
-		app.MapGet("/api/briefing", async (Guid? campaignId, long? since, WarTableService service) =>
+		app.MapGet("/api/briefing", async (Guid? campaignId, WarTableService service) =>
 		{
 			if (!campaignId.HasValue || campaignId.Value == Guid.Empty)
 				return Results.BadRequest(new { error = "campaignId is required" });
 
 			try
 			{
-				var briefing = await service.GetBriefingAsync(campaignId.Value, since);
+				var briefing = await service.GetBriefingAsync(campaignId.Value);
 				return Results.Ok(briefing);
 			}
 			catch (InvalidOperationException ex)
