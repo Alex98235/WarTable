@@ -1,20 +1,26 @@
 # WarTable
 
-WarTable is a shared planning surface for a human and their AI agents.
+WarTable is a shared planning and knowledge surface for a human and their AI
+agents.
 
 It is aimed at solo developers using agentic workflows who need a clearer
-picture of how a project is taking shape. A **campaign** is the project.
-**Objectives** are the durable outcomes; **steps** are the atomic, verifiable
-work. The human and the agent see the same live plan, and the agent can update
-it over MCP. WarTable gives that work a durable structure and a memory that
-survives sessions.
+picture of how a project is taking shape, and a way to bring an agent up to
+speed without repeating themselves every session. A **campaign** is the
+project. **Objectives** are the durable outcomes; **steps** are the atomic,
+verifiable work. The human and the agent see the same live plan, and the agent
+can update it over MCP.
 
-It also stores the context around the work:
+WarTable also keeps a **moving context window**: the notes and context that
+matter to the work in front of the agent stay available, while notes that time
+and relevance have left behind stop being served. It is not a second brain and
+not an endless context store. It is a bounded, decaying memory that keeps an
+agent close to the work without handing it everything ever written.
 
-- **Preferences** — global soft rules about how you like to work, worth
-  remembering between sessions.
-- **Bunker notes** — campaign-specific knowledge: directives, decisions,
-  gotchas, and context.
+- **Bunker notes** — campaign knowledge in four kinds: `Directive`, `Decision`,
+  `Gotcha`, and `Context`. Notes can link to work, cite a basis, supersede older
+  notes, and go dormant when nothing points at them.
+- **Preferences** — advisory rules that apply to you across campaigns, applied
+  in every session.
 
 Built with C# ASP.NET Minimal API, EF Core + SQLite, Svelte 5, and the official
 MCP C# SDK. The product and domain design lives in
@@ -63,6 +69,10 @@ Configuration and upgrades live on the same site:
   supersession; their status is derived, not stored.
 - **Preferences** — advisory rules that apply to the human across campaigns. A
   campaign directive overrides a conflicting preference.
+- **Moving context window** — the knowledge an agent can trust right now. Notes
+  surface through the briefing, a step's context, and search, and stop being
+  served once time and disuse make them irrelevant. Bounded by design, not an
+  endless store.
 - **Evidence** — proof that lives outside the repository, recorded as a `Link`
   or a `Commit`.
 - **Briefing and Attention** — a bounded "what matters now" view of one campaign,
