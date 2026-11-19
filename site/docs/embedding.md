@@ -47,6 +47,18 @@ Every write takes the `row_version` the agent read with the object. Without it
 the call is rejected. A conflict means another client changed the row since it
 was read; the agent re-reads and reapplies.
 
+## What reaches the agent
+
+The agent is not given the whole archive. A briefing and a step's context block
+each carry a bounded, ranked set of notes: always-on directives and preferences,
+notes linked to the work, notes matching its tags, and semantically nearby
+notes, grouped by kind with a per-kind cap.
+
+Notes that are superseded or dormant are left out of those surfaces but stay
+resolvable through `get_note` and search. That is the moving context window in
+practice: relevant knowledge is there when the agent starts a step, and it stops
+being pushed once time and disuse make it irrelevant.
+
 ## What the agent should be told
 
 WarTable sends baseline usage guidance during the MCP `initialize` handshake.

@@ -26,6 +26,26 @@ Around the plan, WarTable stores knowledge as Markdown notes:
   context.
 - **Preferences** are advisory rules that apply to you across campaigns.
 
+## A moving context window
+
+WarTable is not a second brain and not an endless context store. What it keeps
+is a moving context window: the notes and context that matter to the work in
+front of the agent stay available, and the rest fades.
+
+Three things define that window:
+
+- **Retrieval is bounded.** A briefing and a step's context carry a short,
+  ranked set of notes, never the whole archive.
+- **Relevance is earned.** Notes link to objectives and steps, carry tags, and
+  cite a basis. Pinned directives are always applied; other kinds surface where
+  they apply.
+- **Time and disuse cost.** A gotcha or context note that nothing points at for
+  a month goes dormant. A decision stays until another supersedes it. A
+  preference stays until you retire it.
+
+Dormant notes are not deleted. Search still finds them, aliases still resolve,
+and a superseded note stays reachable.
+
 Agents connect over the Model Context Protocol (MCP). They can read the plan,
 update steps, and record notes, so the plan stays current without you copying
 state between tools. The server also sends live updates to the browser, so an
