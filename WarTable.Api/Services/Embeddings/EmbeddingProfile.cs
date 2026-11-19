@@ -9,7 +9,9 @@ namespace WarTable.Api.Services.Embeddings;
 /// <summary>
 /// A retrieval model's prompt contract. Most open embedding models expect
 /// different prefixes for queries and documents; keeping that here means the
-/// external service can stay a dumb text-to-vector endpoint.
+/// external service can stay a dumb text-to-vector endpoint. The user-facing
+/// profile guide is <c>site/docs/semantic-search.md</c>; this array stays the
+/// authoritative list of built-in profiles.
 /// </summary>
 public sealed record EmbeddingProfile(
 	string Name,

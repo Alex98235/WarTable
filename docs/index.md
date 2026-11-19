@@ -15,6 +15,9 @@ your role, then use the authority table when two pages seem to disagree.
   contract for `.env`, environment keys, and Compose substitution. The
   [site configuration page](https://alex98235.github.io/WarTable/configuration)
   has the walkthrough and examples.
+- **Turn on semantic search:** the
+  [site semantic search page](https://alex98235.github.io/WarTable/semantic-search)
+  — models, profiles, index lifecycle, and tuning.
 - **Upgrade it:** the
   [site updating page](https://alex98235.github.io/WarTable/updating) — moving
   between container tags.

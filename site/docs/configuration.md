@@ -81,10 +81,11 @@ The shipped `docker-compose.yml` forwards `WARTABLE_TAG` as the image tag and
 passes the `Embeddings__*` keys listed under `environment:`. `WARTABLE_TAG` is
 substitution-only; it is not an application setting inside the container.
 
-Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`, `ApiKey`,
-and `Profile` are passed through by the Compose file. To use another
-`Embeddings__*` key from `.env`, add it under `environment:` in your Compose
-file, or pass it with `-e` on `docker run`.
+Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`,
+`BatchSize`, `TimeoutSeconds`, `PollSeconds`, `TopK`, `MinScore`, `ApiKey`, and
+`Profile` are passed through by the Compose file. To use another
+`Embeddings__*` key or a custom profile from `.env`, add it under `environment:`
+in your Compose file, or pass it with `-e` on `docker run`.
 
 Inside the container, `localhost` and `127.0.0.1` mean the container itself. Use
 `host.docker.internal` for a service on the Docker host. If the embedding
@@ -93,12 +94,10 @@ service is another Compose service, use its service name, for example
 
 ## Semantic search
 
-:::note
-Semantic search is optional and disabled by default. When enabled, WarTable
-calls an OpenAI-compatible `POST /v1/embeddings` endpoint. The embedding model
-is not bundled. WarTable owns chunking, the disposable index, ranking, and the
-keyword fallback.
-:::
+Semantic search is optional and disabled by default; the embedding model is not
+bundled. The keys below configure it. For what it does, model selection,
+profiles, the index lifecycle, tuning, and troubleshooting, see
+[Semantic search](./semantic-search.md).
 
 | Environment key | Default | Meaning |
 | --- | --- | --- |
@@ -115,30 +114,7 @@ keyword fallback.
 | `Embeddings__SidecarPath` | empty | Index file path. Defaults to `wartable.embeddings.db` beside the main database. Safe to delete; it rebuilds. |
 | `Embeddings__Profile` | empty | Overrides the prompt profile matched from the model id. |
 | `Embeddings__ApiKey` | empty | Sent as a Bearer token when set. |
-
-A local Ollama setup in `.env`:
-
-```dotenv
-Embeddings__Enabled=true
-Embeddings__Endpoint=http://localhost:11434/v1
-Embeddings__Model=embeddinggemma
-Embeddings__Dimensions=768
-```
-
-After changing `.env`, recreate the service and check the index status:
-
-```bash
-docker compose up -d
-curl -fsS http://localhost:5110/api/knowledge/status
-```
-
-### When semantic search is off
-
-With `Embeddings__Enabled=false`, WarTable does not start the background
-indexer, does not call an embedding service, and does not create the sidecar
-index. Knowledge search still works by keyword. If the service is enabled but
-unreachable, or the index is still building, search returns keyword results with
-`degraded: true` instead of failing.
+| `Embeddings__Profiles__N__*` | empty | Custom profile entries. `N` is a numeric index; see [Semantic search](./semantic-search.md) for the fields and templates. |
 
 ## Logging
 
