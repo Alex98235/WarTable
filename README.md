@@ -16,6 +16,10 @@ and relevance have left behind stop being served. It is not a second brain and
 not an endless context store. It is a bounded, decaying memory that keeps an
 agent close to the work without handing it everything ever written.
 
+Search is hybrid. Keyword matching always works; when you point WarTable at an
+embedding service, it also finds notes by meaning and falls back to keyword
+results if the service is unavailable.
+
 - **Bunker notes** — campaign knowledge in four kinds: `Directive`, `Decision`,
   `Gotcha`, and `Context`. Notes can link to work, cite a basis, supersede older
   notes, and go dormant when nothing points at them.
@@ -73,6 +77,9 @@ Configuration and upgrades live on the same site:
   surface through the briefing, a step's context, and search, and stop being
   served once time and disuse make them irrelevant. Bounded by design, not an
   endless store.
+- **Semantic search** — optional hybrid retrieval over Bunker notes: keyword
+  always, meaning when an embedding service is configured, with a keyword
+  fallback when it is not.
 - **Evidence** — proof that lives outside the repository, recorded as a `Link`
   or a `Commit`.
 - **Briefing and Attention** — a bounded "what matters now" view of one campaign,
@@ -96,6 +103,7 @@ keeps the design and contributor references.
 | Install and run the container | [Setup](https://alex98235.github.io/WarTable/setup) |
 | Run a standalone binary | [Standalone](https://alex98235.github.io/WarTable/standalone) |
 | Configure it | [Configuration](https://alex98235.github.io/WarTable/configuration) |
+| Turn on semantic search | [Semantic search](https://alex98235.github.io/WarTable/semantic-search) |
 | Upgrade it | [Updating](https://alex98235.github.io/WarTable/updating) |
 | Connect an agent | [Embedding](https://alex98235.github.io/WarTable/embedding) |
 

@@ -1,5 +1,5 @@
 ---
-sidebar_position: 6
+sidebar_position: 7
 title: Embedding WarTable in an agent workflow
 ---
 
@@ -83,4 +83,5 @@ A typical session starts with the briefing and ends with a step update:
 
 Search is hybrid: semantic when embeddings are enabled, keyword otherwise. A
 disabled or unreachable embedding service does not break the agent; results fall
-back to keywords with `degraded: true`.
+back to keywords with `degraded: true`. See
+[Semantic search](./semantic-search.md) for models, profiles, and tuning.

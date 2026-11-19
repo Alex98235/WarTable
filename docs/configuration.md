@@ -63,7 +63,9 @@ and case-sensitive on Linux, so match the documented casing on Linux.
 Semantic search is optional and disabled by default. When enabled, WarTable
 calls an OpenAI-compatible `POST /v1/embeddings` endpoint. The embedding service
 is stateless and never owns the index; WarTable keeps a disposable SQLite
-sidecar. See [`design.md`](design.md#semantic-knowledge-search) for the design.
+sidecar. See [`design.md`](design.md#semantic-knowledge-search) for the design,
+and the [semantic search page](https://alex98235.github.io/WarTable/semantic-search)
+for model choice, profiles, the index lifecycle, and tuning.
 
 | Environment key | appsettings key | Default | Meaning |
 | --- | --- | --- | --- |
@@ -80,7 +82,7 @@ sidecar. See [`design.md`](design.md#semantic-knowledge-search) for the design.
 | `Embeddings__SidecarPath` | `Embeddings:SidecarPath` | empty | Index file path. Defaults to `wartable.embeddings.db` beside the main database. Safe to delete; it rebuilds. |
 | `Embeddings__Profile` | `Embeddings:Profile` | empty | Overrides the prompt profile that would otherwise be matched from the model id. |
 | `Embeddings__ApiKey` | `Embeddings:ApiKey` | empty | Sent as a Bearer token when set. |
-| `Embeddings__Profiles__N__*` | `Embeddings:Profiles` | empty | Custom profile entries. Use a numeric index for `N` in environment variables. |
+| `Embeddings__Profiles__N__*` | `Embeddings:Profiles` | empty | Custom profile entries. `N` is a numeric index; the fields and template placeholders are documented on the [semantic search page](https://alex98235.github.io/WarTable/semantic-search). |
 
 Built-in prompt profiles cover EmbeddingGemma, BGE, E5, Nomic, Qwen3-Embedding,
 OpenAI `text-embedding-3`, and raw text. Matching is by model id. A custom
@@ -144,11 +146,12 @@ What the Compose file forwards:
 - `WARTABLE_TAG` is substitution-only. It is not an application setting inside
   the container.
 
-Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`, `ApiKey`,
-and `Profile` are currently passed through by the shipped Compose file. To use
-another `Embeddings__*` key (for example `BatchSize`, `TimeoutSeconds`,
-`PollSeconds`, `TopK`, `MinScore`, or `SidecarPath`) from `.env`, add it under
-`environment:` in your Compose file, or pass it with `-e` on `docker run`.
+Only `Enabled`, `Endpoint`, `Model`, `Dimensions`, `MaxInputTokens`,
+`BatchSize`, `TimeoutSeconds`, `PollSeconds`, `TopK`, `MinScore`, `ApiKey`, and
+`Profile` are currently passed through by the shipped Compose file. To use
+another `Embeddings__*` key (for example `SidecarPath`) or a custom profile
+(`Embeddings__Profiles__N__*`) from `.env`, add it under `environment:` in your
+Compose file, or pass it with `-e` on `docker run`.
 
 Inside the container, `localhost` and `127.0.0.1` mean the container itself. Use
 `host.docker.internal` for a service on the Docker host; the shipped Compose file
