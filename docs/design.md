@@ -117,8 +117,9 @@ laptop agent    --+
 
 The human opens the dashboard and sees an attention inbox: two flagged steps and
 one blocked objective. The agent starts with a single briefing call: campaign and
-charter excerpt, ready steps, blockers, flagged steps, directives, preferences,
-and recent decisions. It does not read forty journal entries.
+charter excerpt, ready steps, in-progress steps, blockers, flagged steps, parked
+objectives, directives, preferences, and recent decisions. It does not read forty
+journal entries.
 
 **Requirements:** computed briefing, attention queue, ready computation from
 dependencies, always-on directives and preferences.
@@ -444,9 +445,11 @@ Every mutation writes one event.
 
 These are not tables.
 
-- **Briefing** — campaign and charter excerpt, ready steps, blocked steps,
-  flagged steps, active directives, active preferences, recent decisions, seeds,
-  and recent activity. Bounded and token-aware.
+- **Briefing** — campaign and charter excerpt, ready steps, in-progress steps,
+  blocked steps, flagged steps, parked objectives with their step counts, active
+  directives, active preferences, recent decisions, and seeds. Bounded and
+  token-aware; every capped section reports how many entries it left out. Activity
+  is not part of the briefing: it is a separate trail, read through `get_activity`.
 - **Attention** — cross-campaign inbox: flagged steps, blocked objectives, and
   stale in-progress steps. Backlog plans and seeds get a calm separate section.
 - **Ready** — active objectives with open steps whose dependencies are done.
@@ -594,7 +597,7 @@ reference, it is an irreversible act one careless sentence away.
 |---|---|---|
 | `import_plan` | `campaign_id?`, `campaign?`, `objectives[]`, `actor` | Atomic bulk import. Per-objective `plan_state` defaults to `Backlog`. Returns aliases and step refs. |
 | `get_plan` | `campaign_id`, `include_not_ready?` | JSON array of objectives with steps and explicit note-link `knowledge` counts. |
-| `get_briefing` | `campaign_id`, `since?` | Bounded context for starting work. |
+| `get_briefing` | `campaign_id` | Bounded context for starting work. Ready, in-progress, blocked and flagged steps, parked objectives, seeds, directives, preferences and recent decisions; each capped section reports what it omitted. Activity is separate: use `get_activity`. |
 | `get_attention` | `campaign_id?` | Cross-campaign or scoped inbox. |
 | `get_activity` | `campaign_id?`, `since?`, `limit?` | Internal activity log query. |
 
@@ -769,7 +772,7 @@ are JSON with camelCase properties and string enum values.
 | `/api/knowledge/search` | `GET` | Hybrid knowledge search (`campaignId`, `q`, `mode`, `limit`). |
 | `/api/knowledge/status` | `GET` | Embedding availability and index state. |
 | `/api/knowledge/reindex` | `POST` | Reconcile the index. |
-| `/api/briefing` | `GET` | Bounded briefing (`campaignId`, `since`). |
+| `/api/briefing` | `GET` | Bounded briefing (`campaignId`). |
 | `/api/attention` | `GET` | Cross-campaign or scoped attention inbox. |
 | `/api/activity` | `GET` | Activity log (`campaignId`, `since`, `limit`). |
 | `/api/aliases/resolve` | `GET` | Resolve `#N` in a campaign; `/api/objects/resolve` is a compatibility alias. |

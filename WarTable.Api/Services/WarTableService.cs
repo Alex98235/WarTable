@@ -159,13 +159,13 @@ public partial class WarTableService
 	}
 
 	private const int BriefingStepLimit = 20;
+	private const int BriefingInProgressStepLimit = 10;
+	private const int BriefingParkedObjectiveLimit = 10;
 	private const int BriefingNoteLimit = 10;
 	private const int BriefingSeedLimit = 10;
-	private const int BriefingDocumentLimit = 10;
 	private const int BriefingDocumentExcerptLength = 800;
 	private const int CampaignCharterExcerptLength = 200;
 	private const int BriefingPreferenceLimit = 20;
-	private const int BriefingActivityLimit = 20;
 	private const int AttentionLimit = 50;
 
 	// ── Actors and events ──
@@ -1908,7 +1908,7 @@ public partial class WarTableService
 
 	// ── Briefing and attention ──
 
-	public async Task<Briefing> GetBriefingAsync(Guid campaignId, long? since = null)
+	public async Task<Briefing> GetBriefingAsync(Guid campaignId)
 	{
 		var campaign = await _db.Campaigns.AsNoTracking()
 			.FirstOrDefaultAsync(c => c.Id == campaignId)
@@ -1923,6 +1923,7 @@ public partial class WarTableService
 			.ToListAsync();
 
 		var ready = new List<BriefingStep>();
+		var inProgress = new List<BriefingStep>();
 		var blocked = new List<BriefingStep>();
 		var flagged = new List<BriefingStep>();
 
@@ -1938,6 +1939,9 @@ public partial class WarTableService
 				if (step.Status == StepStatuses.Blocked)
 					blocked.Add(item);
 
+				if (step.Status == StepStatuses.InProgress)
+					inProgress.Add(item);
+
 				// A dependency whose target is archived comes back null, because the
 				// Step query filter applies to the include. Archiving work removes it
 				// from the plan, so it stops gating; restoring brings the gate back.
@@ -1951,8 +1955,27 @@ public partial class WarTableService
 			}
 		}
 
-		var directives = (await GetDirectivesAsync(campaignId)).Take(BriefingNoteLimit).ToList();
-		var preferences = (await GetPreferencesAsync()).Take(BriefingPreferenceLimit).ToList();
+		// An in-progress step is a claim, not a fact: nothing here can confirm an
+		// agent is still on it. Order newest first and carry UpdatedAt so the reader
+		// can judge how stale the claim is.
+		inProgress = inProgress.OrderByDescending(s => s.UpdatedAt).ToList();
+
+		// Parked plans are visible but not actionable. They carry step counts, never
+		// the steps, so a campaign with a full backlog no longer reads as empty.
+		var parked = objectives
+			.Where(o => o.PlanState == PlanState.Backlog)
+			.OrderByDescending(o => o.UpdatedAt)
+			.Select(o => new BriefingObjective(
+				o.Id,
+				o.Alias,
+				o.Title,
+				o.Steps.Count(s => s.Status == StepStatuses.Open),
+				o.Steps.Count(s => s.Status == StepStatuses.Done),
+				o.UpdatedAt))
+			.ToList();
+
+		var directives = await GetDirectivesAsync(campaignId);
+		var preferences = await GetPreferencesAsync();
 
 		var recentDecisions = await _db.BunkerNotes.AsNoTracking()
 			.Include(n => n.Links)
@@ -1961,13 +1984,10 @@ public partial class WarTableService
 						!_db.BunkerNotes.Any(x =>
 							x.SupersedesId == n.Id && x.DeletedAt == null))
 			.OrderByDescending(n => n.CreatedAt)
-			.Take(BriefingNoteLimit)
 			.ToListAsync();
 		foreach (var note in recentDecisions)
 			PopulateNoteLinks(note);
 		await PopulateDerivedStatusAsync(recentDecisions);
-
-		var recentActivity = (await GetActivityAsync(campaignId, since)).Take(BriefingActivityLimit).ToList();
 
 		if (!string.IsNullOrWhiteSpace(campaign.Charter))
 			campaign.CharterExcerpt = Excerpt(campaign.Charter, CampaignCharterExcerptLength);
@@ -1975,22 +1995,21 @@ public partial class WarTableService
 		var seeds = await _db.Objectives.AsNoTracking()
 			.Where(o => o.CampaignId == campaignId && o.PlanState == PlanState.Seed)
 			.OrderByDescending(o => o.UpdatedAt)
-			.Take(BriefingSeedLimit)
 			.Select(o => new BriefingSeed(o.Id, o.Alias, o.Title, o.Description, o.UpdatedAt))
 			.ToListAsync();
 
 		return new Briefing(
 			campaign,
-			ready.Take(BriefingStepLimit).ToList(),
-			blocked.Take(BriefingStepLimit).ToList(),
-			flagged.Take(BriefingStepLimit).ToList(),
-			directives,
-			preferences,
-			recentDecisions,
+			Bound(ready, BriefingStepLimit),
+			Bound(inProgress, BriefingInProgressStepLimit),
+			Bound(blocked, BriefingStepLimit),
+			Bound(flagged, BriefingStepLimit),
+			Bound(parked, BriefingParkedObjectiveLimit),
+			Bound(directives, BriefingNoteLimit),
+			Bound(preferences, BriefingPreferenceLimit),
+			Bound(recentDecisions, BriefingNoteLimit),
 			string.IsNullOrWhiteSpace(campaign.Charter) ? null : ToBriefingDocumentInline(campaign),
-			new List<BriefingDocument>(),
-			seeds,
-			recentActivity);
+			Bound(seeds, BriefingSeedLimit));
 	}
 
 	public async Task<Attention> GetAttentionAsync(Guid? campaignId = null)
@@ -2077,8 +2096,16 @@ public partial class WarTableService
 			step.StepNumber,
 			step.Title,
 			step.Status,
-			step.Assignee);
+			step.Assignee,
+			step.UpdatedAt);
 	}
+
+	/// <summary>
+	/// Caps a briefing section and states how many entries were left out, so a
+	/// truncated section never looks complete.
+	/// </summary>
+	private static BriefingSection<T> Bound<T>(IReadOnlyList<T> source, int limit)
+		=> new(source.Take(limit).ToList(), Math.Max(0, source.Count - limit));
 
 	private static BriefingDocument ToBriefingDocumentInline(Campaign campaign)
 	{

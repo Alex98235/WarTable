@@ -128,14 +128,14 @@ public class WarTableServiceTests
 			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Empty(briefing.ReadySteps);
+		Assert.Empty(briefing.ReadySteps.Items);
 
 		await ctx.Service.UpdateObjectiveAsync(
 			objective.Id, new ObjectivePatch(PlanState: PlanState.Ready), Human);
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Contains(briefing.ReadySteps, s => s.Id == a.Id);
-		Assert.Equal("#1.1", briefing.ReadySteps.Single(s => s.Id == a.Id).Ref);
+		Assert.Contains(briefing.ReadySteps.Items, s => s.Id == a.Id);
+		Assert.Equal("#1.1", briefing.ReadySteps.Items.Single(s => s.Id == a.Id).Ref);
 
 		var b = await ctx.Service.CreateStepAsync(
 			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
@@ -143,14 +143,14 @@ public class WarTableServiceTests
 		await ctx.Service.UpdateStepAsync(a.Id, new StepPatch(), new[] { b.Id }, Human);
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == a.Id);
-		Assert.Contains(briefing.ReadySteps, s => s.Id == b.Id);
+		Assert.DoesNotContain(briefing.ReadySteps.Items, s => s.Id == a.Id);
+		Assert.Contains(briefing.ReadySteps.Items, s => s.Id == b.Id);
 
 		await ctx.Service.UpdateStepStatusAsync(b.Id, StepStatuses.Done, Human);
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Contains(briefing.ReadySteps, s => s.Id == a.Id);
-		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == b.Id);
+		Assert.Contains(briefing.ReadySteps.Items, s => s.Id == a.Id);
+		Assert.DoesNotContain(briefing.ReadySteps.Items, s => s.Id == b.Id);
 	}
 
 	[Fact]
@@ -308,7 +308,7 @@ public class WarTableServiceTests
 	}
 
 	[Fact]
-	public async Task Briefing_CharterComesFromColumn_AndNoDesignDocsSection()
+	public async Task Briefing_CharterComesFromColumn()
 	{
 		await using var ctx = await TestContext.CreateAsync();
 		var campaign = await ctx.Service.CreateCampaignAsync(
@@ -319,7 +319,6 @@ public class WarTableServiceTests
 		Assert.NotNull(briefing.Charter);
 		Assert.Equal("Charter body", briefing.Charter!.Excerpt);
 		Assert.Equal("Charter body", briefing.Campaign.CharterExcerpt);
-		Assert.Empty(briefing.DesignDocs);
 	}
 
 	[Fact]
@@ -460,10 +459,57 @@ public class WarTableServiceTests
 
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 
-		Assert.Equal(20, briefing.ReadySteps.Count);
-		Assert.Equal(10, briefing.RecentDecisions.Count);
-		Assert.Equal(20, briefing.Preferences.Count);
-		Assert.Equal(20, briefing.RecentActivity.Count);
+		Assert.Equal(20, briefing.ReadySteps.Items.Count);
+		Assert.Equal(10, briefing.RecentDecisions.Items.Count);
+		Assert.Equal(20, briefing.Preferences.Items.Count);
+
+		// A cap that cannot be seen is a lie: each section states what it dropped.
+		Assert.Equal(5, briefing.ReadySteps.Omitted);
+		Assert.Equal(5, briefing.RecentDecisions.Omitted);
+		Assert.Equal(5, briefing.Preferences.Omitted);
+		Assert.Equal(0, briefing.InProgressSteps.Omitted);
+	}
+
+	[Fact]
+	public async Task Briefing_ReportsParkedObjectivesWithStepCounts()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync(PlanState.Backlog);
+		await using var _ctx = ctx;
+
+		var a = await ctx.Service.CreateStepAsync(
+			objective.Id, "A", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.CreateStepAsync(
+			objective.Id, "B", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepStatusAsync(a.Id, StepStatuses.Done, Human);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+
+		var parked = Assert.Single(briefing.ParkedObjectives.Items);
+		Assert.Equal(objective.Id, parked.Id);
+		Assert.Equal(objective.Alias, parked.Alias);
+		Assert.Equal(objective.Title, parked.Title);
+		Assert.Equal(1, parked.OpenSteps);
+		Assert.Equal(1, parked.DoneSteps);
+		Assert.Empty(briefing.ReadySteps.Items);
+	}
+
+	[Fact]
+	public async Task Briefing_ReportsInProgressStepsSeparately()
+	{
+		var (ctx, campaign, objective) = await ArrangeAsync(PlanState.Ready);
+		await using var _ctx = ctx;
+
+		var step = await ctx.Service.CreateStepAsync(
+			objective.Id, "Working", "", "", "orchestrator", Array.Empty<Guid>(), Human);
+		await ctx.Service.UpdateStepStatusAsync(step.Id, StepStatuses.InProgress, Human);
+
+		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
+
+		var inProgress = Assert.Single(briefing.InProgressSteps.Items);
+		Assert.Equal(step.Id, inProgress.Id);
+		Assert.Equal("#1.1", inProgress.Ref);
+		Assert.NotEqual(default, inProgress.UpdatedAt);
+		Assert.Empty(briefing.ReadySteps.Items);
 	}
 
 	[Fact]
@@ -579,15 +625,15 @@ public class WarTableServiceTests
 		await ctx.Service.UpdateStepAsync(a.Id, new StepPatch(), new[] { b.Id }, Human);
 
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == a.Id);
+		Assert.DoesNotContain(briefing.ReadySteps.Items, s => s.Id == a.Id);
 
 		Assert.True((await ctx.Service.DeleteStepAsync(b.Id, true, Human)).Deleted);
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Contains(briefing.ReadySteps, s => s.Id == a.Id);
+		Assert.Contains(briefing.ReadySteps.Items, s => s.Id == a.Id);
 
 		Assert.True(await ctx.Service.RestoreStepAsync(b.Id, Human));
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.DoesNotContain(briefing.ReadySteps, s => s.Id == a.Id);
+		Assert.DoesNotContain(briefing.ReadySteps.Items, s => s.Id == a.Id);
 	}
 
 	[Fact]
@@ -664,8 +710,8 @@ public class WarTableServiceTests
 			seed.Id, "Open step", "", "", "orchestrator", Array.Empty<Guid>(), Human);
 
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Empty(briefing.ReadySteps);
-		var briefingSeed = Assert.Single(briefing.Seeds);
+		Assert.Empty(briefing.ReadySteps.Items);
+		var briefingSeed = Assert.Single(briefing.Seeds.Items);
 		Assert.Equal(seed.Alias, briefingSeed.Alias);
 		Assert.Equal("Seed Thought", briefingSeed.Title);
 
@@ -680,8 +726,8 @@ public class WarTableServiceTests
 
 		briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
 		attention = await ctx.Service.GetAttentionAsync(campaign.Id);
-		Assert.Empty(briefing.Seeds);
-		Assert.Empty(briefing.ReadySteps);
+		Assert.Empty(briefing.Seeds.Items);
+		Assert.Empty(briefing.ReadySteps.Items);
 		var backlogItem = Assert.Single(attention.BacklogObjectives);
 		Assert.Equal(seed.Id, backlogItem.EntityId);
 		Assert.Empty(attention.SeedObjectives);
@@ -890,8 +936,8 @@ public class WarTableServiceTests
 			Array.Empty<Guid>(), Array.Empty<Guid>(), superseded.Id);
 
 		var briefing = await ctx.Service.GetBriefingAsync(campaign.Id);
-		Assert.Contains(briefing.RecentDecisions, n => n.Id == decision.Id);
-		Assert.DoesNotContain(briefing.RecentDecisions, n => n.Id == superseded.Id);
+		Assert.Contains(briefing.RecentDecisions.Items, n => n.Id == decision.Id);
+		Assert.DoesNotContain(briefing.RecentDecisions.Items, n => n.Id == superseded.Id);
 	}
 
 	[Fact]

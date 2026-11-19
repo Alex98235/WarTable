@@ -52,19 +52,42 @@ public record BriefingStep(
 	int StepNumber,
 	string Title,
 	string Status,
-	string Assignee)
+	string Assignee,
+	DateTime UpdatedAt)
 {
 	/// <summary>Human-facing <c>#N.M</c> reference.</summary>
 	public string Ref => $"#{ObjectiveAlias}.{StepNumber}";
 }
 
-/// <summary>An unfinished thought captured before drafting. Never actionable.</summary>
+/// <summary>
+/// An unfinished thought captured before drafting. Never actionable.
+/// </summary>
 public record BriefingSeed(
 	Guid Id,
 	int Alias,
 	string Title,
 	string Description,
 	DateTime UpdatedAt);
+
+/// <summary>
+/// A parked objective: planned but deliberately not started. Carries step counts,
+/// never the steps themselves, so the briefing can say a plan exists without
+/// dumping it.
+/// </summary>
+public record BriefingObjective(
+	Guid Id,
+	int Alias,
+	string Title,
+	int OpenSteps,
+	int DoneSteps,
+	DateTime UpdatedAt);
+
+/// <summary>
+/// A bounded briefing list that states how many entries it left out. Omission is
+/// explicit on purpose: a reader must never mistake a truncated section for a
+/// complete one.
+/// </summary>
+public record BriefingSection<T>(List<T> Items, int Omitted);
 
 /// <summary>A bounded framing-document excerpt for campaign orientation.</summary>
 public record BriefingDocument(
@@ -78,20 +101,21 @@ public record BriefingDocument(
 
 /// <summary>
 /// Bounded, structured context for starting work. Lists are capped so the briefing
-/// stays token-aware as a campaign grows.
+/// stays token-aware as a campaign grows, and each cap reports what it left out.
+/// Activity is a separate trail; it is not part of the briefing.
 /// </summary>
 public record Briefing(
 	Campaign Campaign,
-	List<BriefingStep> ReadySteps,
-	List<BriefingStep> BlockedSteps,
-	List<BriefingStep> FlaggedSteps,
-	List<BunkerNote> Directives,
-	List<Preference> Preferences,
-	List<BunkerNote> RecentDecisions,
+	BriefingSection<BriefingStep> ReadySteps,
+	BriefingSection<BriefingStep> InProgressSteps,
+	BriefingSection<BriefingStep> BlockedSteps,
+	BriefingSection<BriefingStep> FlaggedSteps,
+	BriefingSection<BriefingObjective> ParkedObjectives,
+	BriefingSection<BunkerNote> Directives,
+	BriefingSection<Preference> Preferences,
+	BriefingSection<BunkerNote> RecentDecisions,
 	BriefingDocument? Charter,
-	List<BriefingDocument> DesignDocs,
-	List<BriefingSeed> Seeds,
-	List<ActivityEvent> RecentActivity);
+	BriefingSection<BriefingSeed> Seeds);
 
 /// <summary>One cross-campaign attention inbox item.</summary>
 public record AttentionItem(
