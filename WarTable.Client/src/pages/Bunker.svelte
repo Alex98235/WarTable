@@ -1427,6 +1427,18 @@
 						type="Note"
 						snapshot={editing}
 						read={() => notes.find((n) => n.id === editing.id) ?? editing}
+						readDraft={(field) =>
+							field === 'title'
+								? editForm.title
+								: field === 'body'
+									? editForm.body
+									: field === 'tags'
+										? editForm.tags
+										: field === 'pinned'
+											? editForm.pinned
+											: field === 'supersedesId'
+												? editForm.supersedesId
+												: undefined}
 						onReload={() => adoptLiveNote()}
 						onKeep={() => claimOverwriteNote()}
 						{shownFields}

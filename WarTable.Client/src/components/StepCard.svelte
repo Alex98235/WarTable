@@ -463,6 +463,18 @@
 				type="Step"
 				snapshot={editSnapshot}
 				read={() => step}
+				readDraft={(field) =>
+					field === 'title'
+						? editForm.title
+						: field === 'context'
+							? editForm.context
+							: field === 'assignee'
+								? editForm.assignee
+								: field === 'assigner'
+									? editForm.assigner
+									: field === 'dependsOn'
+										? deps
+										: undefined}
 				onReload={() => adoptLiveStep()}
 				onKeep={() => claimOverwriteStep()}
 				{shownFields}

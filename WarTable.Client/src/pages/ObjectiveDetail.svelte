@@ -796,6 +796,12 @@
 						type="Objective"
 						snapshot={editSnapshot}
 						read={() => objective}
+						readDraft={(field) =>
+							field === 'description'
+								? editForm.description
+								: field === 'title'
+									? editForm.title
+									: undefined}
 						onReload={() => adoptLiveObjective()}
 						onKeep={() => claimOverwriteObjective()}
 						{shownFields}
