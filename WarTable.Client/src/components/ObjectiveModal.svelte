@@ -38,7 +38,32 @@
 	let saving = $state(false);
 	let stepCount = $state(null);
 
+	// The row is live, so the plan state can move under the modal. Compare
+	// against the state at open to explain the move without closing the draft.
+	let openedPlanState = untrack(() => objective.planState ?? 'Seed');
+
 	let isSeed = $derived(mode === 'seed');
+
+	let movedTo = $derived(
+		isSeed && objective.planState && objective.planState !== openedPlanState
+			? objective.planState
+			: null
+	);
+
+	// The title input is always editable, so a live title can only be adopted
+	// when the human has not diverged from the value last shown. `lastSeen` is
+	// plain on purpose: making it reactive would re-enter this effect.
+	let lastSeen = untrack(() => objective.title ?? '');
+	$effect(() => {
+		const incoming = objective.title ?? '';
+		if (incoming === lastSeen) return;
+		if (title === lastSeen) title = incoming;
+		lastSeen = incoming;
+	});
+
+	// The description is only a draft while the human is editing it. Otherwise
+	// the live row is the source, so an agent's edit shows up immediately.
+	let shownDescription = $derived(editingBody ? description : (objective.description ?? ''));
 
 	let dirty = $derived(
 		isSeed &&
@@ -47,9 +72,9 @@
 	);
 
 	let meta = $derived(
-		isSeed
-			? `#${objective.alias} · Seed · updated ${timeAgo(objective.updatedAt)}`
-			: `#${objective.alias} · Archived ${timeAgo(objective.deletedAt)}`
+		objective.deletedAt
+			? `#${objective.alias} · Archived ${timeAgo(objective.deletedAt)}`
+			: `#${objective.alias} · ${objective.planState || 'Seed'} · updated ${timeAgo(objective.updatedAt)}`
 	);
 
 	$effect(() => {
@@ -137,6 +162,9 @@
 		</div>
 
 		<div class="modal-body objective-modal-body">
+			{#if movedTo}
+				<p class="objective-modal-note" role="status">Moved to {movedTo}</p>
+			{/if}
 			{#if isSeed && editingBody}
 				<label class="sr-only" for="objective-modal-description">Description</label>
 				<MarkdownEditor
@@ -145,9 +173,9 @@
 					{campaignId}
 					rows={6}
 				/>
-			{:else if description}
+			{:else if shownDescription}
 				<div class="markdown-wrap">
-					<Markdown source={description} {campaignId} />
+					<Markdown source={shownDescription} {campaignId} />
 				</div>
 			{:else}
 				<p class="inline-empty">No description yet.</p>
@@ -161,7 +189,7 @@
 				>
 					{editingBody
 						? 'Done editing'
-						: description
+						: shownDescription
 							? 'Edit description'
 							: 'Add a description'}
 				</button>
@@ -181,8 +209,11 @@
 				>
 				<span class="modal-actions-group">
 					<button type="button" class="btn btn-ghost" onclick={onClose}>Cancel</button>
-					<button type="button" class="btn btn-secondary" onclick={() => onPromote?.()}
-						>Promote</button
+					<button
+						type="button"
+						class="btn btn-secondary"
+						onclick={() => onPromote?.()}
+						disabled={!!movedTo}>Promote</button
 					>
 					<button
 						type="button"
@@ -205,3 +236,12 @@
 		</div>
 	</div>
 </div>
+
+<style>
+	.objective-modal-note {
+		margin: 0;
+		font-size: 0.83rem;
+		line-height: 1.55;
+		color: var(--ink-muted);
+	}
+</style>

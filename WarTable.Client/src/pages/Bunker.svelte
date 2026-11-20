@@ -20,6 +20,7 @@
 	import { onActivity } from '../lib/events.svelte.js';
 	import Markdown from '../components/Markdown.svelte';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
+	import LiveChangeBanner from '../components/LiveChangeBanner.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
 
 	let { route } = $props();
@@ -82,6 +83,56 @@
 		supersedesId: ''
 	});
 	let editSaving = $state(false);
+	// Set by the banner through a bindable prop: while a divergence is unresolved
+	// the primary action is a guess, so it waits.
+	let bannerVisible = $state(false);
+
+	let editDirty = $derived(
+		!!editing &&
+			(editForm.title.trim() !== (editing.title ?? '').trim() ||
+				editForm.body !== (editing.body ?? '') ||
+				editForm.tags !== (editing.tags ?? '') ||
+				editForm.pinned !== !!editing.pinned ||
+				editForm.supersedesId !== (editing.supersedesId ?? ''))
+	);
+
+	// What the human has actually been shown. Adoption moves this forward; typing
+	// does not. The banner reports a field only when its live value differs from
+	// this, so a change the form already took in cannot resurface on a keystroke.
+	let lastShown = $state({ title: '', body: '', tags: '', pinned: false, supersedesId: '' });
+
+	let shownFields = $derived.by(() => {
+		if (!editing) return [];
+		const live = notes.find((n) => n.id === editing.id);
+		if (!live) return [];
+		return [
+			(live.title ?? '') === lastShown.title ? 'title' : null,
+			(live.body ?? '') === lastShown.body ? 'body' : null,
+			(live.tags ?? '') === lastShown.tags ? 'tags' : null,
+			!!live.pinned === lastShown.pinned ? 'pinned' : null,
+			(live.supersedesId ?? '') === lastShown.supersedesId ? 'supersedesId' : null
+		].filter(Boolean);
+	});
+
+	// Untouched fields follow the row; a diverged draft stays the human's.
+	$effect(() => {
+		if (!editing) return;
+		const live = notes.find((n) => n.id === editing.id);
+		if (!live) return;
+		const next = {
+			title: live.title ?? '',
+			body: live.body ?? '',
+			tags: live.tags ?? '',
+			pinned: !!live.pinned,
+			supersedesId: live.supersedesId ?? ''
+		};
+		for (const field of ['title', 'body', 'tags', 'pinned', 'supersedesId']) {
+			if (editForm[field] === lastShown[field] && next[field] !== lastShown[field]) {
+				editForm[field] = next[field];
+				lastShown[field] = next[field];
+			}
+		}
+	});
 
 	let objectiveById = $derived(
 		Object.fromEntries(objectives.map((objective) => [objective.id, objective]))
@@ -450,14 +501,36 @@
 	}
 
 	function startEdit(note) {
+		// `editing` is a detached snapshot, and `load()` replaces `notes` wholesale,
+		// so `editing.rowVersion` stays the token from open. That is what makes the
+		// save safe. Do not switch this to an id lookup into live state without
+		// capturing the token here first.
 		editing = note;
-		editForm = {
-			title: note.title || '',
-			body: note.body || '',
-			tags: note.tags || '',
-			pinned: !!note.pinned,
-			supersedesId: note.supersedesId || ''
+		adoptLiveNote();
+	}
+
+	// Reload means "take theirs, keep editing": the form and the token both move
+	// to the live note, so the next save does not 409 against what was just shown.
+	function adoptLiveNote() {
+		const live = notes.find((n) => n.id === editing.id) ?? editing;
+		editing = live;
+		const next = {
+			title: live.title || '',
+			body: live.body || '',
+			tags: live.tags || '',
+			pinned: !!live.pinned,
+			supersedesId: live.supersedesId || ''
 		};
+		editForm = { ...next };
+		lastShown = { ...next };
+	}
+
+	// Keep my text authorises the overwrite, so `editing` moves to the live note.
+	// Without this the save 409s against the change the human just chose to
+	// discard, and confirming that dialog closes the note and loses the draft.
+	function claimOverwriteNote() {
+		const live = notes.find((n) => n.id === editing.id);
+		if (live) editing = live;
 	}
 
 	async function saveEdit(event) {
@@ -1349,12 +1422,38 @@
 						<input type="checkbox" bind:checked={editForm.pinned} />
 						<span>Pinned</span>
 					</label>
+					<LiveChangeBanner
+						id={editing.id}
+						type="Note"
+						snapshot={editing}
+						read={() => notes.find((n) => n.id === editing.id) ?? editing}
+						readDraft={(field) =>
+							field === 'title'
+								? editForm.title
+								: field === 'body'
+									? editForm.body
+									: field === 'tags'
+										? editForm.tags
+										: field === 'pinned'
+											? editForm.pinned
+											: field === 'supersedesId'
+												? editForm.supersedesId
+												: undefined}
+						onReload={() => adoptLiveNote()}
+						onKeep={() => claimOverwriteNote()}
+						{shownFields}
+						bind:visible={bannerVisible}
+					/>
 				</div>
 				<div class="modal-actions">
 					<button type="button" class="btn btn-ghost" onclick={() => (editing = null)}
 						>Cancel</button
 					>
-					<button type="submit" class="btn btn-primary" disabled={editSaving}>
+					<button
+						type="submit"
+						class="btn btn-primary"
+						disabled={editSaving || !editDirty || bannerVisible}
+					>
 						{editSaving ? 'Saving…' : 'Save note'}
 					</button>
 				</div>

@@ -16,6 +16,7 @@
 	import Markdown from '../components/Markdown.svelte';
 	import MarkdownEditor from '../components/MarkdownEditor.svelte';
 	import StatusBadge from '../components/StatusBadge.svelte';
+	import LiveChangeBanner from '../components/LiveChangeBanner.svelte';
 	import StepCard from '../components/StepCard.svelte';
 
 	let { route } = $props();
@@ -33,7 +34,56 @@
 
 	let editing = $state(false);
 	let editForm = $state({ title: '', description: '' });
+	// The token belongs to the text, not to the row. Reading it from `objective`
+	// at save time would pair the refreshed token with text captured at open,
+	// which defeats optimistic concurrency and silently overwrites an agent's
+	// change. Captured here, the 409 fires as designed.
+	let editToken = $state(null);
+	// Snapshot for the live-change banner: frozen at open time so the banner can
+	// diff against the refetched row. Not used for concurrency; that is the
+	// token's job.
+	let editSnapshot = $state(null);
 	let saving = $state(false);
+	// Set by the banner through a bindable prop. While it is true there is a known
+	// divergence, so saving would be a guess.
+	let bannerVisible = $state(false);
+
+	let editDirty = $derived(
+		!!objective &&
+			(editForm.title.trim() !== (objective.title ?? '').trim() ||
+				editForm.description !== (objective.description ?? ''))
+	);
+
+	// What the human has actually been shown. Adoption moves this forward; typing
+	// does not. The banner reports a field only when its live value differs from
+	// this, so a change the form already took in cannot resurface on a keystroke.
+	let lastShown = $state({ title: '', description: '' });
+
+	let shownFields = $derived(
+		[
+			(objective?.title ?? '') === lastShown.title ? 'title' : null,
+			(objective?.description ?? '') === lastShown.description ? 'description' : null
+		].filter(Boolean)
+	);
+
+	// An untouched field follows the row. Once the draft differs from what we
+	// showed, it is the human's and no later write may overwrite it.
+	$effect(() => {
+		if (!editing || !objective) return;
+		const title = objective.title ?? '';
+		const description = objective.description ?? '';
+		if (editForm.title === lastShown.title && title !== lastShown.title) {
+			editForm.title = title;
+			lastShown.title = title;
+		}
+		if (
+			editForm.description === lastShown.description &&
+			description !== lastShown.description
+		) {
+			editForm.description = description;
+			lastShown.description = description;
+		}
+	});
 
 	let showAddStep = $state(false);
 	let newStep = $state({
@@ -131,23 +181,41 @@
 	}
 
 	function openEdit() {
-		editForm = {
-			title: objective?.title || '',
-			description: objective?.description || ''
-		};
+		adoptLiveObjective();
 		editing = true;
+	}
+
+	// Reload means "take theirs, keep editing", so the draft and the token both
+	// move to the live row. Keeping the old token would turn the next save into
+	// an immediate 409 against the version the human just adopted.
+	function adoptLiveObjective() {
+		const title = objective?.title ?? '';
+		const description = objective?.description ?? '';
+		editForm = { title, description };
+		lastShown = { title, description };
+		editToken = objective ? { id: objective.id, rowVersion: objective.rowVersion } : null;
+		editSnapshot = objective;
+	}
+
+	// Keeping your text is a decision to overwrite what the agent wrote, so the
+	// token moves to the live row. Without this the save would 409 against the
+	// very change the human just saw and chose to discard, and confirming that
+	// dialog would close the form and throw their words away.
+	function claimOverwriteObjective() {
+		if (!objective) return;
+		editToken = { id: objective.id, rowVersion: objective.rowVersion };
 	}
 
 	async function saveObjective(event) {
 		event.preventDefault();
-		if (!objective) return;
+		if (!objective || !editToken) return;
 		saving = true;
 		try {
-			await apiPut(`/api/objectives/${objective.id}`, {
+			await apiPut(`/api/objectives/${editToken.id}`, {
 				title: editForm.title.trim(),
 				description: editForm.description,
 				actor: ACTOR,
-				rowVersion: objective.rowVersion
+				rowVersion: editToken.rowVersion
 			});
 			addToast('Objective updated.', 'success');
 			editing = false;
@@ -723,12 +791,32 @@
 							rows={7}
 						/>
 					</div>
+					<LiveChangeBanner
+						id={editToken.id}
+						type="Objective"
+						snapshot={editSnapshot}
+						read={() => objective}
+						readDraft={(field) =>
+							field === 'description'
+								? editForm.description
+								: field === 'title'
+									? editForm.title
+									: undefined}
+						onReload={() => adoptLiveObjective()}
+						onKeep={() => claimOverwriteObjective()}
+						{shownFields}
+						bind:visible={bannerVisible}
+					/>
 				</div>
 				<div class="modal-actions">
 					<button type="button" class="btn btn-ghost" onclick={() => (editing = false)}
 						>Cancel</button
 					>
-					<button type="submit" class="btn btn-primary" disabled={saving}>
+					<button
+						type="submit"
+						class="btn btn-primary"
+						disabled={saving || !editDirty || bannerVisible}
+					>
 						{saving ? 'Saving…' : 'Save objective'}
 					</button>
 				</div>

@@ -18,6 +18,7 @@
 	import { addToast, showConfirm } from '../lib/stores.js';
 	import Markdown from './Markdown.svelte';
 	import MarkdownEditor from './MarkdownEditor.svelte';
+	import LiveChangeBanner from './LiveChangeBanner.svelte';
 	import StatusBadge from './StatusBadge.svelte';
 
 	/**
@@ -58,6 +59,74 @@
 	let saving = $state(false);
 	let editForm = $state({ title: '', context: '', assignee: '', assigner: '' });
 	let editDeps = $state([]);
+	// The token belongs to the text, not to the row. `step` is a live prop: the
+	// parent's keyed each block hands this card a fresh object after every
+	// refetch, so reading `step.rowVersion` at save time would pair the new token
+	// with text captured at open and silently overwrite an agent's change.
+	let editToken = $state(null);
+	// Snapshot for the live-change banner: the step as it was when the human
+	// opened the form. The banner diffs this against the refetched step.
+	let editSnapshot = $state(null);
+	// Set by the banner through a bindable prop: a known divergence means saving
+	// would be a guess, so the primary action waits for an explicit choice.
+	let bannerVisible = $state(false);
+
+	let editDirty = $derived(
+		editForm.title.trim() !== (step.title ?? '').trim() ||
+			editForm.context !== (step.context ?? '') ||
+			editForm.assignee !== (step.assignee ?? '') ||
+			editForm.assigner !== (step.assigner ?? '') ||
+			editDeps.join() !== deps.map((d) => d.stepId).join()
+	);
+
+	// What the human has actually been shown. Adoption moves this forward; typing
+	// does not, so a diverged field is exactly the one holding their own words.
+	let lastShown = $state({ title: '', context: '', assignee: '', assigner: '', deps: '' });
+
+	// Fields whose live value the human has already been shown. Adoption moves a
+	// field into this set; typing does not move it out, so a change the form
+	// already took in stays quiet instead of resurfacing on the next keystroke.
+	let shownFields = $derived(
+		[
+			(step.title ?? '') === lastShown.title ? 'title' : null,
+			(step.context ?? '') === lastShown.context ? 'context' : null,
+			(step.assignee ?? '') === lastShown.assignee ? 'assignee' : null,
+			(step.assigner ?? '') === lastShown.assigner ? 'assigner' : null,
+			deps.map((d) => d.stepId).join() === lastShown.deps ? 'dependsOn' : null
+		].filter(Boolean)
+	);
+
+	// Untouched fields follow the row; a diverged draft is the human's and stays.
+	$effect(() => {
+		if (!editing) return;
+		const live = {
+			title: step.title ?? '',
+			context: step.context ?? '',
+			assignee: step.assignee ?? '',
+			assigner: step.assigner ?? '',
+			deps: deps.map((d) => d.stepId).join()
+		};
+		if (editForm.title === lastShown.title && live.title !== lastShown.title) {
+			editForm.title = live.title;
+			lastShown.title = live.title;
+		}
+		if (editForm.context === lastShown.context && live.context !== lastShown.context) {
+			editForm.context = live.context;
+			lastShown.context = live.context;
+		}
+		if (editForm.assignee === lastShown.assignee && live.assignee !== lastShown.assignee) {
+			editForm.assignee = live.assignee;
+			lastShown.assignee = live.assignee;
+		}
+		if (editForm.assigner === lastShown.assigner && live.assigner !== lastShown.assigner) {
+			editForm.assigner = live.assigner;
+			lastShown.assigner = live.assigner;
+		}
+		if (editDeps.join() === lastShown.deps && live.deps !== lastShown.deps) {
+			editDeps = deps.map((d) => d.stepId);
+			lastShown.deps = live.deps;
+		}
+	});
 
 	let showUpdate = $state(false);
 	let updateBody = $state('');
@@ -111,15 +180,30 @@
 	}
 
 	function startEdit() {
-		editForm = {
-			title: step.title || '',
-			context: step.context || '',
-			assignee: step.assignee || '',
-			assigner: step.assigner || ''
-		};
-		editDeps = deps.map((d) => d.stepId);
+		adoptLiveStep();
 		editing = true;
 		contextOpen = false;
+	}
+
+	// Reload means "take theirs, keep editing": the draft and the token both move
+	// to the live step, so the next save does not 409 against what was just shown.
+	function adoptLiveStep() {
+		const title = step.title ?? '';
+		const context = step.context ?? '';
+		const assignee = step.assignee ?? '';
+		const assigner = step.assigner ?? '';
+		const nextDeps = deps.map((d) => d.stepId);
+		editForm = { title, context, assignee, assigner };
+		editDeps = nextDeps;
+		lastShown = { title, context, assignee, assigner, deps: nextDeps.join() };
+		editToken = { id: step.id, rowVersion: step.rowVersion };
+		editSnapshot = step;
+	}
+
+	// Keep my text authorises the overwrite, so the token follows the live step.
+	// Otherwise the save 409s against the change the human just chose to discard.
+	function claimOverwriteStep() {
+		editToken = { id: step.id, rowVersion: step.rowVersion };
 	}
 
 	async function saveEdit(event) {
@@ -128,16 +212,17 @@
 			addToast('A step needs a title.', 'warning');
 			return;
 		}
+		if (!editToken) return;
 		saving = true;
 		try {
-			await apiPut(`/api/steps/${step.id}`, {
+			await apiPut(`/api/steps/${editToken.id}`, {
 				title: editForm.title.trim(),
 				context: editForm.context,
 				assignee: editForm.assignee,
 				assigner: editForm.assigner,
 				dependsOn: editDeps,
 				actor: ACTOR,
-				rowVersion: step.rowVersion
+				rowVersion: editToken.rowVersion
 			});
 			addToast(`${ref} updated.`, 'success');
 			editing = false;
@@ -373,6 +458,28 @@
 					{/each}
 				</fieldset>
 			{/if}
+			<LiveChangeBanner
+				id={editToken.id}
+				type="Step"
+				snapshot={editSnapshot}
+				read={() => step}
+				readDraft={(field) =>
+					field === 'title'
+						? editForm.title
+						: field === 'context'
+							? editForm.context
+							: field === 'assignee'
+								? editForm.assignee
+								: field === 'assigner'
+									? editForm.assigner
+									: field === 'dependsOn'
+										? deps
+										: undefined}
+				onReload={() => adoptLiveStep()}
+				onKeep={() => claimOverwriteStep()}
+				{shownFields}
+				bind:visible={bannerVisible}
+			/>
 			<div class="form-actions inline-actions">
 				<button
 					type="button"
@@ -381,7 +488,11 @@
 				>
 					Cancel
 				</button>
-				<button type="submit" class="btn btn-primary btn-sm" disabled={saving}>
+				<button
+					type="submit"
+					class="btn btn-primary btn-sm"
+					disabled={saving || !editDirty || bannerVisible}
+				>
 					{saving ? 'Saving…' : 'Save step'}
 				</button>
 			</div>
