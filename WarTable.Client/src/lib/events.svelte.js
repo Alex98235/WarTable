@@ -223,3 +223,104 @@ export function reconnectLive() {
 	attempts = 0;
 	connect();
 }
+
+// Fields that change on every write and say nothing about what the human cares
+// about. Reporting them would make every diff look like a change.
+const VOLATILE_FIELDS = new Set(['updatedAt', 'rowVersion', 'createdAt']);
+
+/**
+ * A plain copy of a row. The caller's object is usually a `$state` proxy, and a
+ * baseline that shares the proxy would move with any in-place mutation, making
+ * the diff permanently empty. Rows are JSON, so this is lossless.
+ * @param {object|null} value
+ */
+function cloneRow(value) {
+	return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * Field-level difference between the object a form opened with and the object
+ * the page now holds. Arrays are compared by length only: a step list is the
+ * one array that matters, and "2 steps added" is the useful sentence.
+ * @param {object|null} base
+ * @param {object|null} current
+ * @returns {Array<{field: string, from: any, to: any, kind: 'value'|'count'}>}
+ */
+function diffFields(base, current) {
+	if (!base || !current) return [];
+	const out = [];
+	for (const field of Object.keys(base)) {
+		if (VOLATILE_FIELDS.has(field)) continue;
+		const before = base[field];
+		const after = current[field];
+		if (Array.isArray(before) && Array.isArray(after)) {
+			if (before.length !== after.length) {
+				out.push({ field, from: before.length, to: after.length, kind: 'count' });
+			}
+			continue;
+		}
+		if (before === after) continue;
+		if (before && after && typeof before === 'object' && typeof after === 'object') {
+			if (JSON.stringify(before) === JSON.stringify(after)) continue;
+		}
+		out.push({ field, from: before, to: after, kind: 'value' });
+	}
+	return out;
+}
+
+/**
+ * Follow one entity while a form is open.
+ *
+ * The value is read from the caller's live state, not fetched here: every page
+ * that needs this already refetches on activity, and a second fetch per event
+ * would race the first. The subscription exists only to record who claimed the
+ * change, which the payload carries and the object does not.
+ *
+ * Call once during component initialisation.
+ *
+ * @param {object} options
+ * @param {string} options.id entity id, matched against the event's `entity_id`
+ * @param {string|null} [options.type] entity type, matched against `entity_type`
+ * @param {object} options.snapshot the object as it was when the form opened
+ * @param {() => object|null} options.read returns the current object from live state
+ * @returns {{current: object|null, changes: Array<object>, lastActor: string|null, lastAction: string|null, rebaseline: () => void}}
+ */
+export function liveEntity({ id, type = null, snapshot, read }) {
+	let base = $state.raw(cloneRow(snapshot));
+	let lastActor = $state(null);
+	let lastAction = $state(null);
+
+	// Reactive on the caller's state, so a refetch that lands after this
+	// listener runs is still seen. A resync (null) needs no special case.
+	const current = $derived(read());
+	const changes = $derived(diffFields(base, current));
+
+	$effect(() => {
+		return onActivity((event) => {
+			if (!event) return;
+			if (event.entity_id !== id) return;
+			if (type && event.entity_type !== type) return;
+			lastActor = event.actor ?? null;
+			lastAction = event.action ?? null;
+		});
+	});
+
+	return {
+		get current() {
+			return current;
+		},
+		get changes() {
+			return changes;
+		},
+		get lastActor() {
+			return lastActor;
+		},
+		get lastAction() {
+			return lastAction;
+		},
+		/** Adopt the current object as the new baseline, e.g. after a save. */
+		rebaseline() {
+			base = cloneRow(current);
+		}
+	};
+}

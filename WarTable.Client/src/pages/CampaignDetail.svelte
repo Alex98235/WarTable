@@ -27,6 +27,7 @@
 
 	let campaign = $state(null);
 	let objectives = $state([]);
+	let objectivesLoaded = $state(false);
 	let objectiveDetails = $state({});
 	let notes = $state([]);
 	let preferences = $state([]);
@@ -76,10 +77,23 @@
 	let seedInputEl = $state(null);
 
 	// The modal is the first-class surface for the two row types that have no
-	// page: a live seed and an archived objective.
-	let previewObjective = $state(null);
+	// page: a live seed and an archived objective. It follows the row by id so
+	// an agent's edit lands in the open modal instead of stranding it on a
+	// snapshot. The fallback is the row captured at open: a refetch that comes
+	// back empty must not unmount the modal and throw away the human's draft.
+	let previewId = $state(null);
+	let previewFallback = $state(null);
+	let previewObjective = $derived(
+		previewId
+			? (objectives.find((objective) => objective.id === previewId) ?? previewFallback)
+			: null
+	);
 	let previewMode = $state('seed');
 	let previewOpener = null;
+	// Captured at open, not at save. The modal now reads a live row, so a token
+	// read at save time would pair a refreshed rowVersion with text captured at
+	// open and silently overwrite whatever the agent just wrote.
+	let previewToken = null;
 
 	// The list carries archived rows too, so restore and purge have a read path.
 	// Everything the plan renders is live; the archived band is the only consumer
@@ -187,6 +201,7 @@
 			campaign = campaignData;
 			notes = Array.isArray(noteData) ? noteData : [];
 			objectives = Array.isArray(objectiveData) ? objectiveData : [];
+			objectivesLoaded = true;
 			preferences = Array.isArray(prefData) ? prefData.filter((p) => p.active) : [];
 
 			// Archived objectives have no detail route: the single-objective read
@@ -244,7 +259,13 @@
 	function openPreview(objective, mode, opener) {
 		previewMode = mode;
 		previewOpener = opener || null;
-		previewObjective = objective;
+		previewFallback = objective;
+		previewToken = {
+			id: objective.id,
+			rowVersion: objective.rowVersion,
+			archived: !!objective.deletedAt
+		};
+		previewId = objective.id;
 	}
 
 	/**
@@ -252,7 +273,9 @@
 	 * leave the band: promote, archive, restore and purge all move the opener.
 	 */
 	function closePreview({ restoreFocus = true } = {}) {
-		previewObjective = null;
+		previewId = null;
+		previewFallback = null;
+		previewToken = null;
 		const opener = previewOpener;
 		previewOpener = null;
 		if (restoreFocus && opener) requestAnimationFrame(() => opener.focus());
@@ -405,6 +428,10 @@
 	}
 
 	function openObjectiveEdit(objective) {
+		// `editingObjective` is a detached snapshot, and `load()` replaces
+		// `objectives` wholesale, so `editingObjective.rowVersion` stays the token
+		// from open. That is what makes the save safe. Do not switch this to an id
+		// lookup into live state without capturing the token here first.
 		editingObjective = objective;
 		objectiveEditForm = {
 			title: objective.title || '',
@@ -472,13 +499,17 @@
 	}
 
 	async function saveSeed(seed, form) {
+		if (!previewToken) return false;
 		try {
-			await apiPut(`/api/objectives/${seed.id}`, {
+			await apiPut(`/api/objectives/${previewToken.id}`, {
 				title: form.title,
 				description: form.description,
-				planState: 'Seed',
+				// The row may have been promoted while the modal was open. Send the
+				// live state so a save never drags it back to Seed; a stale token
+				// still turns the write into a 409.
+				planState: seed.planState || 'Seed',
 				actor: ACTOR,
-				rowVersion: seed.rowVersion
+				rowVersion: previewToken.rowVersion
 			});
 			addToast('Seed updated.', 'success');
 			closePreview();
@@ -740,6 +771,31 @@
 
 	$effect(() => {
 		return onActivity(() => load({ silent: true }));
+	});
+
+	// The modal follows the row by id, so a refetch can reveal that the row left
+	// the plan while the human was reading it. Close with an explanation rather
+	// than leaving a dead end. An empty list is a failed read, not a deletion:
+	// the fallback keeps the modal and the draft alive.
+	$effect(() => {
+		if (!previewId) return;
+		const live = objectives.find((objective) => objective.id === previewId);
+		if (!live) {
+			if (objectivesLoaded && objectives.length > 0) {
+				addToast('That objective was deleted.', 'warning');
+				closePreview({ restoreFocus: false });
+			}
+			return;
+		}
+		if (live.deletedAt && !previewToken?.archived) {
+			addToast(
+				previewMode === 'seed'
+					? 'That seed was archived. It is in the Archived band.'
+					: 'That objective was archived. It is in the Archived band.',
+				'warning'
+			);
+			closePreview({ restoreFocus: false });
+		}
 	});
 </script>
 

@@ -1870,6 +1870,7 @@ img {
 	gap: 16px;
 	margin-top: 14px;
 	padding: 10px 14px;
+	margin-bottom: 1em;
 	border: 1px solid var(--line);
 	border-left: 3px solid var(--brass-deep);
 	border-radius: var(--radius-xs);
