@@ -123,7 +123,9 @@ keeps the design and contributor references.
 
 ## License and security
 
-WarTable is released under the [MIT License](LICENSE).
+WarTable is released under the [MIT License](LICENSE). The bundled frontend
+dependencies and their licence texts are listed in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
 
 It has no accounts, login, API keys, or TLS. Anyone who can reach the port can
 read and change campaign data, so run it only on a trusted LAN. Report
